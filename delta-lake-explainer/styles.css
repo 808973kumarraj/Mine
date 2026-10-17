@@ -1,0 +1,119 @@
+:root {
+  --bg: #0E151D;
+  --panel: #141D27;
+  --line: #22303D;
+  --line-2: #2A3846;
+  --text: #E6EDF3;
+  --text-2: #C4CED8;
+  --muted: #9AA7B4;
+  --faint: #6F7D8A;
+  --teal: #2FB7A0;
+  --teal-light: #5FD4BF;
+  --teal-pale: #9BE8DA;
+  --teal-deep: #13302C;
+  --amber: #F2A33A;
+  --red: #E5735A;
+  --mono: 'IBM Plex Mono', monospace;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+
+.app {
+  max-width: 1280px; min-height: 100vh; margin: 0 auto;
+  padding: 36px 44px 28px; display: flex; flex-direction: column; gap: 22px;
+}
+.mono { font-family: var(--mono); }
+.muted { font-size: 13px; color: var(--muted); }
+
+.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.titles { display: flex; flex-direction: column; gap: 6px; }
+.eyebrow { font-family: var(--mono); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--teal-light); }
+h1 { margin: 0; font-size: 38px; font-weight: 700; letter-spacing: -.01em; }
+
+.controls { display: flex; align-items: center; gap: 10px; }
+.version { font-family: var(--mono); font-size: 14px; color: var(--muted); margin-right: 8px; }
+.version span { color: var(--amber); font-weight: 600; font-size: 20px; }
+
+.btn {
+  height: 44px; border-radius: 10px; border: 1px solid var(--line-2); background: #16202B; color: var(--text);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .2s;
+  font-family: inherit;
+}
+.btn:hover { background: #243241; }
+.btn.icon { width: 44px; }
+.btn.play { padding: 0 18px; gap: 8px; border-color: var(--teal); background: var(--teal-deep); color: var(--teal-pale); font-size: 15px; font-weight: 600; }
+
+.grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 340px 1fr 1fr; gap: 20px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.panel.story { padding: 24px; gap: 14px; }
+.panel-head { display: flex; align-items: center; gap: 10px; }
+.head-title { font-size: 15px; font-weight: 600; }
+
+.step-no { font-family: var(--mono); font-size: 13px; color: var(--amber); letter-spacing: .08em; }
+.story-body { display: flex; flex-direction: column; gap: 14px; }
+.story-body h2 { margin: 0; font-size: 26px; line-height: 1.2; font-weight: 700; }
+.story-body .code { font-family: var(--mono); font-size: 13px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; color: var(--teal-pale); }
+.story-body p { margin: 0; font-size: 15.5px; line-height: 1.6; color: var(--text-2); }
+.story-body .key { margin-top: 4px; padding: 12px 14px; border-radius: 10px; background: #1B2633; font-size: 14px; line-height: 1.5; }
+.story-body .key b { color: var(--amber); font-weight: 600; }
+
+.commits { display: flex; flex-direction: column; gap: 9px; }
+.commit { border: 1px solid var(--line-2); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; background: var(--bg); }
+.commit.cp { border-color: var(--amber); background: #241C10; }
+.commit.new { border-color: var(--teal); }
+.commit-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.commit-name { font-family: var(--mono); font-size: 13.5px; font-weight: 600; color: var(--teal-pale); }
+.commit.cp .commit-name { color: var(--amber); }
+.commit-who { font-size: 12px; color: var(--muted); }
+.commit-actions { font-family: var(--mono); font-size: 12.5px; line-height: 1.55; color: var(--text-2); white-space: pre-line; }
+.conflict { border: 1px dashed var(--red); border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.5; color: #F4B3A3; background: #2A1714; }
+.conflict code { font-family: var(--mono); }
+
+.files { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.file { border: 1px solid var(--line-2); border-radius: 10px; padding: 12px; background: var(--bg); display: flex; flex-direction: column; gap: 4px; }
+.file-name { font-family: var(--mono); font-size: 13.5px; font-weight: 600; }
+.file-tag { font-size: 12.5px; }
+
+.reader { margin-top: auto; border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.snapshot { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--mono); font-size: 12.5px; padding: 5px 9px; border-radius: 6px; color: var(--bg); font-weight: 600; }
+
+.timeline { display: flex; flex-direction: column; gap: 10px; }
+.track { position: relative; height: 4px; border-radius: 2px; background: var(--line); margin: 0 20px; }
+.fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; background: var(--teal); transition: width .5s ease; }
+.steps { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.step {
+  min-height: 52px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel);
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;
+  padding: 6px 12px; font-family: inherit; text-align: left; cursor: pointer; transition: background .2s;
+}
+.step:hover { background: #243241; }
+.step .num { font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+.step .label { font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.step.done .label { color: var(--text); }
+.step.active, .step.active:hover { border-color: var(--teal); background: var(--teal-light); }
+.step.active .num { color: var(--teal-deep); }
+.step.active .label { color: var(--bg); }
+
+.anim { transition: all .5s ease; }
+@keyframes dlpop { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes dlglow { 0% { box-shadow: 0 0 0 0 rgba(47,183,160,.55); } 100% { box-shadow: 0 0 0 12px rgba(47,183,160,0); } }
+.fresh { animation: dlpop .6s cubic-bezier(.2,.8,.2,1) both, dlglow 1.4s ease-out .2s 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fresh { animation: none; }
+  .anim, .fill { transition: none; }
+}
+
+@media (max-width: 1000px) {
+  .grid { grid-template-columns: 1fr 1fr; }
+  .panel.story { grid-column: 1 / -1; }
+  .steps { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .app { padding: 24px 16px; }
+  h1 { font-size: 30px; }
+  .grid { grid-template-columns: 1fr; }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
