@@ -38,6 +38,60 @@
     { name: 'part-002', add: 1 }, { name: 'part-003', add: 2 },
     { name: 'part-004', add: 3 }, { name: 'part-005', add: 3 }
   ];
+  // Per-step engine internals: the ordered work the engine does, plus the raw file it reads or writes.
+  const INTERNALS = [
+    { flow: [
+        'Spark writes each task’s output as a <code>part-*.parquet</code> file in the table directory and collects per-file stats (row count, min/max per column).',
+        'The driver builds the commit: <code>protocol</code>, <code>metaData</code> (schema as JSON, partition columns) and one <code>add</code> per file.',
+        'It writes the commit as newline-delimited JSON to <code>_delta_log/</code>. Until that file exists, the table does not exist.'
+      ],
+      path: '_delta_log/00000000000000000000.json',
+      raw: '{"commitInfo":{"operation":"WRITE","operationParameters":{"mode":"ErrorIfExists"}}}\n{"protocol":{"minReaderVersion":1,"minWriterVersion":2}}\n{"metaData":{"id":"<table-uuid>","format":{"provider":"parquet"},\n  "schemaString":"{\\"type\\":\\"struct\\",\\"fields\\":[…]}","partitionColumns":[]}}\n{"add":{"path":"part-000.parquet","dataChange":true,"stats":"{\\"numRecords\\":…}"}}\n{"add":{"path":"part-001.parquet","dataChange":true,"stats":"{\\"numRecords\\":…}"}}' },
+    { flow: [
+        'The writer loads the current snapshot (version 0) to check the new rows match the table schema.',
+        'New Parquet files are written first. Readers ignore them: a file only counts once an <code>add</code> action names it.',
+        'Writing <code>00…01.json</code> is the commit point. A crash before it leaves orphan files that VACUUM later removes.'
+      ],
+      path: '_delta_log/00000000000000000001.json',
+      raw: '{"commitInfo":{"operation":"WRITE","operationParameters":{"mode":"Append"},"readVersion":0}}\n{"add":{"path":"part-002.parquet","dataChange":true,"stats":"{\\"numRecords\\":…,\\"minValues\\":{…},\\"maxValues\\":{…}}"}}' },
+    { flow: [
+        'The engine uses the min/max stats in each <code>add</code> to skip files that cannot contain <code>id = 7</code> (data skipping).',
+        'Each candidate file is scanned. Files with a matching row are rewritten in full with the change applied.',
+        'The commit pairs a <code>remove</code> (with a deletion timestamp) for the old file and an <code>add</code> for the new one.'
+      ],
+      path: '_delta_log/00000000000000000002.json',
+      raw: '{"commitInfo":{"operation":"UPDATE","operationParameters":{"predicate":"(id = 7)"},"readVersion":1}}\n{"remove":{"path":"part-001.parquet","deletionTimestamp":<ms>,"dataChange":true}}\n{"add":{"path":"part-003.parquet","dataChange":true,"stats":"{…}"}}' },
+    { flow: [
+        'Both writers read snapshot v2 and record <code>readVersion: 2</code> and what they read.',
+        'Each tries to create <code>00…03.json</code> with put-if-absent. HDFS and ADLS do this natively; S3 needs a coordinating LogStore (for example DynamoDB).',
+        'B loses. It reads commit 003 and checks for overlap: did A touch files or partitions B read? Two blind appends do not conflict.',
+        'No conflict, so B retries as <code>00…04.json</code>. If they had overlapped, B would fail with a <code>Concurrent…Exception</code>.'
+      ],
+      path: '_delta_log/00000000000000000004.json',
+      raw: '{"commitInfo":{"operation":"WRITE","operationParameters":{"mode":"Append"},\n  "readVersion":2,"isBlindAppend":true}}\n{"add":{"path":"part-005.parquet","dataChange":true,"stats":"{…}"}}' },
+    { flow: [
+        'After a commit, the writer replays the log to get the full state: the live <code>add</code>s, plus <code>remove</code>s kept as tombstones.',
+        'It writes that state as one Parquet file, <code>00…04.checkpoint.parquet</code>, one row per action.',
+        'It updates <code>_last_checkpoint</code>. A reader opens that file, loads the checkpoint, then lists and applies only the JSON commits after it.'
+      ],
+      path: '_delta_log/_last_checkpoint',
+      raw: '{"version":4,"size":<actions>}\n\n-- reader algorithm --\nstate = load(00000000000000000004.checkpoint.parquet)\nfor commit in list(_delta_log, after=4):\n    apply(state, commit)   # add → live, remove → tombstone' },
+    { flow: [
+        '<code>VERSION AS OF 1</code> pins the snapshot. For <code>TIMESTAMP AS OF</code>, the engine maps the time to a version from commit timestamps.',
+        'No checkpoint is ≤ v1, so the reader replays <code>00…00.json</code> and <code>00…01.json</code> only.',
+        'The live set at v1 is part-000, 001 and 002. part-001 can still be read because its file is still on disk.'
+      ],
+      path: 'replay to v1',
+      raw: 'v0  + part-000   + part-001\nv1  + part-002\n------------------------------\nlive @ v1 = { part-000, part-001, part-002 }\n(commits 002+ are ignored)' },
+    { flow: [
+        'VACUUM lists every file in the table directory and compares it with the files referenced by the current snapshot.',
+        'Files not referenced, and older than <code>delta.deletedFileRetentionDuration</code> (7 days by default), are deleted from storage.',
+        'The log itself is not touched here. Old JSON commits expire separately, after <code>delta.logRetentionDuration</code> (30 days by default) when a checkpoint is written.'
+      ],
+      path: 'VACUUM sales RETAIN 168 HOURS',
+      raw: 'referenced @ v4 = { part-000, 002, 003, 004, 005 }\non disk         = { part-000, 001, 002, 003, 004, 005 }\n------------------------------------------------\ndelete part-001   # tombstoned at v2, past retention\n\nVERSION AS OF 1 → fails: part-001 no longer exists' }
+  ];
+
   const VERS = [0, 1, 2, 4, 4, 4, 4];
   const TIME_TRAVEL = 5;
 
@@ -134,6 +188,18 @@
     });
   }
 
+  function renderInternals(info) {
+    const box = el('div', 'internals-body fresh');
+    const flow = el('ol', 'flow');
+    // Flow text is static, trusted copy from INTERNALS above.
+    info.flow.forEach((line) => { const li = el('li'); li.innerHTML = line; flow.append(li); });
+    const raw = el('div', 'raw');
+    raw.append(el('div', 'raw-path', info.path), el('pre', '', info.raw));
+    box.append(flow, raw);
+    $('internals').replaceWith(box);
+    box.id = 'internals';
+  }
+
   function renderSteps() {
     const wrap = $('steps');
     if (!wrap.children.length) {
@@ -164,6 +230,7 @@
     renderCommits(tt);
     renderFiles(tt);
     renderSnapshot(tt);
+    renderInternals(INTERNALS[step]);
     renderSteps();
     schedule();
   }
