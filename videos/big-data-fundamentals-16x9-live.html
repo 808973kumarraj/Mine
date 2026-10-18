@@ -9,6 +9,7 @@
 #top button.on{background:var(--coral);color:#fff}
 #top button:focus-visible{outline:2px solid var(--ink)}
 #top b{font-weight:600;margin-right:6px}
+#top .st{opacity:.7;margin-left:6px;font-variant-numeric:tabular-nums}
 iframe{position:fixed;left:env(safe-area-inset-left,0px);right:env(safe-area-inset-right,0px);top:calc(52px + env(safe-area-inset-top,0px));bottom:env(safe-area-inset-bottom,0px);width:calc(100% - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));height:calc(100% - 52px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));border:0;background:var(--bg)}
 #load{position:fixed;inset:calc(52px + env(safe-area-inset-top,0px)) 0 0 0;display:grid;place-items:center;color:var(--muted);pointer-events:none}
 </style>
@@ -10301,9 +10302,10 @@ parent.postMessage('hf-ready','*')})})();<%/script></body>
 const dec=id=>document.getElementById(id).textContent.split('<%/script').join('</script').split('<%!--').join('<!--');
 const GS=dec('lib-gsap'),RT=dec('lib-rt');
 const T=["What is big data?", "Distributed systems", "Hadoop & HDFS", "MapReduce", "Apache Spark", "Kafka & streaming", "Lakes & warehouses", "Putting it together"],nav=document.getElementById('top'),f=document.getElementById('f'),ld=document.getElementById('load');let cur=-1,auto=false;
-const bs=T.map((t,i)=>{const b=document.createElement('button');b.innerHTML='<b>'+(i+1)+'</b>'+t;b.onclick=()=>open(i,false);nav.append(b);return b});
+const DU=[215.642, 224.838, 226.885, 214.662, 228.89, 228.486, 235.397, 227.247],OFF=DU.map((d,i)=>DU.slice(0,i).reduce((a,b)=>a+b,0)),TOT=DU.reduce((a,b)=>a+b,0),fm=x=>Math.floor(x/60)+':'+String(Math.floor(x%60)).padStart(2,'0');
+const bs=T.map((t,i)=>{const b=document.createElement('button');b.innerHTML='<b>'+(i+1)+'</b>'+t+' <span class="st">'+fm(OFF[i])+'</span>';b.onclick=()=>open(i,false);nav.append(b);return b});
 function open(i,a){cur=i;auto=a;ld.hidden=false;bs.forEach((b,j)=>b.classList.toggle('on',j===i));bs[i].scrollIntoView({inline:'center',block:'nearest'});
-f.srcdoc=dec('ch'+i).split('@@GSAP@@').join(GS).split('@@RT@@').join(RT);}
+f.srcdoc=dec('ch'+i).split('@@GSAP@@').join(GS).split('@@RT@@').join(RT).split("tt.textContent=f(+sk.value)+' / '+f(D)").join("tt.textContent=f(OFF_+(+sk.value))+' / '+f(TOT_)").split("tt.textContent=f(t)+' / '+f(D)").join("tt.textContent=f(OFF_+t)+' / '+f(TOT_)").replace('<head>','<head><script>var OFF_='+OFF[i]+',TOT_='+TOT+';</script>');}
 addEventListener('message',e=>{if(e.source!==f.contentWindow)return;if(e.data==='hf-ready'){ld.hidden=true;if(auto)f.contentWindow.postMessage('hf-play','*')}
 if(e.data==='hf-ended'&&cur<7)open(cur+1,true)});
 open(0,false);
