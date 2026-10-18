@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Spark Works</title>
+<style>
+:root{--bg:#0f1220;--panel:#181c30;--ink:#eef1ff;--mute:#9aa3c7;--spark:#e25a1c;--blue:#4f8cff;--green:#3ccf91;--yellow:#ffc845;--line:#2c3354}
+:root[data-theme="light"]{--bg:#f6f7fb;--panel:#fff;--ink:#141830;--mute:#5a6285;--line:#d6dbef}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px}
+h1{font-size:1.2rem;margin:4px 0 12px;color:var(--mute);font-weight:600}
+#stage{position:relative;width:100%;max-width:960px;aspect-ratio:16/9;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.scene{position:absolute;inset:0;opacity:0;transition:opacity .6s;display:flex;align-items:center;justify-content:center}
+.scene.on{opacity:1}
+svg{width:100%;height:100%}
+text{fill:var(--ink);font-family:inherit}
+.t{font-size:44px;font-weight:800}.s{font-size:22px;fill:var(--mute)}.l{font-size:18px;font-weight:600}.xs{font-size:14px;fill:var(--mute)}
+.box{fill:var(--bg);stroke:var(--line);stroke-width:2;rx:12}
+.on .pop{animation:pop .6s both}
+.on .fade{animation:fade .8s both}
+.on .draw{stroke-dasharray:600;stroke-dashoffset:600;animation:draw 1.2s forwards}
+.on .flow{animation:flow 2s linear infinite}
+.on .pulse{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
+@keyframes fade{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes flow{from{stroke-dashoffset:40}to{stroke-dashoffset:0}}
+@keyframes pulse{50%{opacity:.4}}
+.pop,.fade{transform-box:fill-box;transform-origin:center}
+#cap{width:100%;max-width:960px;min-height:3.6em;margin:12px 0;font-size:1.05rem;line-height:1.5;text-align:center}
+#bar{width:100%;max-width:960px;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+#fill{height:100%;width:0;background:var(--spark);transition:width .4s}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+button{background:var(--spark);color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:1rem;font-weight:600;cursor:pointer}
+button.g{background:var(--line);color:var(--ink)}
+#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:5}
+#overlay button{font-size:1.3rem;padding:16px 32px}
+</style>
+</head>
+<body>
+<h1>How Apache Spark Works — narrated explainer</h1>
+<div id="stage">
+  <div id="overlay"><button id="start">▶ Play with voice</button></div>
+
+  <!-- 0 Title -->
+  <div class="scene"><svg viewBox="0 0 960 540">
+    <g class="pop"><path d="M480 120 l18 50 52 4 -40 33 13 51 -43 -28 -43 28 13 -51 -40 -33 52 -4z" fill="var(--spark)" class="pulse"/></g>
+    <text x="480" y="340" text-anchor="middle" class="t fade" style="animation-delay:.3s">How Apache Spark Works</text>
+    <text x="480" y="390" text-anchor="middle" class="s fade" style="animation-delay:.7s">Distributed, in-memory data processing</text>
+  </svg></div>
+
+  <!-- 1 Problem -->
+  <div class="scene"><svg viewBox="0 0 960 540">
+    <text x="480" y="70" text-anchor="middle" class="l">Too much data for one machine</text>
+    <g class="pop"><rect x="120" y="170" width="200" height="200" class="box"/><text x="220" y="280" text-anchor="middle" class="l">1 computer</text><text x="220" y="310" text-anchor="middle" class="xs">😰 hours…</text></g>
+    <g class="fade" style="animation-delay:.5s"><text x="480" y="280" text-anchor="middle" class="t" fill="var(--spark)" style="fill:var(--spark)">→</text></g>
+    <g style="animation-delay:.9s" class="fade">
+      <rect x="600" y="140" width="100" height="100" class="box"/><rect x="720" y="140" width="100" height="100" class="box"/>
+      <rect x="600" y="260" width="100" height="100" class="box"/><rect x="720" y="260" width="100" height="100" class="box"/>
+      <text x="710" y="400" text-anchor="middle" class="l">many computers ⚡</text>
+    </g>
+  </svg></div>
+
+  <!-- 2 Architecture -->
+  <div class="scene"><svg viewBox="0 0 960 540">
+    <g class="pop"><rect x="380" y="40" width="200" height="80" class="box" style="stroke:var(--spark)"/><text x="480" y="78" text-anchor="middle" class="l">Driver</text><text x="480" y="100" text-anchor="middle" class="xs">SparkContext</text></g>
+    <g class="pop" style="animation-delay:.4s"><rect x="380" y="200" width="200" height="70" class="box" style="stroke:var(--yellow)"/><text x="480" y="242" text-anchor="middle" class="l">Cluster Manager</text></g>
+    <line x1="480" y1="120" x2="480" y2="200" stroke="var(--yellow)" stroke-width="3" class="draw" style="animation-delay:.6s"/>
+    <g class="fade" style="animation-delay:1s">
+      <rect x="90" y="360" width="220" height="120" class="box" style="stroke:var(--blue)"/><text x="200" y="395" text-anchor="middle" class="l">Executor 1</text>
+      <rect x="370" y="360" width="220" height="120" class="box" style="stroke:var(--blue)"/><text x="480" y="395" text-anchor="middle" class="l">Executor 2</text>
+      <rect x="650" y="360" width="220" height="120" class="box" style="stroke:var(--blue)"/><text x="760" y="395" text-anchor="middle" class="l">Executor 3</text>
+      <g fill="var(--green)"><rect x="110" y="420" width="50" height="36" rx="6"/><rect x="175" y="420" width="50" height="36" rx="6"/><rect x="390" y="420" width="50" height="36" rx="6"/><rect x="455" y="420" width="50" height="36" rx="6"/><rect x="670" y="420" width="50" height="36" rx="6"/><rect x="735" y="420" width="50" height="36" rx="6"/></g>
+      <text x="480" y="510" text-anchor="middle" class="xs">green = tasks running in parallel</text>
+    </g>
+    <g stroke="var(--blue)" stroke-width="3" fill="none">
+      <path d="M440 270 L200 360" class="draw" style="animation-delay:1.3s"/><path d="M480 270 L480 360" class="draw" style="animation-delay:1.3s"/><path d="M520 270 L760 360" class="draw" style="animation-delay:1.3s"/>
+    </g>
+  </svg></div>
+
+  <!-- 3 RDD / partitions -->
+  <div class="scene"><svg viewBox="0 0 960 540">
+    <text x="480" y="70" text-anchor="middle" class="l">Data is split into partitions</text>
+    <g class="pop"><rect x="330" y="110" width="300" height="80" rx="12" fill="var(--blue)" opacity=".85"/><text x="480" y="158" text-anchor="middle" class="l" style="fill:#fff">Big Dataset (RDD / DataFrame)</text></g>
+    <g stroke="var(--mute)" stroke-width="2"><path d="M400 190 L180 320" class="draw" style="animation-delay:.6s"/><path d="M450 190 L380 320" class="draw" style="animation-delay:.6s"/><path d="M510 190 L580 320" class="draw" style="animation-delay:.6s"/><path d="M560 190 L780 320" class="draw" style="animation-delay:.6s"/></g>
+    <g class="fade" style="animation-delay:1.2s">
+      <rect x="120" y="320" width="120" height="70" rx="10" fill="var(--green)"/><text x="180" y="362" text-anchor="middle" class="l" style="fill:#0f1220">P1</text>
+      <rect x="320" y="320" width="120" height="70" rx="10" fill="var(--green)"/><text x="380" y="362" text-anchor="middle" class="l" style="fill:#0f1220">P2</text>
+      <rect x="520" y="320" width="120" height="70" rx="10" fill="var(--green)"/><text x="580" y="362" text-anchor="middle" class="l" style="fill:#0f1220">P3</text>
+      <rect x="720" y="320" width="120" height="70" rx="10" fill="var(--green)"/><text x="780" y="362" text-anchor="middle" class="l" style="fill:#0f1220">P4</text>
+      <text x="480" y="450" text-anchor="middle" class="s">Immutable · Distributed · Fault-tolerant (rebuilt from lineage)</text>
+    </g>
+  </svg></div>
+
+  <!-- 4 Lazy evaluation -->
+  <div class="scene"><svg viewBox="0 0 960 540">
+    <text x="480" y="60" text-anchor="middle" class="l">Transformations are lazy — Actions trigger work</text>
+    <g class="fade"><rect x="60" y="130" width="190" height="70" class="box"/><text x="155" y="172" text-anchor="middle" class="l">read()</text></g>
+    <g class="fade" style="animation-delay:.4s"><rect x="290" y="130" width="190" height="70" class="box"/><text x="385" y="172" text-anchor="middle" class="l">filter()</text></g>
+    <g class="fade" style="animation-delay:.8s"><rect x="520" y="130" width="190" height="70" class="box"/><text x="615" y="172" text-anchor="middle" class="l">map()</text></g>
+    <text x="385" y="240" text-anchor="middle" class="xs fade" style="animation-delay:1s">transformations: only recorded in a plan 📝</text>
+    <g class="pop" style="animation-delay:1.6s"><rect x="750" y="120" width="160" height="90" rx="12" fill="var(--spark)"/><text x="830" y="172" text-anchor="middle" class="l" style="fill:#fff">count()</text></g>
+    <text x="830" y="240" text-anchor="middle" class="xs fade" style="animation-delay:1.8s">action: run it! 🚀</text>
+    <path d="M250 165 H290 M480 165 H520 M710 165 H750" stroke="var(--yellow)" stroke-width="3" stroke-dasharray="8 8" class="flow"/>
+    <g class="fade" style="animation-delay:2.2s"><rect x="230" y="320" width="500" height="120" class="box" style="stroke:var(--yellow)"/><text x="480" y="370" text-anchor="middle" class="l">Catalyst Optimizer</text><text x="480" y="405" text-anchor="middle" class="xs">rewrites the plan: push filters down, pick join strategies</text></g>
+  </svg></div>
+
+  <!-- 5 DAG / stages -->
+  <div class="scene"><svg viewBox="0 0 960 540">
+    <text x="480" y="60" text-anchor="middle" class="l">Job → DAG → Stages → Tasks</text>
+    <g class="fade"><rect x="70" y="110" width="380" height="330" class="box" style="stroke:var(--blue)"/><text x="260" y="145" text-anchor="middle" class="l">Stage 1 (narrow)</text></g>
+    <g class="fade" style="animation-delay:.6s"><rect x="510" y="110" width="380" height="330" class="box" style="stroke:var(--green)"/><text x="700" y="145" text-anchor="middle" class="l">Stage 2</text></g>
+    <g class="pop" style="animation-delay:.3s" fill="var(--blue)"><circle cx="150" cy="220" r="22"/><circle cx="150" cy="300" r="22"/><circle cx="150" cy="380" r="22"/><circle cx="330" cy="220" r="22"/><circle cx="330" cy="300" r="22"/><circle cx="330" cy="380" r="22"/></g>
+    <g stroke="var(--blue)" stroke-width="3"><path d="M172 220H308M172 300H308M172 380H308" class="draw" style="animation-delay:.5s"/></g>
+    <g class="pop" style="animation-delay:1.2s" fill="var(--green)"><circle cx="760" cy="240" r="24"/><circle cx="760" cy="360" r="24"/></g>
+    <g stroke="var(--spark)" stroke-width="2.5" fill="none" stroke-dasharray="8 6" class="flow"><path d="M352 220 L736 240M352 220 L736 360M352 300 L736 240M352 300 L736 360M352 380 L736 240M352 380 L736 360"/></g>
+    <text x="545" y="480" text-anchor="middle" class="l" style="fill:var(--spark)">SHUFFLE (wide dependency: groupBy, join)</text>
+  </svg></div>
+
+  <!-- 6 In-memory -->
+  <div class="scene"><svg viewBox="0 0 960 540">
+    <text x="480" y="60" text-anchor="middle" class="l">Why it's fast: memory over disk</text>
+    <text x="80" y="150" class="l">MapReduce</text>
+    <rect x="80" y="170" width="800" height="26" rx="13" fill="var(--line)"/><rect x="80" y="170" width="800" height="26" rx="13" fill="var(--mute)" class="draw" style="stroke:var(--mute);stroke-width:26;fill:none;stroke-dasharray:800;animation-duration:4s"/>
+    <text x="80" y="225" class="xs">writes to disk between every step 💾</text>
+    <text x="80" y="300" class="l">Spark</text>
+    <rect x="80" y="320" width="160" height="26" rx="13" fill="var(--spark)" class="pop" style="animation-delay:.4s"/>
+    <text x="80" y="375" class="xs">keeps data in RAM, cache() / persist() for reuse ⚡ up to 100× faster</text>
+    <g class="fade" style="animation-delay:1.2s"><text x="480" y="470" text-anchor="middle" class="s">Great for iterative ML and interactive queries</text></g>
+  </svg></div>
+
+  <!-- 7 Ecosystem -->
+  <div class="scene"><svg viewBox="0 0 960 540">
+    <g class="pop"><rect x="300" y="380" width="360" height="70" rx="12" fill="var(--spark)"/><text x="480" y="422" text-anchor="middle" class="l" style="fill:#fff">Spark Core</text></g>
+    <g class="fade" style="animation-delay:.4s"><rect x="80" y="240" width="180" height="90" class="box" style="stroke:var(--blue)"/><text x="170" y="292" text-anchor="middle" class="l">Spark SQL</text></g>
+    <g class="fade" style="animation-delay:.7s"><rect x="290" y="240" width="180" height="90" class="box" style="stroke:var(--green)"/><text x="380" y="292" text-anchor="middle" class="l">Streaming</text></g>
+    <g class="fade" style="animation-delay:1s"><rect x="500" y="240" width="180" height="90" class="box" style="stroke:var(--yellow)"/><text x="590" y="292" text-anchor="middle" class="l">MLlib</text></g>
+    <g class="fade" style="animation-delay:1.3s"><rect x="710" y="240" width="180" height="90" class="box" style="stroke:var(--mute)"/><text x="800" y="292" text-anchor="middle" class="l">GraphX</text></g>
+    <text x="480" y="130" text-anchor="middle" class="t fade" style="animation-delay:1.7s">One engine, many workloads</text>
+    <text x="480" y="180" text-anchor="middle" class="s fade" style="animation-delay:2s">Python · Scala · Java · R · SQL</text>
+  </svg></div>
+</div>
+<div id="bar"><div id="fill"></div></div>
+<div id="cap">Press play to start the narrated explainer.</div>
+<div class="ctl">
+  <button class="g" id="prev">⏮ Prev</button>
+  <button id="play">⏸ Pause</button>
+  <button class="g" id="next">Next ⏭</button>
+  <button class="g" id="mute">🔊 Voice on</button>
+</div>
+
+<script>
+const N = [
+ "Welcome! In this short video, we'll see how Apache Spark works: a fast, distributed engine for processing huge amounts of data.",
+ "When data grows to terabytes, a single computer becomes far too slow. Spark solves this by splitting the work across many machines in a cluster, all working at the same time.",
+ "A Spark application has a driver program, which holds the Spark Context and plans the work. The driver asks a cluster manager, such as YARN, Kubernetes, or standalone mode, for resources. The cluster manager launches executors on worker nodes, and each executor runs many tasks in parallel.",
+ "Spark's core abstraction is the resilient distributed dataset, or R D D. DataFrames are built on top of it. Data is divided into partitions spread across the cluster. Datasets are immutable, and if a partition is lost, Spark rebuilds it using its lineage, the recorded chain of steps that created it.",
+ "Operations come in two kinds. Transformations, like filter and map, are lazy: Spark just records them in a plan. Only when you call an action, like count or collect, does Spark actually run anything. Before running, the Catalyst optimizer rewrites the plan to make it as efficient as possible.",
+ "When an action runs, the driver turns the plan into a directed acyclic graph, or DAG. The DAG scheduler cuts it into stages at shuffle boundaries, where data must move between machines, for operations like group by or join. Each stage is made of tasks, one per partition, which are sent to the executors.",
+ "Why is Spark so fast? Older systems like MapReduce write to disk after every step. Spark keeps intermediate data in memory, and you can cache datasets you reuse. This makes it up to a hundred times faster, perfect for machine learning and interactive analysis.",
+ "Finally, on top of Spark Core sit libraries for SQL, streaming, machine learning, and graph processing, usable from Python, Scala, Java, R, and SQL. That's Apache Spark: one unified engine for big data. Thanks for watching!"
+];
+const scenes=[...document.querySelectorAll('.scene')], cap=document.getElementById('cap'), fill=document.getElementById('fill');
+const synth=window.speechSynthesis; let i=0, playing=false, voiceOn=!!synth, timer=null, token=0;
+const playBtn=document.getElementById('play'), muteBtn=document.getElementById('mute');
+if(!synth){muteBtn.textContent='🔇 No voice support';muteBtn.disabled=true}
+function pickVoice(){const v=synth?synth.getVoices():[];return v.find(x=>/en/i.test(x.lang)&&/natural|google|samantha|aria|jenny/i.test(x.name))||v.find(x=>/^en/i.test(x.lang))}
+function show(n){
+  i=Math.max(0,Math.min(scenes.length-1,n)); token++;
+  scenes.forEach((s,k)=>{s.classList.remove('on'); if(k===i){void s.offsetWidth; s.classList.add('on')}});
+  cap.textContent=N[i]; fill.style.width=((i+1)/scenes.length*100)+'%';
+  clearTimeout(timer); if(synth) synth.cancel();
+  if(playing) narrate();
+}
+function narrate(){
+  const my=token, done=()=>{ if(my!==token||!playing) return; i<scenes.length-1 ? setTimeout(()=>my===token&&show(i+1),900) : end(); };
+  if(voiceOn){
+    const u=new SpeechSynthesisUtterance(N[i]); const v=pickVoice(); if(v) u.voice=v; u.rate=1; u.onend=done; u.onerror=()=>{}; synth.speak(u);
+  } else timer=setTimeout(done, N[i].split(' ').length*380);
+}
+function end(){playing=false;playBtn.textContent='↻ Replay'}
+document.getElementById('start').onclick=()=>{document.getElementById('overlay').remove();playing=true;show(0)};
+playBtn.onclick=()=>{
+  if(playBtn.textContent.includes('Replay')){playing=true;playBtn.textContent='⏸ Pause';return show(0)}
+  playing=!playing; playBtn.textContent=playing?'⏸ Pause':'▶ Play';
+  if(playing) show(i); else {token++;clearTimeout(timer); synth&&synth.cancel()}
+};
+document.getElementById('next').onclick=()=>show(i+1);
+document.getElementById('prev').onclick=()=>show(i-1);
+muteBtn.onclick=()=>{voiceOn=!voiceOn;muteBtn.textContent=voiceOn?'🔊 Voice on':'🔇 Voice off';show(i)};
+if(synth) synth.onvoiceschanged=()=>{};
+scenes[0].classList.add('on'); cap.textContent=N[0];
+</script>
+</body>
+</html>
