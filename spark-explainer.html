@@ -34,14 +34,13 @@ text{fill:var(--ink);font-family:inherit}
 .ctl{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
 button{background:var(--spark);color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:1rem;font-weight:600;cursor:pointer}
 button.g{background:var(--line);color:var(--ink)}
-#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:5}
-#overlay button{font-size:1.3rem;padding:16px 32px}
+#hint{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:5;background:var(--spark);color:#fff;padding:8px 16px;border-radius:999px;font-weight:600;font-size:.95rem;box-shadow:0 6px 20px rgba(0,0,0,.35);animation:pulse 1.6s ease-in-out infinite;cursor:pointer;white-space:nowrap}
 </style>
 </head>
 <body>
 <h1>How Apache Spark Works — narrated explainer</h1>
 <div id="stage">
-  <div id="overlay"><button id="start">▶ Play with voice</button></div>
+  <div id="hint">🔊 Tap anywhere to turn on the voice</div>
 
   <!-- 0 Title -->
   <div class="scene"><svg viewBox="0 0 960 540">
@@ -162,8 +161,9 @@ const N = [
  "Finally, on top of Spark Core sit libraries for SQL, streaming, machine learning, and graph processing, usable from Python, Scala, Java, R, and SQL. That's Apache Spark: one unified engine for big data. Thanks for watching!"
 ];
 const scenes=[...document.querySelectorAll('.scene')], cap=document.getElementById('cap'), fill=document.getElementById('fill');
-const synth=window.speechSynthesis; let i=0, playing=false, voiceOn=!!synth, timer=null, token=0;
+const synth=window.speechSynthesis; let i=0, playing=false, voiceOn=false, timer=null, token=0;
 const playBtn=document.getElementById('play'), muteBtn=document.getElementById('mute');
+muteBtn.textContent='🔇 Voice off';
 if(!synth){muteBtn.textContent='🔇 No voice support';muteBtn.disabled=true}
 function pickVoice(){const v=synth?synth.getVoices():[];return v.find(x=>/en/i.test(x.lang)&&/natural|google|samantha|aria|jenny/i.test(x.name))||v.find(x=>/^en/i.test(x.lang))}
 function show(n){
@@ -180,7 +180,16 @@ function narrate(){
   } else timer=setTimeout(done, N[i].split(' ').length*380);
 }
 function end(){playing=false;playBtn.textContent='↻ Replay'}
-document.getElementById('start').onclick=()=>{document.getElementById('overlay').remove();playing=true;show(0)};
+// Autoplay: browsers block speech until the first user gesture, so start silently and
+// switch the voice on (from the current scene) at the first tap or key press.
+function unlockVoice(e){
+  const h=document.getElementById('hint'); if(h) h.remove();
+  removeEventListener('pointerdown',unlockVoice,true); removeEventListener('keydown',unlockVoice,true);
+  if(!synth||voiceOn) return;
+  if(e&&e.target&&e.target.closest&&e.target.closest('button')) {voiceOn=true;muteBtn.textContent='🔊 Voice on';return}
+  voiceOn=true; muteBtn.textContent='🔊 Voice on'; if(playing) show(i);
+}
+addEventListener('pointerdown',unlockVoice,true); addEventListener('keydown',unlockVoice,true);
 playBtn.onclick=()=>{
   if(playBtn.textContent.includes('Replay')){playing=true;playBtn.textContent='⏸ Pause';return show(0)}
   playing=!playing; playBtn.textContent=playing?'⏸ Pause':'▶ Play';
@@ -190,7 +199,7 @@ document.getElementById('next').onclick=()=>show(i+1);
 document.getElementById('prev').onclick=()=>show(i-1);
 muteBtn.onclick=()=>{voiceOn=!voiceOn;muteBtn.textContent=voiceOn?'🔊 Voice on':'🔇 Voice off';show(i)};
 if(synth) synth.onvoiceschanged=()=>{};
-scenes[0].classList.add('on'); cap.textContent=N[0];
+playing=true; show(0);
 </script>
 </body>
 </html>
