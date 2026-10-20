@@ -1,0 +1,1 @@
+Shuffles cost disk, network, and time. Fewer shuffles, faster jobs.

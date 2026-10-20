@@ -1,0 +1,1 @@
+Transformations are lazy. Spark just writes them down, like a recipe.

@@ -1,0 +1,1 @@
+Only an action, like collect, says: go. Now Spark looks at the whole recipe and plans.

@@ -1,0 +1,6 @@
+out/*.wav
+out/silent-*.mp4
+snaps*/
+voice/*.wav
+edit/.hyperframes/
+edit/node_modules/

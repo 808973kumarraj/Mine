@@ -1,0 +1,107 @@
+[
+ {
+  "n": 1,
+  "ch": "The problem",
+  "text": "Say your data won't fit on one computer. Not even close."
+ },
+ {
+  "n": 2,
+  "ch": "The problem",
+  "text": "So you split it into pieces and spread them across many machines."
+ },
+ {
+  "n": 3,
+  "ch": "The problem",
+  "text": "Apache Spark is the engine that runs your code on all those pieces at once. It started at UC Berkeley in 2009."
+ },
+ {
+  "n": 4,
+  "ch": "Who's who",
+  "text": "Every Spark app has one boss: the driver. It runs your code and makes the plan."
+ },
+ {
+  "n": 5,
+  "ch": "Who's who",
+  "text": "The workers are executors. They do the actual work and hold data in memory."
+ },
+ {
+  "n": 6,
+  "ch": "Who's who",
+  "text": "A cluster manager, like YARN or Kubernetes, hands out the machines."
+ },
+ {
+  "n": 7,
+  "ch": "Follow one job",
+  "text": "Let's count words. First, Spark splits the text into partitions. One task per partition."
+ },
+ {
+  "n": 8,
+  "ch": "Follow one job",
+  "text": "Now we write map and reduceByKey. Here's the twist: nothing runs yet."
+ },
+ {
+  "n": 9,
+  "ch": "Follow one job",
+  "text": "Transformations are lazy. Spark just writes them down, like a recipe."
+ },
+ {
+  "n": 10,
+  "ch": "Follow one job",
+  "text": "Only an action, like collect, says: go. Now Spark looks at the whole recipe and plans."
+ },
+ {
+  "n": 11,
+  "ch": "Stages and the shuffle",
+  "text": "The plan is a graph, split into stages. The split happens at a shuffle."
+ },
+ {
+  "n": 12,
+  "ch": "Stages and the shuffle",
+  "text": "Splitting words can happen right where the data lives. No talking needed."
+ },
+ {
+  "n": 13,
+  "ch": "Stages and the shuffle",
+  "text": "But counting \"cat\" means every \"cat\" has to meet in one place. That's the shuffle."
+ },
+ {
+  "n": 14,
+  "ch": "Stages and the shuffle",
+  "text": "Shuffles cost disk, network, and time. Fewer shuffles, faster jobs."
+ },
+ {
+  "n": 15,
+  "ch": "Why it's fast",
+  "text": "Spark can keep data in memory between steps, instead of writing to disk every time."
+ },
+ {
+  "n": 16,
+  "ch": "Why it's fast",
+  "text": "For jobs that loop over the same data, the original paper measured up to 20 times faster than Hadoop."
+ },
+ {
+  "n": 17,
+  "ch": "Why it's fast",
+  "text": "Use DataFrames or SQL, and an optimizer called Catalyst rewrites your plan before it runs."
+ },
+ {
+  "n": 18,
+  "ch": "When things break",
+  "text": "And if a machine dies? Spark doesn't keep copies. It keeps the recipe."
+ },
+ {
+  "n": 19,
+  "ch": "When things break",
+  "text": "It replays the steps for just the lost piece, and the job carries on."
+ },
+ {
+  "n": 20,
+  "ch": "Wrap",
+  "text": "So: a driver plans, executors work, shuffles split stages, memory keeps it fast."
+ },
+ {
+  "n": 21,
+  "ch": "Wrap",
+  "text": "Nothing runs until you ask. And when you do, Spark already knows the fastest way there."
+ }
+]

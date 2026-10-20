@@ -1,0 +1,1 @@
+So: a driver plans, executors work, shuffles split stages, memory keeps it fast.

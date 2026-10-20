@@ -1,0 +1,1 @@
+Let's count words. First, Spark splits the text into partitions. One task per partition.

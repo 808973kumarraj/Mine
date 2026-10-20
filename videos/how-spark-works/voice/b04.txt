@@ -1,0 +1,1 @@
+Every Spark app has one boss: the driver. It runs your code and makes the plan.

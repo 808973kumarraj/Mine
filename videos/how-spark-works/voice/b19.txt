@@ -1,0 +1,1 @@
+It replays the steps for just the lost piece, and the job carries on.

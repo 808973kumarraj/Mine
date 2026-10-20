@@ -1,0 +1,1 @@
+A cluster manager, like YARN or Kubernetes, hands out the machines.

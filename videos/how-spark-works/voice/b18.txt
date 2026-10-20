@@ -1,0 +1,1 @@
+And if a machine dies? Spark doesn't keep copies. It keeps the recipe.

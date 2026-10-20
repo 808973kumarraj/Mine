@@ -1,0 +1,1 @@
+Spark can keep data in memory between steps, instead of writing to disk every time.

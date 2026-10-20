@@ -1,0 +1,1 @@
+For jobs that loop over the same data, the original paper measured up to 20 times faster than Hadoop.

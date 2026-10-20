@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/TextPlugin.min.js"></script>
+<style>*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#0d1117}
+#root{position:relative;width:1920px;height:1080px;font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#e6edf3;container-type:inline-size;
+ background:radial-gradient(1200px 700px at 50% 35%,#18202c,#0d1117)}
+.scene{position:absolute;inset:0}
+.scene>*{position:absolute}
+.h1{left:0;right:0;top:90px;text-align:center;font-size:64px;font-weight:700;letter-spacing:-.02em}
+.h1.big{top:110px;font-size:84px}
+.box{border:3px solid #3a4456;border-radius:22px;background:#161d28;display:flex;align-items:flex-start;justify-content:center;padding-top:22px}
+.box span{font:600 30px ui-monospace,Menlo,monospace;color:#9fb0c8}
+.drv{border-color:#ff8a3d;background:#2a1c12}.drv span{color:#ffb27a;font-size:40px}
+.cm{border-color:#4cc9f0}.cm span{color:#8fdcf5}
+.laptop{left:610px;top:290px;width:700px;height:440px;border:6px solid #8b93a7;border-radius:24px;display:flex;align-items:center;justify-content:center;overflow:visible}
+.file{background:#ff8a3d;color:#1a0f06;border-radius:14px;display:flex;align-items:center;justify-content:center;font:700 36px ui-monospace,monospace}
+.piece{width:200px;height:110px;border-radius:14px;display:flex;align-items:center;justify-content:center;font:700 30px ui-monospace,monospace;color:#10141b;opacity:0}
+.logo{left:0;right:0;top:230px;text-align:center;font-size:150px;font-weight:300;letter-spacing:-.03em}
+.logo b{font-weight:800;color:#ff8a3d}
+.chip{left:50%;top:440px;transform:translateX(-50%);padding:14px 30px;border:2px solid #3a4456;border-radius:999px;font:500 32px ui-monospace,monospace;color:#c9d4e3;white-space:nowrap}
+.code{left:200px;right:200px;top:230px;text-align:center;font:600 42px ui-monospace,monospace;color:#ffb27a;background:#161d28;border:2px solid #3a4456;border-radius:16px;padding:28px;min-height:110px}
+.code.small{left:760px;right:auto;width:400px;top:300px;font-size:26px;padding:10px;min-height:0;border:0;background:none;color:#ffd2b0}
+.mem{width:280px;height:34px;border:2px solid #3a4456;border-radius:10px;overflow:hidden}
+.mem i{display:block;height:100%;background:#4cc9f0}
+.mem em{position:absolute;left:0;right:0;top:-44px;text-align:center;font:500 26px ui-monospace,monospace;color:#8fdcf5;font-style:normal}
+.note{font:500 28px ui-monospace,monospace;color:#8fdcf5;left:80px;top:410px}
+.note.center{left:0;right:0;top:760px;text-align:center;font-size:40px;color:#ffb27a}
+.wires{left:0;top:0}
+.wire{stroke-dasharray:600}
+.line{left:0;right:0;top:420px;text-align:center;font:600 56px ui-monospace,monospace}
+.part{top:560px;width:360px;height:250px;border:4px solid;border-radius:20px;background:#161d28;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.part b{font:700 30px ui-monospace,monospace}.part span{font:600 44px ui-monospace,monospace}.part small{font:500 26px ui-monospace,monospace;color:#9fb0c8}
+.tag{left:50%;top:400px;transform:translateX(-50%);padding:12px 28px;border-radius:999px;background:#2b3240;font:600 34px ui-monospace,monospace;color:#c9d4e3;white-space:nowrap;opacity:0}
+.tag.go{top:820px;background:#3d2414;color:#ffb27a}
+.recipe{left:600px;top:470px;width:720px;padding:30px 44px;background:#f4ead8;color:#2a2116;border-radius:18px;opacity:0}
+.recipe b{font:800 36px ui-serif,Georgia,serif}.recipe ol{margin:16px 0 0 40px;font:500 36px ui-serif,Georgia,serif;line-height:1.5}
+.stamp{left:1160px;top:470px;padding:16px 30px;border:5px solid #ff8a3d;border-radius:14px;color:#ff8a3d;font:800 52px ui-monospace,monospace;background:rgba(13,17,23,.85);opacity:0}
+.dag{left:160px;right:160px;top:220px;height:260px;display:flex;align-items:center;justify-content:center;gap:30px;transform-origin:50% 0}
+.stage{display:flex;gap:16px;align-items:center;padding:30px 24px 24px;border:3px solid #3a4456;border-radius:20px;position:relative}
+.stage b{position:absolute;top:-22px;left:20px;background:#0d1117;padding:0 10px;font:700 30px ui-monospace,monospace;color:#ffb27a}
+.n{padding:16px 22px;border-radius:12px;background:#1f2938;font:600 30px ui-monospace,monospace;white-space:nowrap}
+.wall{width:10px;height:240px;background:repeating-linear-gradient(#8b93a7 0 18px,transparent 18px 32px);position:relative}
+.wall span{position:absolute;top:-56px;left:50%;transform:translateX(-50%);font:700 30px ui-monospace,monospace;color:#ff8a3d}
+.wchip{width:200px;height:52px;border:3px solid;border-radius:12px;background:#1f2938;display:flex;align-items:center;justify-content:center;font:600 30px ui-monospace,monospace}
+.local,.cost,.rule{left:0;right:0;text-align:center;font:600 38px ui-monospace,monospace}
+.local{top:965px;color:#8fdcf5}.cost{top:965px;color:#ff7b7b}.rule{top:490px;color:#ffb27a;font-size:44px}
+.flow{left:0;right:0;top:360px;display:flex;justify-content:center;align-items:center;gap:28px}
+.mstep{padding:30px 40px;border-radius:16px;background:#1f2938;font:600 38px ui-monospace,monospace}
+.mbox{padding:30px 40px;border-radius:16px;background:#12384a;border:3px solid #4cc9f0;color:#8fdcf5;font:700 38px ui-monospace,monospace}
+.arrow{font-size:50px;color:#8b93a7}
+.disk{left:50%;top:620px;transform:translateX(-50%);font:600 40px ui-monospace,monospace;color:#9fb0c8;white-space:nowrap}
+.disk s{position:absolute;left:0;top:50%;height:5px;background:#ff5d5d}
+.bars{left:0;right:0;top:0;height:1080px}
+.bar{position:absolute;bottom:250px;width:200px;display:flex;flex-direction:column;align-items:center}
+.bar:nth-child(1){left:640px}.bar:nth-child(2){left:1080px}
+.bar i{display:block;width:200px;background:#8b93a7;border-radius:10px 10px 0 0}
+.bar:nth-child(2) i{background:#ff8a3d}
+.bar span{position:absolute;bottom:-56px;font:600 34px ui-monospace,monospace}
+.big20{position:absolute;left:1320px;top:420px;font:500 44px Inter,sans-serif;color:#c9d4e3}.big20 b{font-size:110px;color:#ff8a3d}
+.fine{position:absolute;left:0;right:0;bottom:120px;text-align:center;font:500 26px ui-monospace,monospace;color:#8b93a7}
+.plan{left:660px;top:330px;width:600px;display:flex;flex-direction:column;gap:30px;align-items:stretch;opacity:0}
+.plan b{text-align:center;font:700 40px ui-monospace,monospace;color:#b388ff}
+.pn{padding:24px;border-radius:14px;background:#1f2938;text-align:center;font:600 38px ui-monospace,monospace}
+.pn.hl{background:#2e2149;border:3px solid #b388ff}
+.piece.fixed{opacity:0}
+.lineage{opacity:0;left:0;right:0;top:760px;display:flex;justify-content:center;gap:24px;font:600 36px ui-monospace,monospace;color:#8b93a7}
+.lineage span{padding:14px 24px;border-radius:12px;background:#2a1c12;color:#ffb27a;border:2px solid #ff8a3d}
+.grid{left:360px;top:240px;width:1200px;display:grid;grid-template-columns:1fr 1fr;gap:30px}
+.cell{padding:50px 30px;border-radius:20px;background:#161d28;border:3px solid #3a4456;text-align:center;font:500 44px Inter,sans-serif;color:#c9d4e3}
+.cell b{color:#ff8a3d;font-weight:800}
+.stamp.final{left:50%;top:470px;transform:translateX(-50%);font-size:80px}
+.logo.final{top:660px;font-size:100px;opacity:0}
+.chap{position:absolute;left:48px;top:36px;padding:10px 22px;border-radius:999px;background:#161d28;border:2px solid #3a4456;font:600 26px ui-monospace,monospace;color:#c9d4e3}
+.chap b{color:#ff8a3d;margin-right:8px}
+.sub{position:absolute;left:0;right:0;bottom:56px;text-align:center}
+.sub span{display:inline-block;max-width:1500px;padding:12px 26px;border-radius:12px;background:rgba(5,8,12,.78);font:500 34px Inter,sans-serif;line-height:1.35}
+.rail{position:absolute;left:0;right:0;bottom:0;height:8px;background:#1f2938}
+.rail i{display:block;height:100%;background:#ff8a3d}
+</style></head><body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="124.82" data-width="1920" data-height="1080">
+<div class="clip scene" id="s1" data-start="0.4" data-duration="17.564" data-track-index="1">
+ <div class="h1 big" id="s1t">Too much data</div>
+ <div id="laptop" class="laptop"><div id="file" class="file">data.txt</div></div>
+ <div class="box srv" id="srv0" style="left:330px;top:560px;width:300px;height:260px"><span>machine 1</span></div><div class="box srv" id="srv1" style="left:810px;top:560px;width:300px;height:260px"><span>machine 2</span></div><div class="box srv" id="srv2" style="left:1290px;top:560px;width:300px;height:260px"><span>machine 3</span></div>
+ <div class="piece" id="pc0" style="left:380px;top:650px;background:#ff8a3d">part 1</div><div class="piece" id="pc1" style="left:860px;top:650px;background:#4cc9f0">part 2</div><div class="piece" id="pc2" style="left:1340px;top:650px;background:#b388ff">part 3</div>
+ <div class="logo" id="logo">Apache <b>Spark</b></div>
+ <div class="chip" id="hist">UC Berkeley AMPLab 2009 &rarr; Apache top-level 2014</div></div>
+<div class="clip scene" id="s2" data-start="17.964" data-duration="16.54" data-track-index="1">
+ <div class="h1" id="s2t">Who's who</div>
+ <div class="box drv" id="drv" style="left:760px;top:190px;width:400px;height:200px"><span>driver</span></div>
+ <div class="code small" id="drvcode">main() &middot; makes the plan</div>
+ <div class="box exec" id="ex0" style="left:300px;top:640px;width:360px;height:220px"><span>executor 1</span></div><div class="box exec" id="ex1" style="left:780px;top:640px;width:360px;height:220px"><span>executor 2</span></div><div class="box exec" id="ex2" style="left:1260px;top:640px;width:360px;height:220px"><span>executor 3</span></div>
+ <div class="mem" id="mem0" style="left:340px;top:800px"><i></i><em>memory</em></div><div class="mem" id="mem1" style="left:820px;top:800px"><i></i><em>memory</em></div><div class="mem" id="mem2" style="left:1300px;top:800px"><i></i><em>memory</em></div>
+ <div class="box cm" id="cm" style="left:80px;top:250px;width:360px;height:140px"><span>cluster manager</span></div>
+ <div class="note" id="cmn">YARN &middot; Kubernetes &middot; Standalone</div>
+ <svg class="wires" width="1920" height="1080"><g id="wires" stroke="#8b93a7" stroke-width="4" fill="none">
+  <path class="wire" d="M960 390 L 480 640"/><path class="wire" d="M960 390 L 960 640"/><path class="wire" d="M960 390 L 1440 640"/>
+  <path class="wire" d="M440 320 L 760 290"/></g></svg></div>
+<div class="clip scene" id="s3" data-start="34.504" data-duration="24.315" data-track-index="1">
+ <div class="h1" id="s3t">Follow one job: count words</div>
+ <div class="line" id="rawtext">the cat sat &nbsp;/&nbsp; the dog sat &nbsp;/&nbsp; the cat ran</div>
+ <div class="part" id="pt0" style="left:300px;border-color:#ff8a3d"><b style="color:#ff8a3d">partition 1</b><span>the cat sat</span><small>task 1</small></div><div class="part" id="pt1" style="left:780px;border-color:#4cc9f0"><b style="color:#4cc9f0">partition 2</b><span>the dog sat</span><small>task 2</small></div><div class="part" id="pt2" style="left:1260px;border-color:#b388ff"><b style="color:#b388ff">partition 3</b><span>the cat ran</span><small>task 3</small></div>
+ <div class="code" id="code"><span id="codetxt"></span></div>
+ <div class="tag" id="wait">nothing runs yet</div>
+ <div class="recipe" id="recipe"><b>recipe</b><ol><li id="r1">read text</li><li id="r2">split into words</li><li id="r3">pair each word with 1</li><li id="r4">add up by word</li></ol></div>
+ <div class="stamp" id="stamp">collect()</div>
+ <div class="tag go" id="go">go! Spark plans the whole job</div></div>
+<div class="clip scene" id="s4" data-start="58.819" data-duration="20.965" data-track-index="1">
+ <div class="h1" id="s4t">Stages and the shuffle</div>
+ <div class="dag" id="dag">
+  <div class="stage" id="st1"><b>stage 1</b><div class="n">read</div><div class="n">split words</div><div class="n">pair with 1</div></div>
+  <div class="wall" id="wall"><span>shuffle</span></div>
+  <div class="stage" id="st2"><b>stage 2</b><div class="n">add up by word</div><div class="n">collect</div></div>
+ </div>
+ <div class="box exec col" id="sx0" style="left:300px;top:560px;width:360px;height:380px"><span>executor 1</span></div><div class="box exec col" id="sx1" style="left:780px;top:560px;width:360px;height:380px"><span>executor 2</span></div><div class="box exec col" id="sx2" style="left:1260px;top:560px;width:360px;height:380px"><span>executor 3</span></div>
+ <div class="wchip" id="w00" data-gx="380" data-gy="640" style="left:380px;top:640px;border-color:#ff8a3d">the</div><div class="wchip" id="w01" data-gx="860" data-gy="640" style="left:380px;top:702px;border-color:#ff8a3d">cat</div><div class="wchip" id="w02" data-gx="1340" data-gy="640" style="left:380px;top:764px;border-color:#ff8a3d">sat</div><div class="wchip" id="w10" data-gx="380" data-gy="702" style="left:860px;top:640px;border-color:#4cc9f0">the</div><div class="wchip" id="w11" data-gx="860" data-gy="702" style="left:860px;top:702px;border-color:#4cc9f0">dog</div><div class="wchip" id="w12" data-gx="1340" data-gy="702" style="left:860px;top:764px;border-color:#4cc9f0">sat</div><div class="wchip" id="w20" data-gx="380" data-gy="764" style="left:1340px;top:640px;border-color:#b388ff">the</div><div class="wchip" id="w21" data-gx="860" data-gy="764" style="left:1340px;top:702px;border-color:#b388ff">cat</div><div class="wchip" id="w22" data-gx="1340" data-gy="764" style="left:1340px;top:764px;border-color:#b388ff">ran</div>
+ <div class="local" id="local">local work, no talking</div>
+ <div class="cost" id="cost">disk &middot; network &middot; time</div>
+ <div class="rule" id="rule">fewer shuffles = faster jobs</div></div>
+<div class="clip scene" id="s5" data-start="79.784" data-duration="20.615" data-track-index="1">
+ <div class="h1" id="s5t">Why it's fast</div>
+ <div class="flow" id="memflow"><div class="mstep">step 1</div><div class="arrow">&rarr;</div><div class="mbox" id="mbox">memory</div><div class="arrow">&rarr;</div><div class="mstep">step 2</div><div class="arrow">&rarr;</div><div class="mstep">step 3</div></div>
+ <div class="disk" id="disk">disk every step<s></s></div>
+ <div class="bars" id="bars"><div class="bar"><i id="bh"></i><span>Hadoop</span></div><div class="bar"><i id="bs"></i><span>Spark</span></div><div class="big20" id="b20">up to <b id="n20">20</b>x faster</div><div class="fine" id="fine">iterative jobs, RDD paper (NSDI 2012)</div></div>
+ <div class="plan" id="plan"><b>Catalyst</b><div class="pn" id="p1">read all rows</div><div class="pn" id="p2">join</div><div class="pn hl" id="p3">filter</div></div></div>
+<div class="clip scene" id="s6" data-start="100.399" data-duration="10.216" data-track-index="1">
+ <div class="h1" id="s6t">When a machine dies</div>
+ <div class="box exec" id="fx0" style="left:300px;top:280px;width:360px;height:420px"><span>executor 1</span></div><div class="box exec" id="fx1" style="left:780px;top:280px;width:360px;height:420px"><span>executor 2</span></div><div class="box exec" id="fx2" style="left:1260px;top:280px;width:360px;height:420px"><span>executor 3</span></div>
+ <div class="piece fixed" id="fp0" style="left:400px;top:430px;background:#ff8a3d">part 1</div><div class="piece fixed" id="fp1" style="left:880px;top:430px;background:#4cc9f0">part 2</div><div class="piece fixed" id="fp2" style="left:1360px;top:430px;background:#b388ff">part 3</div>
+ <div class="piece fixed" id="fpn" style="left:1360px;top:570px;background:#4cc9f0">part 2</div>
+ <div class="lineage" id="lineage"><span>read</span>&rarr;<span>split words</span>&rarr;<span>pair with 1</span></div>
+ <div class="note center" id="keep">no copies, just the recipe</div></div>
+<div class="clip scene" id="s7" data-start="110.615" data-duration="14.205" data-track-index="1">
+ <div class="h1" id="s7t">Recap</div>
+ <div class="grid" id="grid">
+  <div class="cell" id="g1"><b>driver</b> plans</div><div class="cell" id="g2"><b>executors</b> work</div>
+  <div class="cell" id="g3"><b>shuffles</b> split stages</div><div class="cell" id="g4"><b>memory</b> keeps it fast</div></div>
+ <div class="stamp final" id="fstamp">collect()</div>
+ <div class="logo final" id="flogo">Apache <b>Spark</b></div></div>
+<div class="clip chap" data-start="0.4" data-duration="17.564" data-track-index="2"><b>1</b> The problem</div>
+<div class="clip chap" data-start="17.964" data-duration="16.54" data-track-index="2"><b>2</b> Who's who</div>
+<div class="clip chap" data-start="34.504" data-duration="24.315" data-track-index="2"><b>3</b> Follow one job</div>
+<div class="clip chap" data-start="58.819" data-duration="20.965" data-track-index="2"><b>4</b> Stages and the shuffle</div>
+<div class="clip chap" data-start="79.784" data-duration="20.615" data-track-index="2"><b>5</b> Why it's fast</div>
+<div class="clip chap" data-start="100.399" data-duration="10.216" data-track-index="2"><b>6</b> When things break</div>
+<div class="clip chap" data-start="110.615" data-duration="14.205" data-track-index="2"><b>7</b> Wrap</div>
+<div class="clip sub" data-start="0.4" data-duration="4.383" data-track-index="3"><span>Say your data won't fit on one computer. Not even close.</span></div>
+<div class="clip sub" data-start="4.783" data-duration="4.169" data-track-index="3"><span>So you split it into pieces and spread them across many machines.</span></div>
+<div class="clip sub" data-start="8.952" data-duration="9.012" data-track-index="3"><span>Apache Spark is the engine that runs your code on all those pieces at once. It started at UC Berkeley in 2009.</span></div>
+<div class="clip sub" data-start="17.964" data-duration="5.94" data-track-index="3"><span>Every Spark app has one boss: the driver. It runs your code and makes the plan.</span></div>
+<div class="clip sub" data-start="23.904" data-duration="5.321" data-track-index="3"><span>The workers are executors. They do the actual work and hold data in memory.</span></div>
+<div class="clip sub" data-start="29.225" data-duration="5.279" data-track-index="3"><span>A cluster manager, like YARN or Kubernetes, hands out the machines.</span></div>
+<div class="clip sub" data-start="34.504" data-duration="6.772" data-track-index="3"><span>Let's count words. First, Spark splits the text into partitions. One task per partition.</span></div>
+<div class="clip sub" data-start="41.276" data-duration="5.407" data-track-index="3"><span>Now we write map and reduceByKey. Here's the twist: nothing runs yet.</span></div>
+<div class="clip sub" data-start="46.683" data-duration="5.599" data-track-index="3"><span>Transformations are lazy. Spark just writes them down, like a recipe.</span></div>
+<div class="clip sub" data-start="52.282" data-duration="6.537" data-track-index="3"><span>Only an action, like collect, says: go. Now Spark looks at the whole recipe and plans.</span></div>
+<div class="clip sub" data-start="58.819" data-duration="5.257" data-track-index="3"><span>The plan is a graph, split into stages. The split happens at a shuffle.</span></div>
+<div class="clip sub" data-start="64.076" data-duration="4.873" data-track-index="3"><span>Splitting words can happen right where the data lives. No talking needed.</span></div>
+<div class="clip sub" data-start="68.949" data-duration="5.599" data-track-index="3"><span>But counting "cat" means every "cat" has to meet in one place. That's the shuffle.</span></div>
+<div class="clip sub" data-start="74.548" data-duration="5.236" data-track-index="3"><span>Shuffles cost disk, network, and time. Fewer shuffles, faster jobs.</span></div>
+<div class="clip sub" data-start="79.784" data-duration="6.111" data-track-index="3"><span>Spark can keep data in memory between steps, instead of writing to disk every time.</span></div>
+<div class="clip sub" data-start="85.895" data-duration="7.007" data-track-index="3"><span>For jobs that loop over the same data, the original paper measured up to 20 times faster than Hadoop.</span></div>
+<div class="clip sub" data-start="92.902" data-duration="7.497" data-track-index="3"><span>Use DataFrames or SQL, and an optimizer called Catalyst rewrites your plan before it runs.</span></div>
+<div class="clip sub" data-start="100.399" data-duration="5.193" data-track-index="3"><span>And if a machine dies? Spark doesn't keep copies. It keeps the recipe.</span></div>
+<div class="clip sub" data-start="105.592" data-duration="5.023" data-track-index="3"><span>It replays the steps for just the lost piece, and the job carries on.</span></div>
+<div class="clip sub" data-start="110.615" data-duration="6.452" data-track-index="3"><span>So: a driver plans, executors work, shuffles split stages, memory keeps it fast.</span></div>
+<div class="clip sub" data-start="117.067" data-duration="6.153" data-track-index="3"><span>Nothing runs until you ask. And when you do, Spark already knows the fastest way there.</span></div>
+<div class="rail"><i id="railfill"></i></div>
+</div>
+<script>
+gsap.registerPlugin(TextPlugin);
+const tl = gsap.timeline({ paused: true });
+tl.fromTo('#laptop',{opacity:0,scale:.9},{opacity:1,scale:1,duration:.5},0.4);
+tl.fromTo('#file',{width:120,height:80},{width:520,height:330,duration:3.78,ease:'power1.in'},0.7);
+tl.to('#laptop',{borderColor:'#ff5d5d',duration:.3},4.183000000000001);
+tl.to(['#laptop','#s1t'],{opacity:0,y:-30,duration:.4},4.783);
+tl.fromTo('.srv',{opacity:0,y:40},{opacity:1,y:0,stagger:.12,duration:.5},4.9830000000000005);
+tl.fromTo('#pc0',{x:480,y:-350,opacity:0},{x:0,y:0,opacity:1,duration:.8,ease:'power2.inOut'},5.383);
+tl.fromTo('#pc1',{x:0,y:-350,opacity:0},{x:0,y:0,opacity:1,duration:.8,ease:'power2.inOut'},5.533);
+tl.fromTo('#pc2',{x:-480,y:-350,opacity:0},{x:0,y:0,opacity:1,duration:.8,ease:'power2.inOut'},5.683);
+tl.to(['.srv','.piece:not(.fixed)'],{y:140,scale:.8,opacity:.5,duration:.5},8.952);
+tl.fromTo('#logo',{opacity:0,scale:.85},{opacity:1,scale:1,duration:.6,ease:'back.out(1.6)'},9.152);
+tl.fromTo('#hist',{opacity:0,y:20},{opacity:1,y:0,duration:.5},11.552);
+tl.fromTo('#drv',{opacity:.25,scale:.92},{opacity:1,scale:1,duration:.5},17.964);
+tl.fromTo('#drvcode',{opacity:0},{opacity:1,duration:.4},19.163999999999998);
+tl.fromTo('.exec',{opacity:0,y:40},{opacity:1,y:0,stagger:.15,duration:.5},23.904);
+tl.fromTo('.mem i',{width:0},{width:'70%',stagger:.15,duration:.8},25.104);
+tl.fromTo('.mem',{opacity:0},{opacity:1,duration:.3},24.904);
+tl.fromTo('#cm',{opacity:0,x:-40},{opacity:1,x:0,duration:.5},29.225);
+tl.fromTo('#cmn',{opacity:0},{opacity:1,duration:.4},30.225);
+tl.fromTo('.wire',{strokeDashoffset:600},{strokeDashoffset:0,stagger:.15,duration:.7},30.025000000000002);
+tl.fromTo('#rawtext',{opacity:0,y:20},{opacity:1,y:0,duration:.4},34.504);
+tl.to('#rawtext',{opacity:0,duration:.4},36.504);
+tl.fromTo('.part',{opacity:0,y:-120},{opacity:1,y:0,stagger:.2,duration:.6,ease:'power2.out'},36.504);
+tl.to('.part',{y:-80,scale:.8,opacity:.55,duration:.4},41.276);
+tl.fromTo('#code',{opacity:0},{opacity:1,duration:.3},41.276);
+tl.to('#codetxt',{text:"lines.flatMap(split).map(w => (w, 1)).reduceByKey(add)",duration:2,ease:'none'},41.576);
+tl.fromTo('#wait',{opacity:0},{opacity:1,duration:.3},43.876000000000005);
+tl.to('#wait',{opacity:.35,repeat:3,yoyo:true,duration:.35},44.276);
+tl.to(['#code','#wait'],{opacity:0,y:-20,duration:.4},46.683);
+tl.fromTo('#recipe',{opacity:0,y:30},{opacity:1,y:0,duration:.5},46.683);
+tl.fromTo('#recipe li',{opacity:0,x:-20},{opacity:1,x:0,stagger:.5,duration:.4},47.283);
+tl.fromTo('#stamp',{opacity:0,scale:2.4,rotation:-12},{opacity:1,scale:1,rotation:-6,duration:.35,ease:'power3.in'},52.581999999999994);
+tl.fromTo('#go',{opacity:0},{opacity:1,duration:.4},54.681999999999995);
+tl.fromTo('#st1',{opacity:0,x:-30},{opacity:1,x:0,duration:.5},58.819);
+tl.fromTo('#wall',{opacity:0,scaleY:0},{opacity:1,scaleY:1,duration:.5},60.419000000000004);
+tl.fromTo('#st2',{opacity:0,x:30},{opacity:1,x:0,duration:.5},61.019000000000005);
+tl.to('#s4t',{opacity:0,duration:.3},64.076);
+tl.to('#dag',{scale:.7,y:-120,duration:.5},64.076);
+tl.fromTo('.col',{opacity:0},{opacity:1,duration:.4},64.076);
+tl.fromTo('.wchip',{opacity:0,scale:.5},{opacity:1,scale:1,stagger:.06,duration:.3},64.576);
+tl.fromTo('#local',{opacity:0},{opacity:1,duration:.4},65.67599999999999);
+tl.to('#local',{opacity:0,duration:.3},68.949);
+tl.to('#st1',{opacity:.4,duration:.3},68.949);
+tl.to('#wall',{backgroundColor:'#ff8a3d',duration:.3},68.949);
+tl.to('#w00',{x:0,y:0,duration:.9,ease:'power2.inOut'},69.749);
+tl.to('#w01',{x:480,y:-62,duration:.9,ease:'power2.inOut'},69.829);
+tl.to('#w02',{x:960,y:-124,duration:.9,ease:'power2.inOut'},69.90899999999999);
+tl.to('#w10',{x:-480,y:62,duration:.9,ease:'power2.inOut'},69.98899999999999);
+tl.to('#w11',{x:0,y:0,duration:.9,ease:'power2.inOut'},70.06899999999999);
+tl.to('#w12',{x:480,y:-62,duration:.9,ease:'power2.inOut'},70.149);
+tl.to('#w20',{x:-960,y:124,duration:.9,ease:'power2.inOut'},70.229);
+tl.to('#w21',{x:-480,y:62,duration:.9,ease:'power2.inOut'},70.309);
+tl.to('#w22',{x:0,y:0,duration:.9,ease:'power2.inOut'},70.389);
+tl.to('.col',{borderColor:'#ff5d5d',duration:.3},74.548);
+tl.fromTo('#cost',{opacity:0,y:20},{opacity:1,y:0,duration:.4},74.748);
+tl.fromTo('#rule',{opacity:0},{opacity:1,duration:.4},76.94800000000001);
+tl.fromTo('#memflow',{opacity:0,y:20},{opacity:1,y:0,duration:.5},79.784);
+tl.fromTo('#disk',{opacity:0},{opacity:1,duration:.3},81.384);
+tl.fromTo('#disk s',{width:0},{width:'100%',duration:.4},82.784);
+tl.to('#disk',{opacity:.35,duration:.3},83.18400000000001);
+tl.to(['#memflow','#disk'],{opacity:0,y:-40,duration:.4},85.895);
+tl.fromTo('#bars',{opacity:0},{opacity:1,duration:.3},85.895);
+tl.fromTo('#bh',{height:0},{height:24,duration:.5},86.295);
+tl.fromTo('#bs',{height:0},{height:480,duration:1.6,ease:'power2.out'},88.295);
+tl.fromTo('#b20',{opacity:0},{opacity:1,duration:.2},88.295);
+tl.fromTo('#n20',{innerText:1},{innerText:20,snap:{innerText:1},duration:1.6,ease:'power2.out'},88.295);
+tl.fromTo('#fine',{opacity:0},{opacity:1,duration:.3},88.895);
+tl.to('#bars',{opacity:0,duration:.4},92.902);
+tl.fromTo('#plan',{opacity:0,y:30},{opacity:1,y:0,duration:.5},92.902);
+tl.to('#p3',{y:-236,duration:.8,ease:'power2.inOut'},95.902);
+tl.to(['#p1','#p2'],{y:118,duration:.8,ease:'power2.inOut'},95.902);
+tl.to('#p1',{text:'read matching rows',duration:.5},96.902);
+tl.fromTo('#s6 .exec, #fp0, #fp1, #fp2',{opacity:0},{opacity:1,duration:.4},100.399);
+tl.to('#fx1',{borderColor:'#ff5d5d',backgroundColor:'rgba(255,93,93,.25)',duration:.2,repeat:3,yoyo:true},102.999);
+tl.to(['#fx1','#fp1'],{opacity:.12,duration:.4},103.999);
+tl.fromTo('#keep',{opacity:0},{opacity:1,duration:.3},102.199);
+tl.to('#keep',{opacity:0,duration:.3},105.592);
+tl.fromTo('#lineage span',{opacity:0,y:10},{opacity:1,y:0,stagger:.4,duration:.3},105.792);
+tl.fromTo('#lineage',{opacity:0},{opacity:1,duration:.2},105.592);
+tl.fromTo('#fpn',{opacity:0,scale:.3},{opacity:1,scale:1,duration:.5,ease:'back.out(2)'},107.392);
+tl.fromTo('.cell',{opacity:0,scale:.9},{opacity:1,scale:1,stagger:.6,duration:.4},110.615);
+tl.to(['#grid','#s7t'],{opacity:.2,scale:.9,duration:.5},117.067);
+tl.fromTo('#fstamp',{opacity:0,scale:2},{opacity:1,scale:1,duration:.35},117.267);
+tl.to('#fstamp',{boxShadow:'0 0 60px #ff8a3d',duration:.6,yoyo:true,repeat:1},118.067);
+tl.fromTo('#flogo',{opacity:0,y:20},{opacity:1,y:0,duration:.6},122.82);
+tl.fromTo('#railfill',{width:0},{width:'100%',duration:124.82,ease:'none'},0);
+window.__timelines["main"] = tl;
+tl.seek(0);
+</script></body></html>
