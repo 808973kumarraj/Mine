@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Delta Lake Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <div class="titles">
+      <div class="eyebrow">Explainer · the transaction log</div>
+      <h1>How Delta Lake works</h1>
+    </div>
+    <div class="controls">
+      <div class="version">table version <span id="version">v0</span></div>
+      <button class="btn icon" id="prev" aria-label="Previous step">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <button class="btn play" id="toggle">
+        <svg id="icon-pause" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+        <svg id="icon-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" hidden><path d="M7 4.5v15l13-7.5z"/></svg>
+        <span id="play-label">Pause</span>
+      </button>
+      <button class="btn icon" id="next" aria-label="Next step">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="panel story" aria-live="polite">
+      <div class="step-no" id="step-no">STEP 1 / 7</div>
+      <div id="story" class="story-body"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5FD4BF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>
+        <div class="mono head-title">_delta_log/</div>
+        <div class="muted">ordered, atomic commits</div>
+      </div>
+      <div class="commits" id="commits"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F2A33A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+        <div class="mono head-title">data files (Parquet)</div>
+        <div class="muted">immutable, never edited</div>
+      </div>
+      <div class="files" id="files"></div>
+      <div class="reader">
+        <div class="muted" id="reader-label"></div>
+        <div class="snapshot" id="snapshot"></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel internals" aria-live="polite">
+    <div class="panel-head">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9BE8DA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      <div class="mono head-title">Under the hood</div>
+      <div class="muted">what the engine actually does at this step</div>
+    </div>
+    <div class="internals-body" id="internals"></div>
+  </section>
+
+  <nav class="timeline" aria-label="Steps">
+    <div class="track"><div class="fill" id="progress"></div></div>
+    <div class="steps" id="steps"></div>
+  </nav>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
