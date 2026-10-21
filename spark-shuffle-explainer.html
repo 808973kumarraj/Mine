@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spark Shuffle Explained</title>
+<style>
+:root{
+  --paper:#ecebe3; --grid:#dddbd0; --ink:#1d1d1b; --muted:#7b7a72; --card:#f7f6f0; --edge:#c9c7bb;
+  --blue:#24418f; --green:#2f7a5b; --red:#b2412e; --amber:#c98a2b; --stage:#e4e2d8;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#1b1b19; --grid:#262623; --ink:#ecebe3; --muted:#9a998f; --card:#262622; --edge:#3a3934;
+    --blue:#7d9cf0; --green:#5fbf93; --red:#e07a63; --amber:#e3ac55; --stage:#141412;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#1b1b19; --grid:#262623; --ink:#ecebe3; --muted:#9a998f; --card:#262622; --edge:#3a3934;
+  --blue:#7d9cf0; --green:#5fbf93; --red:#e07a63; --amber:#e3ac55; --stage:#141412;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--stage);color:var(--ink);font-family:ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:12px}
+#stage{position:relative;width:min(100%, calc((100vh - 120px) * 9 / 16));aspect-ratio:9/16;overflow:hidden;border-radius:14px;
+  background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:4.5% 2.53%;box-shadow:0 10px 40px rgba(0,0,0,.25);container-type:inline-size}
+.u{font-size:3.2cqw}
+#hdr{position:absolute;left:5%;right:5%;top:3%;font-size:2.4cqw;color:var(--muted);border-bottom:1.5px solid var(--blue);padding-bottom:1.2%;letter-spacing:.15em}
+#hdr b{display:inline-block;width:1.2cqw;height:2.4cqw;background:var(--amber);vertical-align:middle;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.scene{position:absolute;inset:0;opacity:0;pointer-events:none}
+.abs{position:absolute}
+.center{left:50%;transform:translateX(-50%);text-align:center}
+.big{font-size:8cqw;font-weight:700;letter-spacing:.02em}
+.lbl{font-size:2.3cqw;color:var(--muted);letter-spacing:.2em;text-transform:uppercase}
+.title{font-size:4.2cqw;font-weight:700}
+.pill{font-size:2.6cqw;border:1.5px solid currentColor;border-radius:99px;padding:.6cqw 2.4cqw;white-space:nowrap;background:var(--card)}
+.box{background:var(--card);border:1.5px solid var(--edge);border-radius:1.2cqw;box-shadow:0 1cqw 0 var(--edge),0 2cqw 3cqw rgba(0,0,0,.08)}
+.term{background:#1d1d1b;color:#e9e6d8;border-radius:1.2cqw;padding:2.2cqw 3cqw;font-size:3.3cqw;white-space:nowrap;box-shadow:0 1.5cqw 3cqw rgba(0,0,0,.2)}
+.term .k{color:#8fb0ff}.term .s{color:#e3ac55}
+.chip{position:absolute;font-size:2.2cqw;font-weight:700;color:#fff;border-radius:.8cqw;padding:.5cqw 1cqw;transform:translate(-50%,-50%)}
+#cap{position:absolute;left:6%;right:6%;bottom:5%;text-align:center;font-size:3.7cqw;line-height:1.35;font-family:system-ui,sans-serif;font-weight:600}
+#cap span{background:var(--ink);color:var(--paper);padding:.3em .5em;border-radius:.35em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+#controls{display:flex;gap:10px;align-items:center;width:min(100%,560px)}
+button{font:inherit;background:var(--ink);color:var(--paper);border:0;border-radius:8px;padding:8px 14px;cursor:pointer}
+input[type=range]{flex:1;accent-color:var(--blue)}
+#time{font-size:13px;color:var(--muted);min-width:84px;text-align:right}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="hdr">&gt; SPARK PERF / SHUFFLING <b></b></div>
+
+  <!-- 1: 100 executors -->
+  <div class="scene" id="s1">
+    <div class="abs center" style="top:12%"><div class="big" id="s1n">100</div><div class="lbl">spark executors</div></div>
+    <div class="abs" id="s1grid" style="left:12%;right:12%;top:27%;display:grid;grid-template-columns:repeat(10,1fr);gap:1.2cqw;transform:perspective(80cqw) rotateX(52deg) rotateZ(-8deg)"></div>
+    <div class="abs center pill" id="s1pill" style="top:66%;color:var(--green)">● all running</div>
+    <div class="abs center term" id="s1term" style="top:44%">df.<span class="k">groupBy</span>(<span class="s">"country"</span>)</div>
+    <div class="abs center box" id="s1job" style="top:20%;width:72%;padding:3cqw;text-align:left">
+      <div class="lbl">spark job · stage 2 of 3</div>
+      <div style="display:flex;justify-content:space-between;font-size:4cqw;font-weight:700;margin:1.5cqw 0"><span>groupBy · count</span><span id="s1clock" style="color:var(--green)">00:00</span></div>
+      <div style="height:2.4cqw;border:1.5px solid var(--edge);border-radius:.6cqw;overflow:hidden"><div id="s1bar" style="height:100%;width:0;background:var(--green)"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:2.2cqw;color:var(--muted);margin-top:1cqw"><span id="s1st">running…</span><span id="s1pct">0%</span></div>
+    </div>
+  </div>
+
+  <!-- 2: 1B orders across executors -->
+  <div class="scene" id="s2">
+    <div class="abs center" style="top:12%"><div class="big" id="s2n">0</div><div class="lbl">orders</div></div>
+    <div class="abs" id="s2ex" style="left:7%;right:7%;top:36%;display:flex;gap:3%"></div>
+    <div class="abs" id="s2more" style="right:8%;top:30%;font-size:2.4cqw;color:var(--muted)">+ 96 more executors</div>
+    <div class="abs center pill" id="s2pill" style="top:62%;color:var(--green)">✓ parallel · no problem</div>
+  </div>
+
+  <!-- 3: shuffle -->
+  <div class="scene" id="s3">
+    <div class="abs center term" id="s3term" style="top:11%">&gt;&gt;&gt; <span id="s3code"></span><b style="display:inline-block;width:1.6cqw;height:3.4cqw;background:var(--amber);vertical-align:middle"></b></div>
+    <div class="abs center title" id="s3t" style="top:12%;font-size:3.6cqw"></div>
+    <div class="abs" id="s3ex" style="left:7%;right:7%;top:28%;display:flex;gap:3%"></div>
+    <div class="abs" id="s3pa" style="left:7%;right:7%;top:50%;display:flex;gap:3%"></div>
+    <div id="s3chips"></div>
+  </div>
+
+  <!-- 4: shuffle cost pipeline -->
+  <div class="scene" id="s4">
+    <div class="abs center title" style="top:9%">shuffle <span style="color:var(--red)">cost</span></div>
+    <div class="abs center lbl" id="s4step" style="top:14.5%">step 1 / 6</div>
+    <div class="abs box" style="left:6%;top:20%;width:36%;padding:2cqw;text-align:center"><div class="lbl">executor 4</div><div style="font-size:2.4cqw;margin-top:1cqw">stage 1</div></div>
+    <div class="abs box" style="right:6%;top:20%;width:36%;padding:2cqw;text-align:center"><div class="lbl">executor 2</div><div style="font-size:2.4cqw;margin-top:1cqw">stage 2</div></div>
+    <div class="abs box" id="s4rec" style="padding:1.6cqw 2cqw;font-size:2.4cqw;line-height:1.5;width:34%"></div>
+    <div class="abs" id="s4disk" style="left:12%;top:52%;width:24%;text-align:center"><svg viewBox="0 0 40 40" style="width:42%"><ellipse cx="20" cy="9" rx="15" ry="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 9v22c0 3 7 5 15 5s15-2 15-5V9" fill="none" stroke="currentColor" stroke-width="2"/></svg><div class="lbl">disk</div></div>
+    <div class="abs" id="s4net" style="left:38%;top:55%;width:24%;text-align:center"><div style="border-top:2px dashed currentColor;margin-top:4cqw"></div><div class="lbl" style="margin-top:1.5cqw">network</div></div>
+    <div class="abs" id="s4list" style="left:10%;right:10%;top:70%;font-size:3cqw;line-height:1.7"></div>
+  </div>
+
+  <!-- 5: waiting -->
+  <div class="scene" id="s5">
+    <div class="abs center title" style="top:10%">stage 2 waits for <span style="color:var(--red)">all of it</span></div>
+    <div class="abs" id="s5tasks" style="left:10%;right:10%;top:22%;display:flex;flex-direction:column;gap:2.4cqw"></div>
+  </div>
+
+  <!-- 6: bottleneck -->
+  <div class="scene" id="s6">
+    <div class="abs center pill" id="s6b" style="top:12%;color:var(--red)">bottleneck: data movement</div>
+    <div class="abs" style="left:8%;top:21%;font-size:3cqw;color:var(--red)">+ more executors</div>
+    <svg class="abs" id="s6p1" style="left:6%;top:24%;width:88%" viewBox="0 0 100 26"></svg>
+    <div class="abs" id="s6r1" style="right:8%;top:21%;font-size:2.8cqw;color:var(--red)">✗ still stuck</div>
+    <div class="abs" style="left:8%;top:47%;font-size:3cqw;color:var(--green)">− less data</div>
+    <svg class="abs" id="s6p2" style="left:6%;top:50%;width:88%" viewBox="0 0 100 26"></svg>
+    <div class="abs" id="s6r2" style="right:8%;top:47%;font-size:2.8cqw;color:var(--green)">✓ flows</div>
+  </div>
+
+  <!-- 7: fixes -->
+  <div class="scene" id="s7">
+    <div class="abs lbl" style="left:8%;top:9%">before the shuffle</div>
+    <div class="abs title" style="left:8%;top:11.5%">filter <span id="s7r" style="color:var(--green)">rows</span> + <span id="s7c" style="color:var(--green)">columns</span></div>
+    <div class="abs" id="s7tbl" style="left:12%;right:12%;top:20%;display:grid;grid-template-columns:repeat(6,1fr);gap:.8cqw;transform:perspective(80cqw) rotateX(40deg) rotateZ(-6deg)"></div>
+    <div class="abs title" id="s7t2" style="left:8%;top:47%;color:var(--red)">and avoid unnecessary shuffles</div>
+    <div class="abs center box" id="s7x" style="top:54%;width:46%;padding:3cqw;font-size:3cqw">
+      <div style="font-size:9cqw;line-height:1">⤨</div>extra shuffle
+      <svg viewBox="0 0 100 60" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%"><line id="s7line" x1="8" y1="54" x2="92" y2="6" stroke="var(--red)" stroke-width="2.5" stroke-dasharray="100" stroke-dashoffset="100"/></svg>
+    </div>
+    <div class="abs center pill" id="s7ok" style="top:70%;color:var(--green)">✓ less data moved · faster job</div>
+  </div>
+
+  <!-- 8: outro -->
+  <div class="scene" id="s8">
+    <div class="abs center lbl" style="top:22%">next up</div>
+    <div class="abs center title" style="top:26%;font-size:6cqw;white-space:nowrap">Broadcast Joins</div>
+    <div class="abs center" style="top:33%;font-size:2.6cqw;color:var(--muted);white-space:nowrap">ship the small table — skip the shuffle</div>
+    <div class="abs" id="s8ex" style="left:0;right:0;top:40%;height:30%"></div>
+    <div class="abs center" style="top:74%;font-size:2.6cqw;color:var(--muted);white-space:nowrap">Spark Performance · Shuffling</div>
+  </div>
+
+  <div id="cap"></div>
+</div>
+
+<div id="controls">
+  <button id="play">Pause</button>
+  <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Seek">
+  <span id="time">0:00</span>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const ease=x=>{x=clamp(x);return x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2};
+const seg=(t,a,b)=>ease((t-a)/(b-a));
+const COLORS={IN:'#24418f',US:'#2f7a5b',BR:'#c98a2b',DE:'#b2412e'};
+const KEYS=Object.keys(COLORS);
+
+/* build static parts */
+for(let i=0;i<100;i++){const d=document.createElement('div');d.className='box';d.style.cssText='aspect-ratio:1.3;border-radius:.6cqw;box-shadow:0 .5cqw 0 var(--edge);display:flex;align-items:center;justify-content:center';d.innerHTML='<i style="width:1cqw;height:1cqw;border-radius:50%;background:var(--green)"></i>';$('s1grid').appendChild(d)}
+function exBoxes(el,withFill){for(let i=1;i<=4;i++){const d=document.createElement('div');d.className='box';d.style.cssText='flex:1;padding:1.4cqw;height:13cqw;position:relative';d.innerHTML=`<div style="font-size:1.9cqw;color:var(--muted)">EXECUTOR ${i}</div>`+(withFill?`<div style="position:absolute;left:8%;right:8%;bottom:12%;height:1.4cqw;border:1px solid var(--edge)"><div class="fill" style="height:100%;width:0;background:var(--green)"></div></div>`:'');el.appendChild(d)}}
+exBoxes($('s2ex'),true);exBoxes($('s3ex'),false);
+KEYS.forEach(k=>{const d=document.createElement('div');d.className='box';d.style.cssText='flex:1;padding:1.4cqw;height:9cqw;font-size:1.9cqw;color:var(--muted)';d.innerHTML=`PARTITION · <b style="color:${COLORS[k]}">${k}</b>`;$('s3pa').appendChild(d)});
+// chips: each executor holds 4 random-ish keys
+const chips=[];
+for(let e=0;e<4;e++)for(let j=0;j<4;j++){const k=KEYS[(e*3+j*5+j*e)%4];const c=document.createElement('div');c.className='chip';c.textContent=k;c.style.background=COLORS[k];$('s3chips').appendChild(c);chips.push({el:c,e,j,k})}
+const cnt={};chips.forEach(c=>{c.slot=(cnt[c.k]=(cnt[c.k]||0)+1)-1});
+for(let i=0;i<4;i++){const d=document.createElement('div');d.className='box';d.style.cssText='padding:2cqw;display:flex;justify-content:space-between;align-items:center;font-size:2.6cqw';d.innerHTML=`<span>STAGE 2 · TASK ${i+1}</span><span class="w" style="color:var(--amber)">waiting for data…</span>`;$('s5tasks').appendChild(d)}
+for(let i=0;i<36;i++){const d=document.createElement('div');d.className='box';d.style.cssText='height:3.2cqw;border-radius:.4cqw;box-shadow:none;font-size:1.5cqw;display:flex;align-items:center;justify-content:center;color:var(--muted)';if(i<6)d.textContent=['order_id','country','amount','user','notes','meta'][i];$('s7tbl').appendChild(d)}
+const pipe=`<path d="M2 3 H30 C42 3 42 11 50 11 C58 11 58 3 70 3 H98 V23 H70 C58 23 58 15 50 15 C42 15 42 23 30 23 H2 Z" fill="var(--card)" stroke="var(--ink)" stroke-width=".5"/>`;
+$('s6p1').innerHTML=pipe+'<g id="g1"></g>';$('s6p2').innerHTML=pipe+'<g id="g2"></g>';
+for(let i=0;i<40;i++){const r=document.createElementNS('http://www.w3.org/2000/svg','rect');r.setAttribute('width',3.4);r.setAttribute('height',2.4);r.setAttribute('rx',.4);r.setAttribute('fill',i%3?'var(--blue)':'var(--card)');r.setAttribute('stroke','var(--blue)');r.setAttribute('stroke-width',.3);$('g1').appendChild(r)}
+for(let i=0;i<6;i++){const r=document.createElementNS('http://www.w3.org/2000/svg','rect');r.setAttribute('width',3.4);r.setAttribute('height',2.4);r.setAttribute('rx',.4);r.setAttribute('fill','var(--blue)');$('g2').appendChild(r)}
+$('s8ex').innerHTML=[0,1,2,3].map(i=>`<div class="box abs" style="width:20%;height:13cqw;left:${[10,70,14,66][i]}%;top:${[8,8,62,62][i]}%;padding:1.2cqw;font-size:1.8cqw;color:var(--muted)">EXEC ${i+1}</div>`).join('')+`<div class="box abs" id="s8small" style="width:18%;height:6cqw;left:41%;top:40%;font-size:1.8cqw;display:flex;align-items:center;justify-content:center;border-color:var(--blue);color:var(--blue)">small</div>`+[0,1,2,3].map(i=>`<div class="box abs s8copy" style="width:12%;height:4cqw;font-size:1.5cqw;display:flex;align-items:center;justify-content:center;border-color:var(--blue);color:var(--blue)">small</div>`).join('');
+
+/* captions (original wording) */
+const CAPS=[
+ [0,'100 executors, all humming along.'],[4.5,'Add a single groupBy — and the job crawls.'],
+ [12,'Say you have a billion orders split across 100 executors.'],[17,'Each one works on its own slice. Perfectly parallel.'],
+ [21,'Then: groupBy("country").count()'],[25,'Every row for a country must land in the same partition…'],[30,'…so rows have to move between executors. That move is a shuffle.'],
+ [36,'Why it hurts: rows are serialized and written to disk,'],[41,'sent over the network, read back,'],[46,'deserialized, and only then aggregated.'],
+ [51,'Meanwhile the next stage can\'t start. Tasks sit idle, waiting for data.'],
+ [57,'When moving data is the bottleneck, more executors won\'t save you.'],[62,'Moving less data will.'],
+ [66,'So filter rows and drop columns before the shuffle,'],[71,'and remove shuffles you don\'t need.'],
+ [76,'Next: broadcast joins — a way to skip the shuffle entirely.']];
+const SC=[['s1',0,12],['s2',12,21],['s3',21,36],['s4',36,51],['s5',51,57],['s6',57,66],['s7',66,76],['s8',76,84]];
+const DUR=84;
+const fmt=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+let lastCap=-1;
+
+function render(t){
+  SC.forEach(([id,a,b])=>{const v=clamp(Math.min((t-a)/.4,(b-t)/.4));$(id).style.opacity=v});
+  let ci=0;CAPS.forEach((c,i)=>{if(t>=c[0])ci=i});
+  if(ci!==lastCap){$('cap').innerHTML='<span>'+CAPS[ci][1]+'</span>';lastCap=ci}
+
+  /* s1 */
+  {const l=t;$('s1n').textContent=Math.round(100*seg(l,0,1.5));
+   [...$('s1grid').children].forEach((d,i)=>{d.style.opacity=clamp(l*3-i*.02);const slow=seg(l,7,9);d.firstChild.style.background=slow>.5&&(i*7)%3?'var(--red)':'var(--green)'});
+   $('s1pill').style.opacity=l>2&&l<6.5?1:0;
+   $('s1term').style.opacity=seg(l,4.5,5)*(1-seg(l,6.5,7));
+   $('s1job').style.opacity=seg(l,7,7.4);
+   $('s1grid').style.top=(27+12*seg(l,7,7.5))+'%';
+   const p=Math.min(63,Math.round(60*seg(l,7.2,8.6)+3*seg(l,8.6,11.5)));
+   $('s1bar').style.width=p+'%';$('s1pct').textContent=p+'%';
+   const clk=Math.round(l<7?0:(l<8.6?(l-7)*25:40+(l-8.6)*30));$('s1clock').textContent=`${String(Math.floor(clk/60)).padStart(2,'0')}:${String(clk%60).padStart(2,'0')}`;
+   $('s1clock').style.color=l>9?'var(--red)':'var(--green)';$('s1st').textContent=l>9?'tasks waiting on data…':'running…'}
+  /* s2 */
+  {const l=t-12;$('s2n').textContent=Math.round(1e9*seg(l,0,1.6)).toLocaleString('en-US');
+   [...$('s2ex').children].forEach((d,i)=>{d.style.opacity=seg(l,1+i*.4,1.5+i*.4);d.querySelector('.fill').style.width=100*seg(l,4,8.5)+'%'});
+   $('s2more').style.opacity=seg(l,3,3.5);$('s2pill').style.opacity=seg(l,5,5.5)}
+  /* s3 */
+  {const l=t-21;const code='df.groupBy("country").count()';$('s3code').textContent=code.slice(0,Math.floor(code.length*seg(l,.2,3)));
+   $('s3term').style.opacity=1-seg(l,3.8,4.2);$('s3t').textContent=l<9?'same key → same partition':'data moves between executors — that\'s a SHUFFLE';$('s3t').style.opacity=seg(l,4,4.4);
+   $('s3pa').style.opacity=seg(l,4,4.6);
+   const W=$('stage').clientWidth,H=$('stage').clientHeight;
+   chips.forEach((c,i)=>{const bw=.86/4*.97;const sx=.07+c.e*(bw+.86*.03/3)+bw*(.25+.5*(c.j%2));const sy=.335+.035*Math.floor(c.j/2);
+     const pi=KEYS.indexOf(c.k);const tx=.07+pi*(bw+.86*.03/3)+bw*(.2+.2*(c.slot%3));const ty=.535+.03*Math.floor(c.slot/3);
+     const p=seg(l,5+i*.18,7+i*.18);const arc=Math.sin(p*Math.PI)*.08;
+     c.el.style.left=(sx+(tx-sx)*p)*W+'px';c.el.style.top=(sy+(ty-sy)*p-arc)*H+'px';c.el.style.opacity=seg(l,3.4,4)})}
+  /* s4 */
+  {const l=t-36;const steps=['serialize','write to disk  (+ disk I/O)','send over network  (+ network I/O)','next stage fetches & reads','deserialize','aggregate'];
+   const at=[0,2.5,5,8,10,12.5];let s=0;at.forEach((a,i)=>{if(l>=a)s=i});$('s4step').textContent=`step ${s+1} / 6`;
+   $('s4list').innerHTML=steps.map((x,i)=>`<div style="opacity:${l>=at[i]?1:.25};color:${i===s?'var(--ink)':'var(--muted)'}">${l>=at[i]?'●':'○'} ${i+1}. ${x}</div>`).join('');
+   const rec=s===0&&l<1?'<b>ORDER RECORD</b><br>order_id 48213907<br>country IN<br>amount €1,240':(s<4?'01001001 01001110<br>00110100 00111000':'<b>ORDER RECORD</b><br>country IN<br>amount €1,240'+(s===5?'<br><span style="color:var(--green)">→ sum(IN) ✓</span>':''));
+   $('s4rec').innerHTML=rec;
+   const pos=[[8,32],[8,32],[10,45],[33,45],[58,32],[58,32]];const nx=pos[Math.min(5,s+1)]||pos[5];const p0=pos[s];const k=s<5?seg(l,at[s],at[s]+1.2):1;
+   $('s4rec').style.left=(p0[0]+(nx[0]-p0[0])*(s>=1&&s<4?k:0))+'%';$('s4rec').style.top=(p0[1]+(nx[1]-p0[1])*(s>=1&&s<4?k:0))+'%';
+   $('s4disk').style.color=s===1?'var(--red)':'var(--muted)';$('s4net').style.color=s===2?'var(--red)':'var(--muted)'}
+  /* s5 */
+  {const l=t-51;[...$('s5tasks').children].forEach((d,i)=>{d.style.opacity=seg(l,.3+i*.3,.7+i*.3);d.querySelector('.w').textContent='waiting for data'+'.'.repeat(1+Math.abs(Math.floor(l*3+i))%3)})}
+  /* s6 */
+  {const l=t-57;$('g1').querySelectorAll('rect').forEach((r,i)=>{const x=3+(i%8)*3.6+Math.min(l,5)*.6*(i%8>5?1:.2);r.setAttribute('x',Math.min(x,40));r.setAttribute('y',4+Math.floor(i/8)*3.6)});
+   $('g2').querySelectorAll('rect').forEach((r,i)=>{const p=((l-5)*.12+i*.16)%1;r.setAttribute('x',l<5?3+i*4:2+p*94);r.setAttribute('y',l<5?11.8:(Math.abs(p-.5)<.12?11.8:5+(i%3)*5))});
+   $('s6p2').style.opacity=$('s6r2').style.opacity=seg(l,4.5,5.2);$('s6r1').style.opacity=seg(l,2,2.5)}
+  /* s7 */
+  {const l=t-66;[...$('s7tbl').children].forEach((d,i)=>{const row=Math.floor(i/6),col=i%6;const keepR=row%2===0,keepC=col<3;let o=1;if(!keepR)o-=.85*seg(l,1.2,2);if(!keepC)o=Math.min(o,1-.85*seg(l,2.6,3.4));d.style.opacity=o});
+   $('s7r').style.opacity=seg(l,1,1.4);$('s7c').style.opacity=seg(l,2.4,2.8);
+   $('s7t2').style.opacity=$('s7x').style.opacity=seg(l,5,5.4);$('s7line').style.strokeDashoffset=100*(1-seg(l,6,7));$('s7ok').style.opacity=seg(l,7.4,7.8)}
+  /* s8 */
+  {const l=t-76;const W=$('s8ex');const p=seg(l,1.5,3.5);
+   [...W.querySelectorAll('.s8copy')].forEach((c,i)=>{const tx=[14,74,18,70][i],ty=[18,18,72,72][i];c.style.left=(44+(tx-44)*p)+'%';c.style.top=(42+(ty-42)*p)+'%';c.style.opacity=p>0?1:0})}
+}
+
+let t=0,playing=true,last=performance.now();
+function frame(now){const dt=(now-last)/1000;last=now;if(playing){t+=dt;if(t>=DUR)t=0}render(t);$('seek').value=t/DUR*1000;$('time').textContent=`${fmt(t)} / ${fmt(DUR)}`;requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+$('play').onclick=()=>{playing=!playing;$('play').textContent=playing?'Pause':'Play'};
+$('seek').oninput=e=>{t=e.target.value/1000*DUR};
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();$('play').click()}});
+</script>
+</body>
+</html>
