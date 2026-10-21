@@ -1,0 +1,280 @@
+<title>Second Crack Coffee</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: roaster's logbook — a roast-curve hero, then menu, beans and visit info on a 12-column grid */
+:root {
+  --bg: #eef0ea; --surface: #e2e6dc; --fg: #1d1a17; --muted: #5d6157;
+  --accent: #2742c9; --bean: #7c8c4e; --line: #c9cec0;
+  --display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --body: "Instrument Sans", "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15140f; --surface: #1f1e18; --fg: #ecebe3; --muted: #a3a596;
+  --accent: #8ea2ff; --bean: #b3c27e; --line: #34342b; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #15140f; --surface: #1f1e18; --fg: #ecebe3; --muted: #a3a596;
+  --accent: #8ea2ff; --bean: #b3c27e; --line: #34342b; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 400 17px/1.6 var(--body); }
+.wrap { max-width: 1160px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+a { color: inherit }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px }
+h1, h2, h3 { font-family: var(--display); line-height: 1.02; margin: 0; text-wrap: balance }
+.label { font: 500 12px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+
+/* nav */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg) }
+header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line) }
+.nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 14px }
+.logo { font: 800 20px/1 var(--display); letter-spacing: -.02em; text-decoration: none }
+.logo span { color: var(--accent) }
+.nav ul { display: flex; gap: 24px; list-style: none; margin: 0; padding: 0; font-weight: 500 }
+.nav ul a { text-decoration: none }
+.nav ul a:hover { color: var(--accent) }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px; border: 0;
+  background: var(--accent); color: var(--bg); font: 600 15px/1 var(--body); text-decoration: none; cursor: pointer; transition: transform .15s }
+.btn:hover { transform: translateY(-2px) }
+.btn.ghost { background: transparent; color: var(--fg); box-shadow: inset 0 0 0 1.5px var(--fg) }
+@media (max-width: 720px) { .nav ul { display: none } }
+
+/* hero */
+.hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; padding-block: 64px 56px }
+.hero h1 { font-size: clamp(48px, 8vw, 104px); font-weight: 800; letter-spacing: -.045em }
+.hero h1 em { font-style: normal; color: var(--accent) }
+.hero p { max-width: 34ch; font-size: 19px; color: var(--muted); margin: 24px 0 32px }
+.cta { display: flex; flex-wrap: wrap; gap: 12px }
+.curve { background: var(--surface); border-radius: 20px; padding: 20px; min-width: 0 }
+.curve svg { width: 100%; height: auto; display: block }
+.curve .head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px }
+.curve .temp { font: 500 13px var(--mono); color: var(--fg) }
+@media (max-width: 860px) { .hero { grid-template-columns: 1fr; gap: 32px; padding-block: 40px } }
+
+/* sections */
+section.block { padding-block: 72px; border-top: 1px solid var(--line) }
+.sec-head { display: flex; justify-content: space-between; align-items: end; gap: 24px; flex-wrap: wrap; margin-bottom: 36px }
+.sec-head h2 { font-size: clamp(36px, 5vw, 60px); font-weight: 700; letter-spacing: -.035em }
+.sec-head p { max-width: 42ch; color: var(--muted); margin: 0 }
+
+/* menu */
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px }
+.tab { font: 500 14px var(--body); padding: 9px 16px; border-radius: 999px; border: 1.5px solid var(--line); background: transparent; color: var(--fg); cursor: pointer }
+.tab[aria-selected="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg) }
+.menu { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 56px }
+.item { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding-block: 18px; border-bottom: 1px dashed var(--line) }
+.item h3 { font: 600 19px/1.3 var(--body) }
+.item .price { font: 500 16px var(--mono); font-variant-numeric: tabular-nums }
+.item p { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 15px }
+.item .ratio { font: 400 12px var(--mono); color: var(--bean) }
+@media (max-width: 720px) { .menu { grid-template-columns: 1fr } }
+
+/* beans */
+.beans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px }
+.bean { background: var(--surface); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 14px }
+.bean h3 { font-size: 30px; font-weight: 700; letter-spacing: -.02em }
+.bean dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 14px }
+.bean dt { font: 500 11px/1.9 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+.bean dd { margin: 0 }
+.roastbar { height: 8px; border-radius: 99px; background: linear-gradient(90deg, #c9b07a, #8a5a2b 55%, #3a2214); position: relative }
+.roastbar i { position: absolute; top: -5px; width: 4px; height: 18px; border-radius: 2px; background: var(--fg) }
+.notes { display: flex; flex-wrap: wrap; gap: 6px }
+.notes span { font-size: 13px; padding: 4px 10px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line) }
+@media (max-width: 900px) { .beans { grid-template-columns: 1fr } }
+
+/* visit */
+.visit { display: grid; grid-template-columns: 1fr 1fr; gap: 48px }
+.hours { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums }
+.hours td { padding: 12px 0; border-bottom: 1px solid var(--line) }
+.hours td:last-child { text-align: right; font-family: var(--mono); font-size: 15px }
+.hours tr.today td { color: var(--accent); font-weight: 600 }
+.addr { font: 700 clamp(28px, 4vw, 40px)/1.1 var(--display); letter-spacing: -.02em; margin: 8px 0 16px }
+form.signup { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 24px }
+form.signup input { flex: 1 1 220px; min-width: 0; padding: 12px 16px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--bg); color: var(--fg); font: 400 15px var(--body) }
+.ok { color: var(--bean); font-weight: 500; margin-top: 10px }
+@media (max-width: 760px) { .visit { grid-template-columns: 1fr } }
+
+footer { border-top: 1px solid var(--line); padding-block: 28px; color: var(--muted); font-size: 14px }
+footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap }
+
+@media (prefers-reduced-motion: no-preference) {
+  .trace { stroke-dasharray: 900; stroke-dashoffset: 900; animation: draw 2.2s ease-out .2s forwards }
+  @keyframes draw { to { stroke-dashoffset: 0 } }
+}
+</style>
+
+<header>
+  <nav class="wrap nav" aria-label="Main">
+    <a class="logo" href="#top">second<span>/</span>crack</a>
+    <ul>
+      <li><a href="#menu">Menu</a></li>
+      <li><a href="#beans">Beans</a></li>
+      <li><a href="#visit">Visit</a></li>
+    </ul>
+    <a class="btn" href="#visit">Order ahead</a>
+  </nav>
+</header>
+
+<main id="top">
+  <div class="wrap hero">
+    <div>
+      <p class="label">Roastery &amp; espresso bar · Indiranagar, Bengaluru</p>
+      <h1>Roasted Monday. <em>Poured</em> by Friday.</h1>
+      <p>We roast small batches of single-estate Indian coffee in the back room and serve them within a week, while they still taste like where they grew.</p>
+      <div class="cta">
+        <a class="btn" href="#menu">See the menu</a>
+        <a class="btn ghost" href="#beans">This week's beans</a>
+      </div>
+    </div>
+
+    <figure class="curve" aria-label="Roast curve for this week's Baba Budangiri batch">
+      <div class="head">
+        <span class="label">Batch 214 · Baba Budangiri</span>
+        <span class="temp">drop 208 °C · 10:40</span>
+      </div>
+      <svg viewBox="0 0 480 300" role="img" aria-label="Bean temperature rises from 100 to 208 °C over 11 minutes, with first crack at 8:50">
+        <g stroke="var(--line)" stroke-width="1">
+          <line x1="40" y1="40" x2="460" y2="40"/><line x1="40" y1="110" x2="460" y2="110"/>
+          <line x1="40" y1="180" x2="460" y2="180"/><line x1="40" y1="250" x2="460" y2="250"/>
+        </g>
+        <g font-family="JetBrains Mono, monospace" font-size="11" fill="var(--muted)">
+          <text x="8" y="44">220</text><text x="8" y="114">180</text><text x="8" y="184">140</text><text x="8" y="254">100</text>
+          <text x="40" y="276">0:00</text><text x="190" y="276">4:00</text><text x="342" y="276">8:00</text><text x="424" y="276">11:00</text>
+        </g>
+        <!-- first crack band 8:50–10:40 -->
+        <rect x="372" y="34" width="70" height="222" fill="var(--accent)" opacity=".1"/>
+        <line x1="372" y1="34" x2="372" y2="256" stroke="var(--accent)" stroke-dasharray="3 4"/>
+        <text x="300" y="30" font-family="JetBrains Mono, monospace" font-size="11" fill="var(--accent)">first crack 8:50</text>
+        <path class="trace" fill="none" stroke="var(--fg)" stroke-width="3" stroke-linecap="round"
+          d="M40 250 C 70 262, 100 238, 140 215 S 230 160, 290 128 S 372 85, 400 74 S 432 63, 442 61"/>
+        <circle cx="442" cy="61" r="6" fill="var(--accent)"/>
+      </svg>
+      <figcaption class="label" style="margin-top:6px">Bean temperature, °C over time</figcaption>
+    </figure>
+  </div>
+
+  <section class="block" id="menu">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Menu</h2>
+        <p>Every espresso is pulled at 1:2.2 on this week's house beans. Oat and almond milk at no extra cost.</p>
+      </div>
+      <div class="tabs" role="tablist" aria-label="Menu sections">
+        <button class="tab" role="tab" id="tab-espresso" aria-selected="true" data-cat="espresso">Espresso</button>
+        <button class="tab" role="tab" id="tab-filter" aria-selected="false" data-cat="filter">Filter &amp; cold</button>
+        <button class="tab" role="tab" id="tab-food" aria-selected="false" data-cat="food">Kitchen</button>
+      </div>
+      <div class="menu" id="menu-list" role="tabpanel" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="block" id="beans">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>On the bar this week</h2>
+        <p>Three estates, roasted on Monday. Bags of 250 g to take home at the counter.</p>
+      </div>
+      <div class="beans">
+        <article class="bean">
+          <span class="label">House espresso</span>
+          <h3>Baba Budangiri</h3>
+          <dl><dt>Region</dt><dd>Chikmagalur, Karnataka</dd><dt>Altitude</dt><dd>1,450 m</dd><dt>Process</dt><dd>Washed</dd><dt>Variety</dt><dd>S795</dd></dl>
+          <div class="roastbar" aria-label="Roast level: medium"><i style="left:52%"></i></div>
+          <div class="notes"><span>jaggery</span><span>cocoa nib</span><span>orange peel</span></div>
+        </article>
+        <article class="bean">
+          <span class="label">Filter</span>
+          <h3>Araku Valley</h3>
+          <dl><dt>Region</dt><dd>Visakhapatnam, Andhra Pradesh</dd><dt>Altitude</dt><dd>1,100 m</dd><dt>Process</dt><dd>Natural</dd><dt>Variety</dt><dd>SLN 9</dd></dl>
+          <div class="roastbar" aria-label="Roast level: light"><i style="left:22%"></i></div>
+          <div class="notes"><span>blueberry</span><span>rose</span><span>honey</span></div>
+        </article>
+        <article class="bean">
+          <span class="label">Guest roast</span>
+          <h3>Pulney Hills</h3>
+          <dl><dt>Region</dt><dd>Kodaikanal, Tamil Nadu</dd><dt>Altitude</dt><dd>1,600 m</dd><dt>Process</dt><dd>Honey</dd><dt>Variety</dt><dd>Chandragiri</dd></dl>
+          <div class="roastbar" aria-label="Roast level: medium-light"><i style="left:36%"></i></div>
+          <div class="notes"><span>apricot</span><span>black tea</span><span>cane sugar</span></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="visit">
+    <div class="wrap visit">
+      <div>
+        <span class="label">Find us</span>
+        <p class="addr">12th Main Road, Indiranagar, Bengaluru 560038</p>
+        <p style="color:var(--muted);margin:0">Two minutes from Indiranagar metro. Twelve seats inside, a bench out front, and a window to watch the roaster on Mondays.</p>
+        <form class="signup" id="signup" novalidate>
+          <label class="label" for="email" style="flex-basis:100%">Get the Monday roast list</label>
+          <input id="email" type="email" placeholder="you@example.com" required>
+          <button class="btn" type="submit">Subscribe</button>
+        </form>
+        <p class="ok" id="ok" hidden></p>
+      </div>
+      <div>
+        <span class="label">Hours</span>
+        <table class="hours" id="hours"><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>second/crack coffee roasters</span>
+    <span>Sample design made with the OpenDesign frontend-design skill</span>
+  </div>
+</footer>
+
+<script>
+const MENU = {
+  espresso: [
+    ["Espresso", "₹160", "Double shot, 18 g in, 40 g out.", "1:2.2 · 28 s"],
+    ["Cortado", "₹190", "Equal parts espresso and steamed milk.", "60 ml"],
+    ["Flat white", "₹220", "Double ristretto, thin silky milk.", "160 ml"],
+    ["Cappuccino", "₹210", "Taller foam, cocoa on request.", "180 ml"],
+    ["Filter kaapi tonic", "₹240", "Espresso over tonic, chicory syrup, lime.", "iced"],
+    ["Jaggery latte", "₹230", "Kolhapuri jaggery, cardamom, oat milk.", "240 ml"]
+  ],
+  filter: [
+    ["V60 pour-over", "₹260", "Araku natural, brewed to order.", "15 g : 250 ml"],
+    ["Batch brew", "₹150", "Rotating, refilled every hour.", "300 ml"],
+    ["Cold brew", "₹220", "Steeped 18 hours, served black.", "1:8"],
+    ["South Indian filter coffee", "₹120", "80/20 with chicory, dabara and tumbler.", "brass filter"]
+  ],
+  food: [
+    ["Banana bread", "₹180", "Brown butter, walnuts, baked each morning."],
+    ["Masala egg croissant", "₹260", "Spiced scramble, coriander chutney."],
+    ["Ragi chocolate cookie", "₹110", "Finger millet, 70% dark chocolate."],
+    ["Sourdough toast", "₹200", "Cultured butter and seasonal jam."]
+  ]
+};
+const list = document.getElementById("menu-list");
+function show(cat) {
+  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.cat === cat));
+  list.setAttribute("aria-labelledby", "tab-" + cat);
+  list.innerHTML = MENU[cat].map(([n, p, d, r]) =>
+    `<div class="item"><h3>${n}</h3><span class="price">${p}</span><p>${d}${r ? ` <span class="ratio">· ${r}</span>` : ""}</p></div>`).join("");
+}
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => show(t.dataset.cat)));
+show("espresso");
+
+const HOURS = [["Monday", "8:00 – 18:00 · roast day"], ["Tuesday", "7:30 – 20:00"], ["Wednesday", "7:30 – 20:00"],
+  ["Thursday", "7:30 – 20:00"], ["Friday", "7:30 – 22:00"], ["Saturday", "8:00 – 22:00"], ["Sunday", "8:00 – 17:00"]];
+const today = (new Date().getDay() + 6) % 7;
+document.querySelector("#hours tbody").innerHTML = HOURS.map(([d, h], i) =>
+  `<tr class="${i === today ? "today" : ""}"><td>${d}${i === today ? " (today)" : ""}</td><td>${h}</td></tr>`).join("");
+
+document.getElementById("signup").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = document.getElementById("email").value.trim(), ok = document.getElementById("ok");
+  ok.hidden = false;
+  ok.textContent = /.+@.+\..+/.test(v) ? "Thanks. This is a sample page, so no email was sent." : "Enter an email address like name@example.com.";
+});
+</script>
