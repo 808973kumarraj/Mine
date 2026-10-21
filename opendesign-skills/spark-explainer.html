@@ -1,0 +1,247 @@
+<title>How Spark Runs a Query</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one 16:9 stage (code → driver → cluster), chapter rail and scrubber below; single dark "terminal" look by choice */
+:root {
+  color-scheme: dark;
+  --bg: #101318; --panel: #181d25; --line: #2b3240; --fg: #e8ebf0; --muted: #8b94a5;
+  --spark: #e8662a; --k1: #f2b134; --k2: #4fb3c8; --k3: #b48cf2;
+  --sans: "IBM Plex Sans", "Segoe UI", Roboto, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 400 16px/1.55 var(--sans); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 28px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1 { font: 700 clamp(26px, 4vw, 40px)/1.1 var(--sans); letter-spacing: -.02em; margin: 0 0 6px; text-wrap: balance }
+h1 span { color: var(--spark) }
+.sub { color: var(--muted); margin: 0 0 20px; max-width: 62ch }
+.stage { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden }
+svg { display: block; width: 100%; height: auto }
+.cap { min-height: 96px; padding: 16px 20px; border-top: 1px solid var(--line) }
+.cap b { display: block; font: 500 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--spark); margin-bottom: 4px }
+.cap p { margin: 0; max-width: 70ch }
+.controls { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--line); flex-wrap: wrap }
+button { font: 500 14px var(--sans); color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer }
+button:hover { border-color: var(--muted) }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--spark); outline-offset: 2px }
+#play { background: var(--spark); border-color: var(--spark); color: #1a0d05; min-width: 84px; font-weight: 600 }
+#scrub { flex: 1 1 200px; min-width: 0; accent-color: var(--spark) }
+.chapters { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-top: 14px }
+.chapters button { text-align: left; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px }
+.chapters small { font: 400 11px var(--mono); color: var(--muted) }
+.chapters button[aria-current="true"] { border-color: var(--spark); background: rgba(232,102,42,.1) }
+@media (max-width: 760px) { .chapters { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 14px; font: 400 13px var(--mono); color: var(--muted) }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px }
+svg text { font-family: var(--mono) }
+.t-title { font: 600 15px var(--sans); fill: var(--fg) }
+.t-small { font-size: 12px; fill: var(--muted) }
+.box { fill: #1e2430; stroke: var(--line); stroke-width: 1.5 }
+</style>
+
+<div class="wrap">
+  <h1>How <span>Spark</span> runs a query</h1>
+  <p class="sub">Follow one small job from the line of code you write to the answer that comes back: planning, stages, tasks, the shuffle and the result.</p>
+
+  <div class="stage">
+    <svg id="svg" viewBox="0 0 960 540" role="img" aria-label="Animated diagram of a Spark job running across a driver and three executors">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#8b94a5"/></marker>
+      </defs>
+
+      <!-- code -->
+      <g id="code">
+        <rect class="box" x="20" y="20" width="320" height="150" rx="10"/>
+        <text class="t-small" x="36" y="44">your_job.py</text>
+        <text id="c1" x="36" y="72" font-size="13" fill="#e8ebf0">orders = spark.read.parquet("orders")</text>
+        <text id="c2" x="36" y="96" font-size="13" fill="#e8ebf0">big = orders.filter(<tspan fill="#e8662a">amount &gt; 100</tspan>)</text>
+        <text id="c3" x="36" y="120" font-size="13" fill="#e8ebf0">by = big.groupBy(<tspan fill="#e8662a">"country"</tspan>)</text>
+        <text id="c4" x="36" y="144" font-size="13" fill="#e8ebf0">by.count().show()  <tspan fill="#8b94a5"># action</tspan></text>
+      </g>
+
+      <!-- driver -->
+      <g id="driver">
+        <rect class="box" x="20" y="200" width="320" height="160" rx="10"/>
+        <text class="t-title" x="36" y="226">Driver</text>
+        <text class="t-small" x="104" y="226">plans the job, schedules tasks</text>
+        <g id="dag">
+          <g class="node" id="n1"><rect x="34" y="262" width="62" height="30" rx="6" fill="#262d3a" stroke="#4a5368"/><text x="65" y="282" text-anchor="middle" font-size="12" fill="#e8ebf0">read</text></g>
+          <g class="node" id="n2"><rect x="110" y="262" width="62" height="30" rx="6" fill="#262d3a" stroke="#4a5368"/><text x="141" y="282" text-anchor="middle" font-size="12" fill="#e8ebf0">filter</text></g>
+          <g class="node" id="n3"><rect x="186" y="262" width="68" height="30" rx="6" fill="#262d3a" stroke="#4a5368"/><text x="220" y="282" text-anchor="middle" font-size="12" fill="#e8ebf0">groupBy</text></g>
+          <g class="node" id="n4"><rect x="268" y="262" width="62" height="30" rx="6" fill="#262d3a" stroke="#e8662a"/><text x="299" y="282" text-anchor="middle" font-size="12" fill="#e8ebf0">count</text></g>
+          <g id="dagEdges" stroke="#8b94a5" stroke-width="1.5" marker-end="url(#arr)">
+            <line x1="96" y1="277" x2="108" y2="277"/><line x1="172" y1="277" x2="184" y2="277"/><line x1="254" y1="277" x2="266" y2="277"/>
+          </g>
+        </g>
+        <g id="stages">
+          <rect id="st1" x="28" y="252" width="150" height="50" rx="8" fill="none" stroke="#f2b134" stroke-dasharray="5 4"/>
+          <rect id="st2" x="180" y="252" width="156" height="50" rx="8" fill="none" stroke="#4fb3c8" stroke-dasharray="5 4"/>
+          <text x="36" y="320" font-size="11" fill="#f2b134">Stage 1 · narrow</text>
+          <text x="186" y="320" font-size="11" fill="#4fb3c8">Stage 2 · after shuffle</text>
+          <line id="cut" x1="179" y1="244" x2="179" y2="310" stroke="#e8662a" stroke-width="2"/>
+          <text id="cutLbl" x="179" y="240" text-anchor="middle" font-size="10" fill="#e8662a">shuffle boundary</text>
+        </g>
+        <g id="result">
+          <text x="36" y="346" font-size="12" fill="#8b94a5">result →</text>
+          <text id="r1" x="104" y="346" font-size="12" fill="#f2b134">IN 4</text>
+          <text id="r2" x="164" y="346" font-size="12" fill="#4fb3c8">US 5</text>
+          <text id="r3" x="224" y="346" font-size="12" fill="#b48cf2">BR 3</text>
+        </g>
+      </g>
+
+      <!-- storage -->
+      <g id="storage">
+        <rect class="box" x="20" y="390" width="320" height="130" rx="10"/>
+        <text class="t-title" x="36" y="416">Storage</text>
+        <text class="t-small" x="112" y="416">orders.parquet · 6 partitions</text>
+      </g>
+
+      <!-- cluster manager -->
+      <g id="cm">
+        <rect class="box" x="380" y="20" width="230" height="56" rx="10"/>
+        <text class="t-title" x="495" y="44" text-anchor="middle">Cluster manager</text>
+        <text class="t-small" x="495" y="62" text-anchor="middle">YARN · Kubernetes</text>
+      </g>
+      <path id="a1" d="M340 250 C 370 250, 380 60, 388 52" fill="none" stroke="#8b94a5" stroke-width="1.5" marker-end="url(#arr)"/>
+      <path id="a2" d="M610 48 C 625 48, 620 70, 636 80" fill="none" stroke="#8b94a5" stroke-width="1.5" marker-end="url(#arr)"/>
+      <path id="a3" d="M340 300 L 636 300" fill="none" stroke="#e8662a" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#arr)"/>
+      <text id="a3l" x="488" y="292" text-anchor="middle" font-size="11" fill="#e8662a">tasks: one per partition</text>
+
+      <!-- executors -->
+      <g id="execs"></g>
+      <g id="parts"></g>
+      <text id="taskBadge" x="0" y="0" font-size="11" fill="#e8662a"></text>
+    </svg>
+
+    <div class="cap" aria-live="polite"><b id="capK">1 · Your code</b><p id="capT"></p></div>
+    <div class="controls">
+      <button id="play" type="button">Pause</button>
+      <button id="restart" type="button">Restart</button>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Animation position">
+    </div>
+  </div>
+
+  <nav class="chapters" id="chapters" aria-label="Chapters"></nav>
+  <div class="legend"><span><i style="background:var(--k1)"></i>order from IN</span><span><i style="background:var(--k2)"></i>order from US</span><span><i style="background:var(--k3)"></i>order from BR</span><span><i style="background:#3a4252"></i>filtered out (amount ≤ 100)</span></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; };
+const KC = ["#f2b134", "#4fb3c8", "#b48cf2"];
+const EY = [100, 250, 400];               // executor tops
+const EX = 640, EW = 300, EH = 130;
+
+// executors
+const execs = document.getElementById("execs");
+EY.forEach((y, i) => {
+  const g = mk("g", { id: "ex" + i }, execs);
+  mk("rect", { class: "box", x: EX, y, width: EW, height: EH, rx: 10 }, g);
+  const t = mk("text", { class: "t-title", x: EX + 14, y: y + 24 }, g); t.textContent = "Executor " + (i + 1);
+  const s = mk("text", { class: "t-small", x: EX + 106, y: y + 24 }, g); s.textContent = "JVM on a worker, 2 cores";
+  for (let c = 0; c < 2; c++) mk("rect", { x: EX + 14 + c * 70, y: y + 36, width: 60, height: 48, rx: 6, fill: "none", stroke: "#3a4252", "stroke-dasharray": "3 3" }, g);
+  const r = mk("text", { x: EX + 160, y: y + 54, "font-size": 11, fill: "#8b94a5", class: "redLbl", opacity: 0 }, g); r.textContent = "reduce task: " + ["IN", "US", "BR"][i];
+});
+
+// partitions: each 3 orders [key, kept?]
+const P = [[[0,1],[1,1],[2,0]], [[1,1],[0,1],[1,0]], [[2,1],[0,1],[1,1]], [[0,0],[2,1],[1,1]], [[0,1],[2,0],[2,1]], [[1,1],[0,0],[0,0]]];
+const parts = document.getElementById("parts");
+const partEls = [], dots = [];
+P.forEach((p, i) => {
+  const g = mk("g", { class: "part" }, parts);
+  const x0 = 34 + i * 50, y0 = 440;
+  const r = mk("rect", { x: x0, y: y0, width: 44, height: 44, rx: 6, fill: "#262d3a", stroke: "#4a5368" }, g);
+  const lbl = mk("text", { x: x0 + 22, y: y0 + 60, "text-anchor": "middle", "font-size": 10, fill: "#8b94a5" }, g); lbl.textContent = "p" + i;
+  partEls.push({ g, r, lbl, x0, y0 });
+  p.forEach(([k, keep], j) => {
+    const c = mk("circle", { cx: x0 + 10 + j * 12, cy: y0 + 22, r: 5, fill: KC[k] }, parts);
+    dots.push({ c, k, keep, part: i, j });
+  });
+});
+const slot = i => ({ x: EX + 14 + (i % 2) * 70 + 8, y: EY[Math.floor(i / 2)] + 38 });  // partition i → executor i/2, core i%2
+
+const CH = [
+  ["Your code", "You write transformations (read, filter, groupBy) and one action (count().show()). Transformations only describe the work. Nothing runs until the action asks for a result."],
+  ["Planning", "The driver turns your code into a DAG, a graph of steps. The Catalyst optimizer rewrites it, for example pushing the filter down so less data is read."],
+  ["Stages", "groupBy needs every order for a country in one place, so data must move between machines (a shuffle). Spark cuts the DAG there: Stage 1 does read + filter, Stage 2 does the counting."],
+  ["Tasks", "The driver asks the cluster manager for executors, then sends one task per partition. 6 partitions, 6 tasks, running in parallel on 3 executors × 2 cores. Each task filters its slice; orders of 100 or less drop out."],
+  ["Shuffle", "Stage 1 tasks write their output grouped by key. Stage 2 tasks fetch it over the network, so all IN orders land on one executor, all US on another, all BR on the third."],
+  ["Result", "Each reduce task counts its key, and the small results go back to the driver, which prints the table. The data itself never passed through the driver."]
+];
+
+gsap.set(["#c1","#c2","#c3","#c4","#driver","#storage","#cm","#execs","#a1","#a2","#a3","#a3l","#stages","#result",".node","#dagEdges"], { opacity: 0 });
+gsap.set(".part, #parts circle", { opacity: 0 });
+const tl = gsap.timeline({ paused: true, defaults: { duration: .6, ease: "power2.out" } });
+
+tl.addLabel("ch0")
+  .to("#c1", { opacity: 1 }).to("#c2", { opacity: 1 }, "+=.3").to("#c3", { opacity: 1 }, "+=.3")
+  .to("#c4", { opacity: 1 }, "+=.3").to("#c4", { fill: "#e8662a", duration: .3, yoyo: true, repeat: 1 }, "+=.2")
+  .to({}, { duration: 2.2 })
+  .addLabel("ch1")
+  .to("#driver", { opacity: 1 })
+  .to(".node", { opacity: 1, stagger: .35 })
+  .to("#dagEdges", { opacity: 1 }, "<.6")
+  .to({}, { duration: 2.6 })
+  .addLabel("ch2")
+  .to("#stages", { opacity: 1 })
+  .fromTo("#cut", { attr: { y2: 244 } }, { attr: { y2: 310 }, duration: .8 }, "<")
+  .to({}, { duration: 3.2 })
+  .addLabel("ch3")
+  .to("#storage", { opacity: 1 })
+  .to(".part", { opacity: 1, stagger: .08 }, "<.2")
+  .to(dots.map(d => d.c), { opacity: 1, stagger: .03 }, "<")
+  .to("#cm", { opacity: 1 }, "+=.3").to("#a1", { opacity: 1 }, "<")
+  .to("#execs", { opacity: 1 }, "+=.2").to("#a2", { opacity: 1 }, "<")
+  .to(["#a3", "#a3l"], { opacity: 1 }, "+=.3");
+partEls.forEach((p, i) => {
+  const s = slot(i), dx = s.x - p.x0, dy = s.y - p.y0;
+  tl.to([p.r, p.lbl], { x: dx, y: dy, duration: .9, ease: "power3.inOut" }, i === 0 ? "+=.3" : "<.12");
+  dots.filter(d => d.part === i).forEach(d => tl.to(d.c, { attr: { cx: s.x + 10 + d.j * 12, cy: s.y + 22 }, duration: .9, ease: "power3.inOut" }, "<"));
+});
+tl.to(partEls.map(p => p.r), { stroke: "#e8662a", duration: .3, yoyo: true, repeat: 1 }, "+=.3")
+  .to(dots.filter(d => !d.keep).map(d => d.c), { fill: "#3a4252", attr: { r: 3 }, duration: .5 })
+  .to({}, { duration: 2.2 })
+  .addLabel("ch4")
+  .to(["#a3", "#a3l"], { opacity: .25 });
+const fill = [0, 0, 0];
+dots.filter(d => d.keep).forEach((d, n) => {
+  const e = d.k, idx = fill[e]++;
+  tl.to(d.c, { attr: { cx: EX + 168 + idx * 16, cy: EY[e] + 80 }, duration: 1.1, ease: "power2.inOut" }, n === 0 ? "+=.2" : "<.08");
+});
+tl.to(dots.filter(d => !d.keep).map(d => d.c), { opacity: 0, duration: .4 }, "<")
+  .to(".redLbl", { opacity: 1 }, "-=.4")
+  .to(partEls.map(p => [p.r, p.lbl]).flat(), { opacity: .3 }, "<")
+  .to({}, { duration: 2.4 })
+  .addLabel("ch5");
+[0, 1, 2].forEach(k => {
+  tl.to(dots.filter(d => d.keep && d.k === k).map(d => d.c), { attr: { cx: EX + 190, cy: EY[k] + 80 }, duration: .6, ease: "power3.in" }, k === 0 ? ">" : "<.15");
+});
+tl.to(dots.filter(d => d.keep).map(d => d.c), { attr: { cx: 200, cy: 342, r: 3 }, opacity: 0, duration: 1, ease: "power2.inOut", stagger: .02 }, "+=.2")
+  .to("#result", { opacity: 1 }, "-=.3")
+  .from(["#r1", "#r2", "#r3"], { y: 8, opacity: 0, stagger: .2 }, "<")
+  .to({}, { duration: 3 })
+  .addLabel("end");
+
+// UI
+const capK = document.getElementById("capK"), capT = document.getElementById("capT"), scrub = document.getElementById("scrub"), playBtn = document.getElementById("play");
+const nav = document.getElementById("chapters");
+const btns = CH.map(([t], i) => { const b = document.createElement("button"); b.type = "button"; b.innerHTML = `<small>${String(i + 1).padStart(2, "0")}</small>${t}`; b.onclick = () => { tl.seek("ch" + i); tl.play(); }; nav.appendChild(b); return b; });
+let cur = -1;
+function sync() {
+  scrub.value = Math.round(tl.progress() * 1000);
+  const lbl = tl.currentLabel() || "ch0", i = Math.min(5, lbl === "end" ? 5 : +lbl.slice(2));
+  if (i !== cur) { cur = i; capK.textContent = (i + 1) + " · " + CH[i][0]; capT.textContent = CH[i][1]; btns.forEach((b, j) => b.setAttribute("aria-current", j === i)); }
+  playBtn.textContent = tl.paused() || tl.progress() === 1 ? "Play" : "Pause";
+}
+tl.eventCallback("onUpdate", sync);
+tl.eventCallback("onComplete", sync);
+playBtn.onclick = () => { if (tl.progress() === 1) tl.restart(); else tl.paused(!tl.paused()); sync(); };
+document.getElementById("restart").onclick = () => { tl.restart(); sync(); };
+scrub.oninput = () => { tl.pause(); tl.progress(scrub.value / 1000); sync(); };
+
+if (matchMedia("(prefers-reduced-motion: reduce)").matches) { tl.progress(1); tl.pause(); } else tl.play();
+sync();
+</script>
