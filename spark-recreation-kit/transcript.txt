@@ -1,0 +1,14 @@
+[0:00.0] Imagine 100 spark executors processing data perfectly fine until you add one group buy
+[0:05.0] and suddenly your spark job slows down but why let's say you have billions of orders
+[0:08.9] distributed across 100 executors and everything is running in parallel no problem so far and now
+[0:14.5] you run a df.groupbuy country.count and now things get interesting now spark needs data
+[0:20.3] for the same country to reach the same shuffle partition so intermediate data
+[0:24.3] setting on one executor may need to move to another and that's called shuffle can be very
+[0:29.6] expensive operation by the way because spark may need to serialize the data write it to disk adding
+[0:35.4] disk i/o overhead transfer it across the network adding network i/o cost and then this next stage
+[0:42.2] fetch the reader reads and deserialize it and performs the required aggregation all of this adds to shuffle
+[0:48.3] overhead and while this happens some tasks may spend more time waiting for the data than actually
+[0:53.9] processing it but here is what most people miss when data moment is the bottleneck moving less data can
+[1:00.9] help more than adding more executors so whenever possible filter unnecessary rows and columns before
+[1:06.4] a shuffle and avoid unnecessary shuffles altogether and speaking of reducing data moment that's where a
+[1:13.1] powerful optimization called broadcast join and let's cover that next and this was the episode 3 of spark performance
