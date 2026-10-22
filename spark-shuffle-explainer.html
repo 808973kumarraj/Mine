@@ -4,10 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spark Shuffle Explained</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --paper:#ecebe3; --grid:#dddbd0; --ink:#1d1d1b; --muted:#7b7a72; --card:#f7f6f0; --edge:#c9c7bb;
-  --blue:#24418f; --green:#2f7a5b; --red:#b2412e; --amber:#c98a2b; --stage:#e4e2d8;
+  --paper:#eae7da; --grid:#dddbce; --ink:#1d1d1b; --muted:#6f6c62; --card:#f7f6f0; --edge:#c9c7bb;
+  --blue:#284878; --green:#2f7a5b; --red:#9a4636; --amber:#c88848; --stage:#d9d6c8;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
@@ -20,14 +22,15 @@
   --blue:#7d9cf0; --green:#5fbf93; --red:#e07a63; --amber:#e3ac55; --stage:#141412;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--stage);color:var(--ink);font-family:ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+body{margin:0;background:var(--stage);color:var(--ink);font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
   min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:12px}
 #stage{position:relative;width:min(100%, calc((100vh - 120px) * 9 / 16));aspect-ratio:9/16;overflow:hidden;border-radius:14px;
   background-color:var(--paper);
   background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size:4.5% 2.53%;box-shadow:0 10px 40px rgba(0,0,0,.25);container-type:inline-size}
 .u{font-size:3.2cqw}
-#hdr{position:absolute;left:5%;right:5%;top:3%;font-size:2.4cqw;color:var(--muted);border-bottom:1.5px solid var(--blue);padding-bottom:1.2%;letter-spacing:.15em}
+#hdr{position:absolute;left:8%;right:8%;top:3%;font-size:2.3cqw;color:var(--muted);letter-spacing:.15em;padding-bottom:1.2%;white-space:nowrap}
+#hdr::after{content:"";position:absolute;left:0;bottom:0;height:1.5px;width:var(--rule,0%);background:var(--blue)}
 #hdr b{display:inline-block;width:1.2cqw;height:2.4cqw;background:var(--amber);vertical-align:middle;animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
 .scene{position:absolute;inset:0;opacity:0;pointer-events:none;transform:scale(.72);transform-origin:50% 4%}
@@ -55,7 +58,7 @@ input[type=range]{flex:1;accent-color:var(--blue)}
 </head>
 <body>
 <div id="stage">
-  <div id="hdr">&gt; BINARY HABIT / SPARK PERF / 03 <b></b></div>
+  <div id="hdr">&gt; <span id="hdrtxt"></span><b></b></div>
 
   <!-- 1: 100 executors -->
   <div class="scene" id="s1">
@@ -147,6 +150,7 @@ input[type=range]{flex:1;accent-color:var(--blue)}
 </div>
 
 <div id="controls">
+  <button id="cc" aria-pressed="false">CC</button>
   <button id="play">Pause</button>
   <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Seek">
   <span id="time">0:00</span>
@@ -187,9 +191,11 @@ let lastCap=-1;
 const MAP=[[0,0],[6.6,11],[7.9,12],[14.2,21],[29.1,35.8],[31.6,36],[47,51],[54.5,57],[57.3,57],[63,66],[70,76],[75.4,84],[81,84]];
 const FULL=[[6.6,7.9],[29.1,31.6],[54.5,57.3],[75.4,77.5]];
 function mapT(v){for(let i=1;i<MAP.length;i++)if(v<=MAP[i][0]){const[a,x]=MAP[i-1],[b,y]=MAP[i];return x+(y-x)*(v-a)/(b-a||1)}return 84}
-let VT=0;
+let VT=0,CC=false;const HDR='BINARY HABIT / SPARK PERF / 03';
 function render(t){
   SC.forEach(([id,a,b])=>{const v=clamp(Math.min((t-a)/.4,(b-t)/.4));$(id).style.opacity=v});
+  $('cap').style.display=CC?'':'none';
+  $('hdrtxt').textContent=HDR.slice(0,Math.ceil(HDR.length*clamp(VT/1.1)));$('hdr').style.setProperty('--rule',(55*ease(VT/1.4))+'%');
   let ci=0;CAPS.forEach((c,i)=>{if(VT>=c[0])ci=i});
   if(ci!==lastCap){$('cap').innerHTML='<span>'+CAPS[ci][1]+'</span>';lastCap=ci}
 
@@ -249,6 +255,7 @@ function frame(){VT=vid.currentTime||0;const full=FULL.some(([a,b])=>VT>=a&&VT<b
   $('seek').value=VT/VD*1000;$('time').textContent=`${fmt(VT)} / ${fmt(VD)}`;requestAnimationFrame(frame)}
 requestAnimationFrame(frame);
 $('play').textContent='Play';
+$('cc').onclick=()=>{CC=!CC;$('cc').setAttribute('aria-pressed',CC);$('cc').style.opacity=CC?1:.55};$('cc').style.opacity=.55;
 $('play').onclick=()=>{if(vid.paused){vid.play()}else{vid.pause()}};
 vid.addEventListener('play',()=>$('play').textContent='Pause');vid.addEventListener('pause',()=>$('play').textContent='Play');
 vid.addEventListener('ended',()=>{vid.currentTime=0});
