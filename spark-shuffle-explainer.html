@@ -89,27 +89,27 @@ function frame(t){
   /* S1 0–7.9: 100 executors */
   if(t<8.2){const o=W(t,-1,7.9);let g='';
     const card=E(t,4.9,5.3),slow=E(t,5.6,6.4),gy=card*50;
-    g+=T(270,190,String(Math.round(100*E(t,.15,1.4))),{size:44,w:800,a:'middle',op:1-card});
+    g+=T(270,190,String(Math.round(100*E(t,0,.75))),{size:44,w:800,a:'middle',op:1-card});
     g+=T(270,210,'SPARK EXECUTORS',{size:7.5,fill:C.muted,a:'middle',ls:1.4,op:1-card});
     for(let j=0;j<10;j++)for(let i=0;i<10;i++){
-      const d=(i+j)*.04,p=bk(t,.25+d,.5),cx=270+(i-j)*21,cy=268+(i+j)*12.2+gy-(1-p)*40;
+      const d=(i+j)*.035,p=bk(t,.05+d,.5),cx=270+(i-j)*21,cy=268+(i+j)*12.2+gy-(1-p)*40;
       const red=slow>((i*37+j*11)%100)/100*.9+.05&&(i*7+j)%3;
-      g+=cube(cx,cy,19,9,{op:cl((t-.25-d)/.25),dot:red?C.red:C.green})}
+      g+=cube(cx,cy,19,9,{op:cl((t-.05-d)/.25),dot:red?C.red:C.green})}
     g+=pill(270,520+gy*.4,slow>.4?'● SLOWING DOWN':'● ALL RUNNING',slow>.4?C.red:C.green,{op:E(t,2.3,2.6)});
     g+=term(150,228,240,code('df.groupBy("country")'),{op:E(t,3.9,4.15)*(1-E(t,4.9,5.1)),dy:-10*(1-bk(t,3.9))});
     if(t>4.9){const cy=166-14*(1-bk(t,4.9)),pc=Math.min(63,44*E(t,5,5.4)+12*E(t,5.4,5.9)+7*E(t,5.9,7.5));
       const clk=t<5.9?(t-4.9)*23:23+(t-5.9)*65,mm=String(Math.floor(clk/60)).padStart(2,'0')+':'+String(Math.floor(clk%60)).padStart(2,'0');
       g+=`<g opacity="${r1(card)}">`+R(84,cy+4,372,128,{rx:4,fill:'#000',op:.08})+R(80,cy,372,128,{rx:4,stroke:C.ink,sw:1.4})
         +T(98,cy+24,'SPARK JOB · STAGE 2 OF 3',{size:7,fill:C.muted,ls:1})
-        +T(98,cy+58,'groupBy · count',{size:18,w:700})+T(434,cy+58,mm,{size:21,w:700,a:'end',fill:t>6?C.red:C.teal})
+        +T(98,cy+58,'groupBy · count',{size:18,w:700})+T(434,cy+58,mm,{size:21,w:700,a:'end',fill:t>6.6?C.red:C.teal})
         +R(98,cy+76,336,16,{rx:2,fill:'none',stroke:C.ink,sw:1})
         +`<rect x="99" y="${r1(cy+77)}" width="${r1(334*pc/100)}" height="14" fill="url(#stripe)"/>`
-        +T(98,cy+108,t>6?'tasks waiting on data…':'running…',{size:7.5,fill:C.muted})+T(434,cy+108,Math.round(pc)+'%',{size:7.5,fill:C.muted,a:'end'})+'</g>'}
+        +T(98,cy+108,t>6.6?'tasks waiting on data…':'running…',{size:7.5,fill:C.muted})+T(434,cy+108,Math.round(pc)+'%',{size:7.5,fill:C.muted,a:'end'})+'</g>'}
     s+=`<g opacity="${r1(o)}">${g}</g>`}
 
   /* S2 7.9–14.2: a billion orders */
   if(t>7.7&&t<14.5){const o=W(t,7.9,14.3);let g='';
-    g+=T(270,166,Math.round(1e9*E(t,8,9.3)).toLocaleString('en-US'),{size:30,w:800,a:'middle'});
+    g+=T(270,166,Math.round(1e9*E(t,8,8.8)).toLocaleString('en-US'),{size:30,w:800,a:'middle'});
     g+=T(270,184,'ORDERS',{size:7.5,fill:C.muted,a:'middle',ls:1.4});
     g+=T(492,262,'+ 96 more executors',{size:7.5,fill:C.muted,a:'end',op:E(t,10,10.4)});
     for(let e=0;e<4;e++){const a=e===0?8.7:9.6+e*.25,p=bk(t,a,.5);
@@ -120,12 +120,12 @@ function frame(t){
     s+=`<g opacity="${r1(o)}">${g}</g>`}
 
   /* S3 14.2–29.1: groupBy → shuffle */
-  if(t>14&&t<29.4){const o=W(t,14.2,29.2);let g='';const L='df.groupBy("country").count()',k=Math.floor(L.length*E(t,14.5,17.6));
+  if(t>14&&t<29.4){const o=W(t,14.2,29.2);let g='';const L='df.groupBy("country").count()',k=Math.floor(L.length*E(t,14.25,17.4));
     g+=term(63,143,412,'&gt;&gt;&gt; '+code(L.slice(0,k))+cur(blink),{op:1-E(t,18.6,18.9)});
     const ey=EXY-E(t,18.7,19.3)*48,focusIN=t<24.8;
     g+=T(270,166,focusIN?'same key → same partition':'data moves between executors',{size:16,w:700,a:'middle',op:E(t,19,19.4)});
-    for(let e=0;e<4;e++)g+=box(EXX[e],ey,EW,EH,ED,{label:'EXECUTOR '+(e+1),bar:1,dot:C.green});
-    for(let p=0;p<4;p++){const a=19.2+p*.18,pp=bk(t,a,.5),hl=p===0&&t>21&&t<26;
+    for(let e=0;e<4;e++){g+=box(EXX[e],ey,EW,EH,ED,{label:'EXECUTOR '+(e+1),bar:1,dot:C.green});if(t<19.4)for(let b=0;b<6;b++)g+=box(EXX[e]+6+(b%3)*25+Math.floor(b/3)*8,ey-6-Math.floor(b/3)*11,18,5,8,{op:1-E(t,19,19.4)})}
+    for(let p=0;p<4;p++){const a=p?20.8+p*.18:19.2,pp=bk(t,a,.5),hl=p===0&&t>21&&t<26;
       g+=box(EXX[p],430,EW,20,ED,{op:cl((t-a)/.2),dy:(1-pp)*20,front:hl?C.blueL:C.front,top:hl?'#dfe5f2':C.card});
       g+=T(EXX[p]+6,445+(1-pp)*20,'PARTITION · '+KEYS[p],{size:6.5,fill:C.muted,ls:.5,op:cl((t-a)/.2)})}
     let arcs='',chips='';
@@ -194,30 +194,30 @@ function frame(t){
     s+=`<g opacity="${r1(o)}">${g}</g>`}
 
   /* S7 63–70: filter + avoid */
-  if(t>62.8&&t<70.3){const o=W(t,63,70.1);let g='';const second=t>=66.4;
+  if(t>62.8&&t<70.7){const o=W(t,63,70.5);let g='';const second=t>=66.4;
     g+=T(63,142,second?'AND':'BEFORE THE SHUFFLE',{size:7,fill:C.muted,ls:1});
-    if(!second){g+=T(63,170,`filter<tspan opacity="${r1(E(t,64.3,64.6))}"> <tspan fill="${C.green}">rows</tspan></tspan><tspan opacity="${r1(E(t,65,65.3))}"> + <tspan fill="${C.green}">columns</tspan></tspan>`,{size:19,w:700,raw:true});
+    if(!second){g+=T(63,170,`<tspan opacity="${r1(E(t,64.6,64.9))}">filter</tspan><tspan opacity="${r1(E(t,64.3,64.6))}"> <tspan fill="${C.green}">rows</tspan></tspan><tspan opacity="${r1(E(t,65,65.3))}"> + <tspan fill="${C.green}">columns</tspan></tspan>`,{size:19,w:700,raw:true});
       const cols=['order_id','country','amount','user_id','notes','meta'],sh=1-.35*E(t,65.4,66);
-      g+=`<g transform="translate(270 360) scale(${r1(sh*100)/100}) translate(-270 -360)" opacity="${r1(1-E(t,66,66.4))}">`;
+      g+=`<g transform="translate(200 360) scale(${r1(sh*100)/100}) translate(-270 -360)" opacity="${r1(1-E(t,66,66.4))}">`;
       for(let r=0;r<7;r++)for(let c=0;c<6;c++){let op=1;if(r>0&&r%2===0)op-=.9*E(t,64.4,64.9);if(c>2)op=Math.min(op,1-.9*E(t,65.1,65.6));
-        const cx=170+c*36+r*12,cy=300+r*22-c*8;
-        g+=`<g opacity="${r1(op)}">`+P([[cx,cy],[cx+33,cy-9],[cx+44,cy-3],[cx+11,cy+6]],r===0?'#dfe5f2':C.card,C.edge,.6)+P([[cx,cy],[cx+11,cy+6],[cx+11,cy+9],[cx,cy+3]],C.side,C.edge,.5)+P([[cx+11,cy+6],[cx+44,cy-3],[cx+44,cy],[cx+11,cy+9]],C.front,C.edge,.5)+(r===0?T(cx+12,cy-.5,cols[c],{size:4.5,fill:C.blue}):'')+'</g>'}
+        const cx=110+c*50+r*16,cy=300+r*26-c*11;
+        g+=`<g opacity="${r1(op)}">`+P([[cx,cy],[cx+46,cy-12],[cx+60,cy-5],[cx+14,cy+7]],r===0?'#dfe5f2':C.card,C.edge,.6)+P([[cx,cy],[cx+14,cy+7],[cx+14,cy+11],[cx,cy+4]],C.side,C.edge,.5)+P([[cx+14,cy+7],[cx+60,cy-5],[cx+60,cy-1],[cx+14,cy+11]],C.front,C.edge,.5)+(r===0?T(cx+16,cy-1,cols[c],{size:6,fill:C.blue}):'')+'</g>'}
       g+='</g>';
-      const sp=bk(t,65.6,.5);g+=`<g opacity="${r1(cl((t-65.6)/.2)*(1-E(t,66.1,66.4)))}" transform="translate(0 ${r1((1-sp)*-20)})">`+box(408,316,62,58,16,{})+shuffleIcon(439,338,.7,C.ink)+T(439,366,'SHUFFLE',{size:5.5,fill:C.muted,a:'middle',ls:.8})+'</g>'}
+      const sp=bk(t,65.6,.5);g+=`<g opacity="${r1(cl((t-65.6)/.2)*(1-E(t,66.1,66.4)))}" transform="translate(0 ${r1((1-sp)*-20)})">`+box(390,296,80,72,22,{})+shuffleIcon(430,326,1,C.ink)+T(430,360,'SHUFFLE',{size:5.5,fill:C.muted,a:'middle',ls:.8})+'</g>'}
     else{g+=T(63,170,'avoid unnecessary shuffles',{size:19,w:700,fill:C.red,op:E(t,66.4,66.7)});
-      const fl=E(t,68.6,69.2),cy=216+fl*90,h=176*(1-fl*.75);
+      const fl=E(t,69,69.8),cy=216+fl*90,h=176*(1-fl*.75);
       g+=`<g opacity="${r1(E(t,66.6,66.9))}">`+R(140,cy+5,264,h,{rx:4,fill:'#000',op:.1})+R(136,cy,264,h,{rx:4,stroke:C.ink,sw:1.3});
       g+=`<g transform="translate(268 ${r1(cy+h*.42)}) scale(1 ${r1(1-fl*.75)})">`+shuffleIcon(0,0,1.5,C.ink)+T(0,44,'extra shuffle',{size:13,w:700,a:'middle'})+'</g>';
       g+=`<line x1="150" y1="${r1(cy+h-12)}" x2="386" y2="${r1(cy+12)}" stroke="${C.red}" stroke-width="2.4" stroke-dasharray="300" stroke-dashoffset="${r1(300*(1-E(t,67.3,68.1)))}"/></g>`;
-      g+=pill(270,cy+h+60,'✓ less data moved · faster job',C.green,{op:E(t,69.1,69.4)})}
+      g+=pill(270,cy+h+40,'✓ less data moved · faster job',C.green,{op:E(t,69.7,70)})}
     s+=`<g opacity="${r1(o)}">${g}</g>`}
 
   /* S8 70–77.5: next trick */
-  if(t>69.8&&t<77.7){const o=W(t,70,77.5);let g='';const next=t>=74.6;
+  if(t>70.2&&t<77.7){const o=W(t,70.4,77.5);let g='';const next=t>=74.6;
     g+=T(63,142,next?'NEXT EPISODE':'LESS DATA MOVEMENT',{size:7,fill:C.muted,ls:1});
     g+=T(63,170,next?'broadcast join':'a powerful trick…',{size:19,w:700});
-    const B=[[48,340],[300,250],[150,440],[380,350]];
-    B.forEach((b,i)=>{const a=70.2+i*.2;g+=box(b[0],b[1],74,46,40,{op:cl((t-a)/.2),dy:-(1-bk(t,a))*24,label:'EXEC '+(i+1),dot:C.green})});
+    const B=[[44,360],[292,282],[130,446],[384,350]];
+    B.forEach((b,i)=>{const a=70.5+i*.2;g+=box(b[0],b[1],82,52,48,{op:cl((t-a)/.2),dy:-(1-bk(t,a))*24,label:'EXEC '+(i+1),dot:C.green})});
     if(t<73.4)g+=box(226,370,58,10,26,{op:cl((t-71.4)/.2),dy:-(1-bk(t,71.4,.5))*60,front:C.blueL,top:'#dfe5f2'});
     B.forEach((b,i)=>{const a=73.2+i*.18,p=E(t,a,a+.8);if(t>a)g+=box(226+(b[0]+12-226)*p,370+(b[1]-14-370)*p,46,8,20,{front:C.blueL,top:'#dfe5f2'})});
     s+=`<g opacity="${r1(o)}">${g}</g>`}
