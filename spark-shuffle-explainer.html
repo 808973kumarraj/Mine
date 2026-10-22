@@ -150,6 +150,7 @@ input[type=range]{flex:1;accent-color:var(--blue)}
 </div>
 
 <div id="controls">
+  <label id="loadlbl" style="display:none;font-size:13px;background:var(--amber);color:#fff;border-radius:8px;padding:8px 12px;cursor:pointer">Load video<input id="load" type="file" accept="video/*" style="display:none"></label>
   <button id="cc" aria-pressed="false">CC</button>
   <button id="play">Pause</button>
   <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Seek">
@@ -247,19 +248,23 @@ function render(t){
    [...W.querySelectorAll('.s8copy')].forEach((c,i)=>{const tx=[14,74,18,70][i],ty=[18,18,72,72][i];c.style.left=(44+(tx-44)*p)+'%';c.style.top=(42+(ty-42)*p)+'%';c.style.opacity=p>0?1:0})}
 }
 
-const vid=$('vid');let VD=80.5;
+const vid=$('vid');let VD=80.5,NOVID=false,FT=0,FP=false,LAST=performance.now();
+function noVideo(){if(NOVID)return;NOVID=true;vid.style.display='none';$('loadlbl').style.display='';}
+vid.addEventListener('error',noVideo,true);[...vid.querySelectorAll('source')].pop().addEventListener('error',noVideo);
+setTimeout(()=>{if(vid.readyState===0)noVideo()},2500);
+$('load').onchange=e=>{const f=e.target.files[0];if(!f)return;vid.innerHTML='';vid.src=URL.createObjectURL(f);vid.style.display='';NOVID=false;FP=false;$('loadlbl').style.display='none';vid.currentTime=FT;vid.play().catch(()=>{})};
 vid.addEventListener('loadedmetadata',()=>{VD=vid.duration||VD});
-function frame(){VT=vid.currentTime||0;const full=FULL.some(([a,b])=>VT>=a&&VT<b);vid.classList.toggle('full',full);
+function frame(){const now=performance.now(),dt=(now-LAST)/1000;LAST=now;if(NOVID){if(FP){FT+=dt;if(FT>=VD)FT=0}VT=FT;$('play').textContent=FP?'Pause':'Play'}else VT=vid.currentTime||0;const full=FULL.some(([a,b])=>VT>=a&&VT<b);vid.classList.toggle('full',full);
   const endOn=VT>=77.5;$('endcard').style.opacity=endOn?1:0;
   const t=mapT(VT);render(t);if(endOn)document.querySelectorAll('.scene').forEach(e=>e.style.opacity=0);
   $('seek').value=VT/VD*1000;$('time').textContent=`${fmt(VT)} / ${fmt(VD)}`;requestAnimationFrame(frame)}
 requestAnimationFrame(frame);
 $('play').textContent='Play';
 $('cc').onclick=()=>{CC=!CC;$('cc').setAttribute('aria-pressed',CC);$('cc').style.opacity=CC?1:.55};$('cc').style.opacity=.55;
-$('play').onclick=()=>{if(vid.paused){vid.play()}else{vid.pause()}};
+$('play').onclick=()=>{if(NOVID){FP=!FP;return}if(vid.paused){vid.play().catch(()=>{noVideo();FP=true})}else{vid.pause()}};
 vid.addEventListener('play',()=>$('play').textContent='Pause');vid.addEventListener('pause',()=>$('play').textContent='Play');
 vid.addEventListener('ended',()=>{vid.currentTime=0});
-$('seek').oninput=e=>{vid.currentTime=e.target.value/1000*VD};
+$('seek').oninput=e=>{const v=e.target.value/1000*VD;if(NOVID)FT=v;else vid.currentTime=v};
 document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();$('play').click()}});
 </script>
 </body>
