@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spark Shuffle Explained</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--stage:#d9d6c8;--paper:#eae7da}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--stage:#141412}}
+:root[data-theme="dark"]{--stage:#141412}
+*{box-sizing:border-box}
+body{margin:0;background:var(--stage);font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:12px}
+#stage{position:relative;width:min(100%,calc((100vh - 110px)*9/16));aspect-ratio:9/16;border-radius:14px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.25);background:var(--paper)}
+#g{position:absolute;inset:0;width:100%;height:100%;display:block}
+#controls{display:flex;gap:10px;align-items:center;width:min(100%,560px)}
+button{font:inherit;font-size:13px;background:#1d1d1b;color:#eae7da;border:0;border-radius:8px;min-height:40px;padding:0 14px;cursor:pointer}
+input[type=range]{flex:1;accent-color:#284878}
+#time{font-size:13px;color:#6f6c62;min-width:84px;text-align:right}
+</style>
+</head>
+<body>
+<div id="stage"><svg id="g" viewBox="0 0 540 960" role="img" aria-label="Animated explainer: why a Spark groupBy triggers an expensive shuffle"></svg></div>
+<div id="controls">
+  <button id="cc" aria-pressed="true">CC</button>
+  <button id="play">Pause</button>
+  <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Seek">
+  <span id="time">0:00</span>
+</div>
+<script>
+const C={paper:'#eae7da',grid:'#dfdccf',card:'#f7f6f0',front:'#efede4',side:'#dcd9cc',edge:'#8f8b80',ink:'#1d1d1b',muted:'#7a776c',
+  blue:'#284878',blueL:'#cfd8ea',red:'#9a4636',amber:'#c88848',green:'#2f7a5b',teal:'#3d8577'};
+const KC={IN:C.blue,US:C.green,BR:C.amber,DE:C.red};
+const CAPS=[[0.16,"Imagine 100 spark executors processing"],[2.34,"data perfectly fine until you"],[4.02,"add one groupBy and"],[5.38,"suddenly your spark job slows"],[6.66,"down but why let's say"],[7.78,"you have billions of orders"],[9.12,"distributed across 100 executors and"],[11.4,"everything is running in parallel"],[12.66,"no problem so far and"],[14.2,"now you run a df.groupBy"],[16.34,"country.count and now things get"],[18.62,"interesting now spark needs data"],[20.46,"for the same country to"],[21.64,"reach the same shuffle partition"],[23.2,"so intermediate data sitting on"],[24.6,"one executor may need to"],[25.6,"move to another and that's"],[26.9,"called shuffle can be very"],[28.3,"expensive operation by the way"],[30.0,"because spark may need to"],[31.2,"serialize the data write it"],[32.6,"to disk adding disk i/o"],[34.4,"overhead transfer it across the"],[36.1,"network adding network i/o cost"],[38.3,"and then this next stage"],[40.0,"fetch the reader reads and"],[41.6,"deserialize it and performs the"],[43.4,"required aggregation all of this"],[45.4,"adds to shuffle overhead and"],[47.2,"while this happens some tasks"],[48.7,"may spend more time waiting"],[50.0,"for the data than actually"],[51.4,"processing it but here is"],[53.0,"what most people miss when"],[54.4,"data movement is the bottleneck"],[56.0,"moving less data can help"],[57.6,"more than adding more executors"],[59.6,"so whenever possible filter unnecessary"],[61.6,"rows and columns before a"],[63.3,"shuffle and avoid unnecessary shuffles"],[65.6,"altogether and speaking of reducing"],[67.6,"data movement that's where a"],[69.3,"powerful optimization called broadcast join"],[72.0,"and let's cover that next"],[74.2,"and this was the episode"],[76.4,"3 of spark performance"]];
+const DUR=80.5;
+const SCENES=[];
+/*__SCENES__*/
+
+const cl=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const io=x=>{x=cl(x);return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2};
+const E=(t,a,b)=>io((t-a)/(b-a));
+const bk=(t,a,d=.45)=>{const x=cl((t-a)/d),c=1.7;return 1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2)};
+const W=(t,a,b,f=.3)=>cl(Math.min((t-a)/f,(b-t)/f));
+const r1=n=>Math.round(n*10)/10;
+
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function T(x,y,s,o={}){return `<text x="${r1(x)}" y="${r1(y)}" font-size="${o.size||12}" font-weight="${o.w||400}" fill="${o.fill||C.ink}" text-anchor="${o.a||'start'}" letter-spacing="${o.ls||0}" opacity="${o.op??1}" font-family="JetBrains Mono, ui-monospace, monospace">${o.raw?s:esc(s)}</text>`}
+function R(x,y,w,h,o={}){return `<rect x="${r1(x)}" y="${r1(y)}" width="${r1(Math.max(0,w))}" height="${r1(Math.max(0,h))}" rx="${o.rx??3}" fill="${o.fill||C.card}" stroke="${o.stroke||'none'}" stroke-width="${o.sw||1}" opacity="${o.op??1}"/>`}
+function P(pts,fill,stroke=C.edge,sw=.8){return `<polygon points="${pts.map(p=>r1(p[0])+','+r1(p[1])).join(' ')}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`}
+/* oblique box: front face (x,y,w,h), depth d receding up-right */
+function box(x,y,w,h,d,o={}){const dx=d*.62,dy=-d*.42;
+  let s=`<g opacity="${o.op??1}" transform="translate(0 ${r1(o.dy||0)})">`;
+  s+=`<ellipse cx="${r1(x+w/2+dx/2)}" cy="${r1(y+h+6)}" rx="${r1(w*.6)}" ry="6" fill="#000" opacity=".06"/>`;
+  s+=P([[x,y],[x+dx,y+dy],[x+w+dx,y+dy],[x+w,y]],o.top||C.card);
+  s+=P([[x+w,y],[x+w+dx,y+dy],[x+w+dx,y+h+dy],[x+w,y+h]],o.side||C.side);
+  s+=P([[x,y],[x+w,y],[x+w,y+h],[x,y+h]],o.front||C.front);
+  if(o.label)s+=T(x+6,y+h-(o.bar!=null?13:7),o.label,{size:6.5,fill:C.muted,ls:.6});
+  if(o.dot)s+=`<circle cx="${r1(x+w-7)}" cy="${r1(y+h/2-2)}" r="2" fill="${o.dot}"/>`;
+  if(o.bar!=null){s+=R(x+6,y+h-9,w-12,4,{rx:1,fill:'none',stroke:C.edge,sw:.6});s+=R(x+6,y+h-9,(w-12)*o.bar,4,{rx:1,fill:C.green})}
+  return s+'</g>'}
+/* isometric cube, top centre (cx,cy) */
+function cube(cx,cy,s,h,o={}){const a=s*.87,b=s*.5;let g=`<g opacity="${r1(o.op??1)}">`;
+  g+=P([[cx-a,cy],[cx,cy+b],[cx,cy+b+h],[cx-a,cy+h]],C.front);
+  g+=P([[cx,cy+b],[cx+a,cy],[cx+a,cy+h],[cx,cy+b+h]],C.side);
+  g+=P([[cx,cy-b],[cx+a,cy],[cx,cy+b],[cx-a,cy]],o.top||C.card);
+  if(o.dot)g+=`<ellipse cx="${r1(cx)}" cy="${r1(cy)}" rx="2.6" ry="1.6" fill="${o.dot}"/>`;
+  return g+'</g>'}
+function pill(cx,y,s,col,o={}){const sz=o.size||8,w=s.length*sz*.62+20;return `<g opacity="${r1(o.op??1)}">`+R(cx-w/2,y-11,w,18,{rx:9,fill:C.card,stroke:col,sw:1})+T(cx,y+2,s,{size:sz,fill:col,a:'middle',ls:.8})+'</g>'}
+function chip(x,y,k,o={}){return `<g opacity="${r1(o.op??1)}">`+R(x-11,y-7,22,14,{rx:2,fill:KC[k]})+T(x,y+3,k,{size:7.5,w:700,fill:'#fff',a:'middle'})+'</g>'}
+function term(x,y,w,s,o={}){return `<g opacity="${r1(o.op??1)}" transform="translate(0 ${r1(o.dy||0)})">`+R(x+3,y+4,w,44,{rx:3,fill:'#000',op:.18})+R(x,y,w,44,{rx:3,fill:'#1e1e1c'})+T(x+16,y+27,s,{size:13,fill:'#e9e6d8',raw:true})+'</g>'}
+const code=s=>esc(s).replace('groupBy','<tspan fill="#8fb0ff">groupBy</tspan>').replace('"country"','<tspan fill="#e3ac55">"country"</tspan>').replace('count(','<tspan fill="#8fb0ff">count</tspan>(');
+const cur=on=>on?`<tspan fill="${C.amber}">▌</tspan>`:'';
+function shuffleIcon(cx,cy,s,col){return `<g transform="translate(${r1(cx)} ${r1(cy)}) scale(${s})" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M-16 -8 H-6 C2 -8 4 8 12 8 H16"/><path d="M-16 8 H-6 C2 8 4 -8 12 -8 H16"/><path d="M11 -13 L16 -8 L11 -3"/><path d="M11 3 L16 8 L11 13"/></g>`}
+const pipePath=(x,y,w,h)=>{const n=h*.36,m=x+w*.5,q=w*.17;return `M${x} ${y} H${m-q*1.6} C${m-q*.6} ${y} ${m-q*.6} ${y+n} ${m} ${y+n} C${m+q*.6} ${y+n} ${m+q*.6} ${y} ${m+q*1.6} ${y} H${x+w} V${y+h} H${m+q*1.6} C${m+q*.6} ${y+h} ${m+q*.6} ${y+h-n} ${m} ${y+h-n} C${m-q*.6} ${y+h-n} ${m-q*.6} ${y+h} ${m-q*1.6} ${y+h} H${x} Z`};
+
+let BG=`<rect width="540" height="960" fill="${C.paper}"/><g stroke="${C.grid}" stroke-width=".6">`;
+for(let x=0;x<=540;x+=24)BG+=`<line x1="${x}" y1="0" x2="${x}" y2="960"/>`;
+for(let y=0;y<=960;y+=24)BG+=`<line x1="0" y1="${y}" x2="540" y2="${y}"/>`;
+BG+='</g>';
+
+const EXX=[48,152,256,360],EXY=318,EW=84,EH=46,ED=34,KEYS=['IN','US','BR','DE'];
+const CHIPS=[];{const cnt={};for(let e=0;e<4;e++)for(let j=0;j<4;j++){const k=KEYS[(e*3+j*5+j*e)%4];cnt[k]=(cnt[k]||0)+1;CHIPS.push({e,j,k,slot:cnt[k]-1})}}
+
+function frame(t){
+  let s=BG;
+  for(const f of SCENES){try{s+=f(t)}catch(e){console.error(e)}}
+  if(CC){let ci=-1;CAPS.forEach((c,i)=>{if(t>=c[0])ci=i});
+    if(ci>=0&&t<79.5){const c=CAPS[ci][1],w=c.length*8.6+24;s+=`<g opacity="${r1(cl((t-CAPS[ci][0])/.12))}">`+R(270-w/2,858,w,32,{rx:6,fill:C.ink})+`<text x="270" y="879" font-size="14" font-weight="600" fill="${C.paper}" text-anchor="middle" font-family="Inter, system-ui, sans-serif">${esc(c)}</text></g>`}}
+  return s}
+
+const DEFS=`<defs><pattern id="stripe" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="${C.teal}"/><rect width="3" height="8" fill="#5aa293"/></pattern></defs>`;
+const svg=document.getElementById('g'),$=id=>document.getElementById(id);
+const Q=new URLSearchParams(location.search);
+let VT=+(Q.get('t')||0),PLAY=Q.get('paused')!=='1',CC=Q.get('cc')!=='0',LAST=performance.now();
+window.__render=t=>{VT=t;svg.innerHTML=DEFS+frame(VT)};
+const fmt=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+function loop(now){const dt=Math.min(.1,(now-LAST)/1000);LAST=now;if(PLAY){VT+=dt;if(VT>=DUR)VT=0}
+  svg.innerHTML=DEFS+frame(VT);$('seek').value=VT/DUR*1000;$('time').textContent=`${fmt(VT)} / ${fmt(DUR)}`;requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+$('play').onclick=()=>{PLAY=!PLAY;$('play').textContent=PLAY?'Pause':'Play'};
+if(!CC)$('cc').style.opacity=.55;$('play').textContent=PLAY?'Pause':'Play';
+$('cc').onclick=()=>{CC=!CC;$('cc').setAttribute('aria-pressed',CC);$('cc').style.opacity=CC?1:.55};
+$('seek').oninput=e=>{VT=e.target.value/1000*DUR};
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();$('play').click()}});
+</script>
+</body>
+</html>
