@@ -33,9 +33,7 @@ body{margin:0;background:var(--stage);color:var(--ink);font-family:"JetBrains Mo
 #hdr::after{content:"";position:absolute;left:0;bottom:0;height:1.5px;width:var(--rule,0%);background:var(--blue)}
 #hdr b{display:inline-block;width:1.2cqw;height:2.4cqw;background:var(--amber);vertical-align:middle;animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
-.scene{position:absolute;inset:0;opacity:0;pointer-events:none;transform:scale(.72);transform-origin:50% 4%}
-#vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:5;transition:clip-path .25s ease;clip-path:inset(60.4% 8.6% 6.6% 8.6% round 2.4cqw);box-shadow:0 1cqw 3cqw rgba(0,0,0,.2)}
-#vid.full{clip-path:inset(0 0 0 0 round 0);z-index:7}
+.scene{position:absolute;inset:0;opacity:0;pointer-events:none;}
 #endcard{position:absolute;left:0;right:0;top:12%;text-align:center;opacity:0;z-index:4}
 #hdr{z-index:6}
 .abs{position:absolute}
@@ -48,7 +46,7 @@ body{margin:0;background:var(--stage);color:var(--ink);font-family:"JetBrains Mo
 .term{background:#1d1d1b;color:#e9e6d8;border-radius:1.2cqw;padding:2.2cqw 3cqw;font-size:3.3cqw;white-space:nowrap;box-shadow:0 1.5cqw 3cqw rgba(0,0,0,.2)}
 .term .k{color:#8fb0ff}.term .s{color:#e3ac55}
 .chip{position:absolute;font-size:2.2cqw;font-weight:700;color:#fff;border-radius:.8cqw;padding:.5cqw 1cqw;transform:translate(-50%,-50%)}
-#cap{position:absolute;z-index:8;left:6%;right:6%;bottom:41%;text-align:center;font-size:3.4cqw;line-height:1.35;font-family:system-ui,sans-serif;font-weight:600}
+#cap{position:absolute;z-index:8;left:6%;right:6%;bottom:5%;text-align:center;font-size:3.6cqw;line-height:1.35;font-family:system-ui,sans-serif;font-weight:600}
 #cap span{background:var(--ink);color:var(--paper);padding:.3em .5em;border-radius:.35em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 #controls{display:flex;gap:10px;align-items:center;width:min(100%,560px)}
 button{font:inherit;background:var(--ink);color:var(--paper);border:0;border-radius:8px;padding:8px 14px;cursor:pointer}
@@ -145,12 +143,10 @@ input[type=range]{flex:1;accent-color:var(--blue)}
   <div id="endcard"><div class="lbl">data / 03</div><div class="title" style="font-size:6cqw;margin-top:2cqw">Spark Performance</div><div style="font-size:2.6cqw;color:var(--muted);margin-top:1.5cqw">Episode 3 · Shuffling</div>
     <div style="display:flex;gap:2cqw;justify-content:center;margin-top:4cqw"><span class="pill" style="background:var(--blue);color:#fff;border-color:var(--blue)">IN</span><span class="pill" style="color:var(--blue)">US</span><span class="pill" style="color:var(--blue)">BR</span><span class="pill" style="color:var(--blue)">DE</span></div>
     <div class="title" style="margin-top:8cqw">BinaryHabit<span style="color:var(--amber)">.</span></div></div>
-  <video id="vid" playsinline preload="auto"><source src="spark-shuffle-source.mp4" type="video/mp4"><source src="spark-shuffle-source.webm" type="video/webm"></video>
   <div id="cap"></div>
 </div>
 
 <div id="controls">
-  <label id="loadlbl" style="display:none;font-size:13px;background:var(--amber);color:#fff;border-radius:8px;padding:8px 12px;cursor:pointer">Load video<input id="load" type="file" accept="video/*" style="display:none"></label>
   <button id="cc" aria-pressed="false">CC</button>
   <button id="play">Pause</button>
   <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Seek">
@@ -189,10 +185,10 @@ const DUR=84;
 const fmt=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
 let lastCap=-1;
 
-const MAP=[[0,0],[6.6,11],[7.9,12],[14.2,21],[29.1,35.8],[31.6,36],[47,51],[54.5,57],[57.3,57],[63,66],[70,76],[75.4,84],[81,84]];
+const MAP=[[0,0],[7.9,12],[14.2,21],[31,36],[47,51],[56,57],[63,66],[70,76],[77.5,84],[81,84]];
 const FULL=[[6.6,7.9],[29.1,31.6],[54.5,57.3],[75.4,77.5]];
 function mapT(v){for(let i=1;i<MAP.length;i++)if(v<=MAP[i][0]){const[a,x]=MAP[i-1],[b,y]=MAP[i];return x+(y-x)*(v-a)/(b-a||1)}return 84}
-let VT=0,CC=false;const HDR='BINARY HABIT / SPARK PERF / 03';
+let VT=0,CC=true;const HDR='BINARY HABIT / SPARK PERF / 03';
 function render(t){
   SC.forEach(([id,a,b])=>{const v=clamp(Math.min((t-a)/.4,(b-t)/.4));$(id).style.opacity=v});
   $('cap').style.display=CC?'':'none';
@@ -248,23 +244,16 @@ function render(t){
    [...W.querySelectorAll('.s8copy')].forEach((c,i)=>{const tx=[14,74,18,70][i],ty=[18,18,72,72][i];c.style.left=(44+(tx-44)*p)+'%';c.style.top=(42+(ty-42)*p)+'%';c.style.opacity=p>0?1:0})}
 }
 
-const vid=$('vid');let VD=80.5,NOVID=false,FT=0,FP=false,LAST=performance.now();
-function noVideo(){if(NOVID)return;NOVID=true;vid.style.display='none';$('loadlbl').style.display='';}
-vid.addEventListener('error',noVideo,true);[...vid.querySelectorAll('source')].pop().addEventListener('error',noVideo);
-setTimeout(()=>{if(vid.readyState===0)noVideo()},2500);
-$('load').onchange=e=>{const f=e.target.files[0];if(!f)return;vid.innerHTML='';vid.src=URL.createObjectURL(f);vid.style.display='';NOVID=false;FP=false;$('loadlbl').style.display='none';vid.currentTime=FT;vid.play().catch(()=>{})};
-vid.addEventListener('loadedmetadata',()=>{VD=vid.duration||VD});
-function frame(){const now=performance.now(),dt=(now-LAST)/1000;LAST=now;if(NOVID){if(FP){FT+=dt;if(FT>=VD)FT=0}VT=FT;$('play').textContent=FP?'Pause':'Play'}else VT=vid.currentTime||0;const full=FULL.some(([a,b])=>VT>=a&&VT<b);vid.classList.toggle('full',full);
+let VD=80.5,PLAY=true,LAST=performance.now();
+function frame(){const now=performance.now(),dt=Math.min(.1,(now-LAST)/1000);LAST=now;if(PLAY){VT+=dt;if(VT>=VD)VT=0}
   const endOn=VT>=77.5;$('endcard').style.opacity=endOn?1:0;
   const t=mapT(VT);render(t);if(endOn)document.querySelectorAll('.scene').forEach(e=>e.style.opacity=0);
   $('seek').value=VT/VD*1000;$('time').textContent=`${fmt(VT)} / ${fmt(VD)}`;requestAnimationFrame(frame)}
 requestAnimationFrame(frame);
-$('play').textContent='Play';
-$('cc').onclick=()=>{CC=!CC;$('cc').setAttribute('aria-pressed',CC);$('cc').style.opacity=CC?1:.55};$('cc').style.opacity=.55;
-$('play').onclick=()=>{if(NOVID){FP=!FP;return}if(vid.paused){vid.play().catch(()=>{noVideo();FP=true})}else{vid.pause()}};
-vid.addEventListener('play',()=>$('play').textContent='Pause');vid.addEventListener('pause',()=>$('play').textContent='Play');
-vid.addEventListener('ended',()=>{vid.currentTime=0});
-$('seek').oninput=e=>{const v=e.target.value/1000*VD;if(NOVID)FT=v;else vid.currentTime=v};
+$('play').textContent='Pause';
+$('cc').onclick=()=>{CC=!CC;$('cc').setAttribute('aria-pressed',CC);$('cc').style.opacity=CC?1:.55};$('cc').setAttribute('aria-pressed','true');
+$('play').onclick=()=>{PLAY=!PLAY;$('play').textContent=PLAY?'Pause':'Play'};
+$('seek').oninput=e=>{VT=e.target.value/1000*VD};
 document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();$('play').click()}});
 </script>
 </body>
