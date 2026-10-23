@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Delta Lake Works</title>
+<style>
+:root{--paper:#E3E0D3;--sand:#C0AD97;--blue:#2B4A9A;--red:#B5402F;--green:#2E7D5B;--ink:#1F1B18;--amber:#E8A33D;--grey:#9a958a;--bg:#d6d2c3;--ui:#1F1B18;--uitext:#E3E0D3}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141210;--ui:#2a2622;--uitext:#E3E0D3}}
+:root[data-theme="dark"]{--bg:#141210;--ui:#2a2622;--uitext:#E3E0D3}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);font-family:ui-monospace,"Space Mono",Menlo,Consolas,monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:12px 16px;overflow:hidden}
+#wrap{position:relative;flex:1 1 auto;width:100%;display:flex;align-items:center;justify-content:center;min-height:0}
+#stage{position:absolute;width:1080px;height:1920px;left:50%;top:50%;transform-origin:center;background:var(--paper);overflow:hidden;border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,.25);
+ background-image:linear-gradient(rgba(31,27,24,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(31,27,24,.06) 1px,transparent 1px);background-size:24px 24px;color:var(--ink)}
+.scene{position:absolute;inset:0;opacity:0;pointer-events:none}
+.abs{position:absolute}
+.tile{position:absolute;border-radius:8px;border:2px solid var(--ink);background:var(--blue);box-shadow:4px 5px 0 rgba(31,27,24,.18)}
+.card{position:absolute;background:#f4f1e6;border:2px solid var(--ink);border-radius:20px;box-shadow:8px 10px 0 rgba(31,27,24,.15)}
+.mono{font-family:ui-monospace,"Space Mono",Menlo,monospace}
+.grot{font-family:"Space Grotesk","Helvetica Neue",Arial,sans-serif;font-weight:800;letter-spacing:-.02em}
+.label{font-size:30px;text-transform:lowercase}
+.chip{position:absolute;height:64px;padding:0 20px;border-radius:12px;border:2px solid var(--ink);background:#fff;display:flex;align-items:center;font-size:28px;box-shadow:4px 5px 0 rgba(31,27,24,.15);white-space:nowrap}
+#caption{position:absolute;left:60px;right:60px;top:1240px;min-height:150px;font-size:40px;line-height:1.35;text-transform:lowercase;color:var(--ink);text-align:center}
+#caption span{background:var(--paper);padding:2px 10px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+#presenter{position:absolute;left:72px;top:1440px;width:936px;height:420px;border-radius:28px;background:var(--amber);border:2px solid var(--ink);overflow:hidden;box-shadow:8px 10px 0 rgba(31,27,24,.15)}
+#presenter .tag{position:absolute;left:28px;bottom:22px;font-size:26px;background:var(--ink);color:var(--paper);padding:6px 14px;border-radius:8px}
+#bars{position:absolute;right:40px;bottom:30px;display:flex;gap:8px;align-items:flex-end;height:80px}
+#bars i{width:12px;background:var(--ink);border-radius:6px;height:10px}
+#controls{flex:0 0 auto;width:100%;max-width:560px;display:flex;gap:10px;align-items:center;background:var(--ui);color:var(--uitext);padding:10px 14px;border-radius:14px}
+#controls button{background:none;border:1px solid rgba(227,224,211,.35);color:var(--uitext);border-radius:8px;padding:6px 10px;font:inherit;font-size:14px;cursor:pointer;min-width:44px;min-height:36px}
+#scrub{flex:1;accent-color:var(--amber);min-width:0}
+#time{font-size:13px;min-width:86px;text-align:right}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage">
+
+  <!-- S1 hook grid -->
+  <div class="scene" id="s1">
+    <div class="abs mono label" style="left:90px;top:110px;font-size:32px">s3://lake/events/</div>
+    <div class="abs grot" id="s1count" style="right:90px;top:90px;font-size:72px">0</div>
+    <div class="abs mono label" style="right:90px;top:170px;font-size:24px">parquet files</div>
+    <div id="s1grid" class="abs" style="left:90px;top:260px;width:900px;height:900px"></div>
+    <div class="chip mono" id="w1" style="left:-300px;top:600px;background:var(--blue);color:#fff">job a ✎</div>
+    <div class="chip mono" id="w2" style="left:1200px;top:700px;background:var(--red);color:#fff">job b ✎</div>
+  </div>
+
+  <!-- S2 punch -->
+  <div class="scene" id="s2">
+    <div class="abs grot" id="s2t" style="left:0;right:0;top:620px;text-align:center;font-size:120px;line-height:1">delta lake<br>fixes this.</div>
+  </div>
+
+  <!-- S3 log -->
+  <div class="scene" id="s3">
+    <div class="card" id="tree" style="left:70px;top:110px;width:940px;height:1060px">
+      <div class="abs mono" style="left:40px;top:34px;font-size:34px">📁 my_table/</div>
+      <div id="pq" class="abs" style="left:80px;top:110px;width:820px;height:300px"></div>
+      <div class="abs mono" id="logdir" style="left:40px;top:430px;font-size:34px;color:var(--blue)">📁 _delta_log/</div>
+      <div id="commits" class="abs" style="left:80px;top:500px;width:820px;height:520px"></div>
+      <div class="abs mono" id="step" style="right:40px;top:34px;font-size:26px;background:var(--ink);color:var(--paper);padding:6px 14px;border-radius:8px">step 1 · write files</div>
+    </div>
+    <div class="abs grot" id="slam" style="left:0;right:0;top:480px;text-align:center;font-size:150px;color:var(--blue);opacity:0">_DELTA_LOG</div>
+  </div>
+
+  <!-- S4 punch -->
+  <div class="scene" id="s4">
+    <div class="abs grot" style="left:0;right:0;top:600px;text-align:center;font-size:104px;line-height:1.05">the log is<br>the <span style="color:var(--green)">source<br>of truth.</span></div>
+  </div>
+
+  <!-- S5 features -->
+  <div class="scene" id="s5">
+    <div class="abs mono label" id="s5h" style="left:90px;top:110px;font-size:34px">replay the log →</div>
+    <div id="ledger" class="abs" style="left:90px;top:190px;width:900px;height:120px"></div>
+    <div class="abs" style="left:90px;top:340px;width:900px;height:8px;background:var(--sand);border-radius:4px"></div>
+    <div class="abs" id="knob" style="left:90px;top:322px;width:44px;height:44px;border-radius:50%;background:var(--amber);border:2px solid var(--ink)"></div>
+    <div class="abs mono" id="ver" style="left:90px;top:384px;font-size:28px">version 5 · current</div>
+    <div class="card" id="tbl" style="left:90px;top:460px;width:900px;height:700px">
+      <div id="rows" class="abs" style="left:30px;top:30px;right:30px;bottom:30px"></div>
+    </div>
+    <div class="abs grot" id="stamp" style="left:240px;top:700px;font-size:110px;color:var(--red);border:10px solid var(--red);padding:0 30px;border-radius:18px;transform:rotate(-10deg);opacity:0;background:rgba(227,224,211,.85)">REJECTED</div>
+    <div class="abs grot" id="untouched" style="left:90px;right:90px;top:1100px;text-align:center;font-size:56px;opacity:0"><span id="ucount">0</span> rows untouched</div>
+  </div>
+
+  <!-- S6/S7 small files + optimize -->
+  <div class="scene" id="s7">
+    <div class="abs mono label" id="s7h" style="left:90px;top:110px;font-size:34px">after 1,000 commits</div>
+    <div class="abs grot" id="s7c" style="right:90px;top:90px;font-size:72px">0</div>
+    <div class="abs mono label" style="right:90px;top:170px;font-size:24px">files</div>
+    <div id="small" class="abs" style="left:90px;top:260px;width:900px;height:900px"></div>
+    <div class="chip mono" id="query" style="left:90px;top:1180px;background:var(--ink);color:var(--paper);opacity:0">WHERE user_id = 42</div>
+  </div>
+
+  <!-- S8 end -->
+  <div class="scene" id="s8">
+    <div class="abs" style="left:90px;right:90px;top:360px;display:flex;align-items:center;justify-content:center;gap:30px">
+      <div class="tile" style="position:relative;width:190px;height:190px"></div>
+      <div class="grot" style="font-size:110px">+</div>
+      <div class="card mono" style="position:relative;width:300px;height:190px;display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--blue)">_delta_log</div>
+    </div>
+    <div class="abs grot" style="left:0;right:0;top:640px;text-align:center;font-size:120px">delta lake</div>
+    <div class="abs" id="chips" style="left:90px;right:90px;top:820px;display:flex;flex-wrap:wrap;gap:18px;justify-content:center"></div>
+    <div class="abs mono" style="left:0;right:0;top:1150px;text-align:center;font-size:28px;opacity:.7">data engineering · ep. 02</div>
+  </div>
+
+  <div id="caption"></div>
+  <div id="presenter">
+    <svg id="dana" viewBox="0 0 936 420" width="936" height="420" style="position:absolute;inset:0">
+      <rect x="380" y="330" width="176" height="110" rx="40" fill="#1F1B18"/>
+      <path d="M300 420 Q468 300 636 420Z" fill="#D9A21E" stroke="#1F1B18" stroke-width="4"/>
+      <g id="head">
+        <ellipse cx="468" cy="200" rx="104" ry="128" fill="#8a5a3b" stroke="#1F1B18" stroke-width="4"/>
+        <path d="M364 170 Q380 60 470 66 Q570 70 572 170 Q540 110 470 112 Q400 112 364 170Z" fill="#1F1B18"/>
+        <path d="M380 240 Q468 350 556 240 Q556 300 468 322 Q380 300 380 240Z" fill="#1F1B18"/>
+        <g fill="none" stroke="#5b3a1e" stroke-width="7"><circle cx="425" cy="200" r="30"/><circle cx="511" cy="200" r="30"/><path d="M455 200h26"/></g>
+        <g id="eyes" fill="#1F1B18"><circle cx="425" cy="200" r="8"/><circle cx="511" cy="200" r="8"/></g>
+        <ellipse id="mouth" cx="468" cy="272" rx="24" ry="4" fill="#3a1b10"/>
+      </g>
+    </svg>
+    <div class="tag mono">dana · explains</div>
+    <div id="bars"><i></i><i></i><i></i><i></i><i></i></div>
+  </div>
+</div></div>
+
+<div id="controls">
+  <button id="play" aria-label="Play">▶</button>
+  <input id="scrub" type="range" min="0" max="81" step="0.01" value="0" aria-label="Seek">
+  <span id="time">0:00 / 1:21</span>
+  <button id="voice" aria-label="Toggle narration" title="Narration (browser voice)">🔊</button>
+</div>
+
+<script>
+const D = 81;
+const $ = (s) => document.querySelector(s);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eo = (x) => 1 - Math.pow(1 - x, 3);
+const back = (x) => { const c = 1.7; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const fmt = (n) => Math.round(n).toLocaleString('en-US');
+
+// narration lines (film clock)
+const LINES = [
+  [0.5, 5.8, "thousands of parquet files. two jobs write at once. which files are real?"],
+  [6.65, 8.4, "delta lake fixes this."],
+  [8.9, 14.2, "delta lake stores data as plain parquet files, plus one folder beside them: the _delta_log."],
+  [14.2, 18.5, "every change is a numbered json commit."],
+  [18.5, 24.0, "write the files first, then add one commit. that commit either exists or it doesn't."],
+  [24.0, 29.0, "so a crash never leaves a half-written table."],
+  [29.65, 31.8, "the log is the source of truth."],
+  [32.3, 37.5, "readers replay the log to see the current table."],
+  [37.5, 42.0, "replay only up to commit three, and you've travelled back in time."],
+  [42.0, 47.0, "write a column with the wrong type, and the commit is rejected. that's schema enforcement."],
+  [47.0, 54.5, "and merge rewrites only the one file holding the changed row, leaving millions of other rows untouched."],
+  [55.1, 57.6, "but every commit adds small files."],
+  [58.0, 62.2, "thousands of tiny files make queries slow."],
+  [62.2, 66.0, "optimize compacts them into a few big ones."],
+  [66.0, 71.0, "z-order then sorts related values together, so a query can skip most files entirely."],
+  [71.0, 73.5, "less data read, faster job."],
+  [75.4, 78.3, "parquet plus a log. that's delta lake."],
+  [78.6, 80.5, "see you in the next one."],
+];
+const SCENES = [["s1", 0, 6.6], ["s2", 6.6, 8.9], ["s3", 8.9, 29.6], ["s4", 29.6, 32.3], ["s5", 32.3, 55.1], ["s7", 55.1, 75.4], ["s8", 75.4, 81]];
+
+// ---- build DOM ----
+const grid = $('#s1grid'), tiles = [];
+for (let i = 0; i < 100; i++) {
+  const d = document.createElement('div'); d.className = 'tile';
+  d.style.cssText += `left:${(i % 10) * 90 + 6}px;top:${Math.floor(i / 10) * 90 + 6}px;width:78px;height:78px`;
+  grid.appendChild(d); tiles.push(d);
+}
+const pq = $('#pq'), pqs = [];
+for (let i = 0; i < 8; i++) {
+  const d = document.createElement('div'); d.className = 'chip mono';
+  d.style.cssText = `left:${(i % 4) * 205}px;top:${Math.floor(i / 4) * 90}px;width:190px;font-size:17px;padding:0 6px;justify-content:center`;
+  d.textContent = `part-0${i}.parquet`; pq.appendChild(d); pqs.push(d);
+}
+const commits = $('#commits'), cms = [];
+for (let i = 0; i < 6; i++) {
+  const d = document.createElement('div'); d.className = 'chip mono';
+  d.style.cssText = `left:0;top:${i * 82}px;width:820px;font-size:24px`;
+  d.innerHTML = i < 5 ? `<b style="color:var(--blue)">0000${i}.json</b>&nbsp;&nbsp;{"add": "part-0${i}…"}` : `<b style="color:var(--grey)">00005.json</b>&nbsp;&nbsp;— never written (crash)`;
+  commits.appendChild(d); cms.push(d);
+}
+const ledger = $('#ledger'), lgs = [];
+for (let i = 0; i < 6; i++) {
+  const d = document.createElement('div'); d.className = 'chip mono';
+  d.style.cssText = `left:${i * 150}px;top:20px;width:130px;justify-content:center;font-size:26px`;
+  d.textContent = `v${i}`; ledger.appendChild(d); lgs.push(d);
+}
+const rows = $('#rows'), rws = [];
+for (let i = 0; i < 6; i++) {
+  const d = document.createElement('div'); d.className = 'chip mono';
+  d.style.cssText = `left:0;right:0;top:${i * 94}px;font-size:26px`;
+  rws.push(d); rows.appendChild(d);
+}
+const ROWDATA = ['id 1 · ana · berlin', 'id 2 · bo · lima', 'id 3 · cy · oslo', 'id 4 · dee · pune', 'id 5 · eli · rome', 'id 6 · fay · kyoto'];
+const small = $('#small'), sms = [];
+for (let i = 0; i < 225; i++) {
+  const d = document.createElement('div'); d.className = 'tile';
+  d.style.cssText += `left:${(i % 15) * 60 + 4}px;top:${Math.floor(i / 15) * 60 + 4}px;width:50px;height:50px;border-width:1.5px;border-radius:5px;box-shadow:none`;
+  small.appendChild(d); sms.push(d);
+}
+const bigs = [];
+const ZC = ['#2B4A9A', '#3e5fb0', '#5677c4', '#7290d4'];
+for (let i = 0; i < 4; i++) {
+  const d = document.createElement('div'); d.className = 'tile mono';
+  d.style.cssText += `left:${(i % 2) * 460 + 4}px;top:${Math.floor(i / 2) * 460 + 4}px;width:432px;height:432px;opacity:0;display:flex;align-items:flex-end;padding:20px;color:#fff;font-size:28px`;
+  small.appendChild(d); bigs.push(d);
+}
+$('#chips').innerHTML = ['acid commits', 'time travel', 'schema enforcement', 'merge', 'optimize', 'z-order'].map((c, i) =>
+  `<div class="chip mono" style="position:relative;background:${['#fff', '#fff', '#fff', '#fff', '#fff', '#fff'][i]}">✓ ${c}</div>`).join('');
+const chipEls = [...$('#chips').children];
+
+// ---- render(t) ----
+function show(id, t, a, b) {
+  const el = $('#' + id);
+  const on = t >= a && t < b;
+  el.style.opacity = on ? 1 : 0;
+  if (on) { const p = eo(prog(t, a, a + 0.15)); el.style.transform = `scale(${0.96 + 0.04 * p})`; }
+  return on;
+}
+function render(t) {
+  SCENES.forEach(([id, a, b]) => show(id, t, a, b));
+  // caption
+  const L = LINES.find(([a, b]) => t >= a && t < b);
+  $('#caption').innerHTML = L ? `<span>${L[2]}</span>` : '';
+  const punch = (t >= 6.6 && t < 8.9) || (t >= 29.6 && t < 32.3);
+  $('#caption').style.top = punch ? '1180px' : '1240px';
+  // presenter
+  const pr = $('#presenter');
+  const full = punch;
+  pr.style.top = full ? '1300px' : '1440px';
+  pr.style.opacity = t > 80.4 ? 0 : 1;
+  const talking = !!L;
+  const m = talking ? 4 + Math.abs(Math.sin(t * 17) * Math.sin(t * 5.3)) * 22 : 4;
+  $('#mouth').setAttribute('ry', m.toFixed(1));
+  $('#eyes').setAttribute('transform', (t % 3.4) < 0.12 ? 'translate(0,200) scale(1,0.1) translate(0,-200)' : '');
+  $('#head').setAttribute('transform', `translate(0 ${Math.sin(t * 1.6) * 3})`);
+  [...$('#bars').children].forEach((b, i) => b.style.height = (talking ? 10 + Math.abs(Math.sin(t * (7 + i * 2.3))) * 60 : 10) + 'px');
+
+  // S1
+  if (t < 6.6) {
+    tiles.forEach((d, i) => { const p = prog(t, 0.2 + i * 0.022, 0.5 + i * 0.022); d.style.opacity = p; d.style.transform = `translateY(${(1 - eo(p)) * -30}px)`; d.style.background = 'var(--blue)'; });
+    $('#s1count').textContent = fmt(100 * prog(t, 0.2, 2.7)) + (t > 2.7 ? 'k' : '');
+    const pa = eo(prog(t, 2.8, 3.8)), pb = eo(prog(t, 3.0, 4.0));
+    $('#w1').style.left = (-300 + pa * 620) + 'px'; $('#w2').style.left = (1200 - pb * 620) + 'px';
+    const hit = t > 4.0;
+    [44, 45, 54, 55, 33, 66].forEach((i, k) => { if (t > 4.0 + k * 0.15) tiles[i].style.background = k % 2 ? 'var(--grey)' : 'var(--red)'; });
+    const g = prog(t, 5.0, 6.57);
+    $('#s1').style.transform = `scale(${1 - 0.047 * eo(g)}) rotate(${3.6 * eo(g)}deg)`;
+  }
+  // S2
+  if (t >= 6.6 && t < 8.9) { const p = back(prog(t, 6.6, 6.9)); $('#s2t').style.transform = `scale(${0.6 + 0.4 * p})`; }
+  // S3
+  if (t >= 8.9 && t < 29.6) {
+    pqs.forEach((d, i) => {
+      const p = prog(t, 9.2 + i * 0.25, 9.6 + i * 0.25); d.style.opacity = p;
+      // files 5..7 belong to commits; part-07 orphan from crash
+      let col = '#fff', txt = 'var(--ink)';
+      if (t > 18.5 && i < 5) { col = t > 20.5 + i * 0.1 ? 'var(--blue)' : '#ddd'; txt = t > 20.5 + i * 0.1 ? '#fff' : 'var(--ink)'; }
+      if (i >= 5 && t > 24) { col = '#ccc8bc'; txt = '#77736a'; d.style.textDecoration = 'line-through'; } else d.style.textDecoration = '';
+      d.style.background = col; d.style.color = txt;
+    });
+    $('#logdir').style.opacity = prog(t, 12.0, 12.6);
+    cms.forEach((d, i) => {
+      const a = i < 5 ? 14.4 + i * 0.6 : 25.0; const p = prog(t, a, a + 0.3);
+      d.style.opacity = p; d.style.transform = `translateX(${(1 - eo(p)) * 60}px)`;
+      d.style.borderStyle = i === 5 ? 'dashed' : 'solid';
+    });
+    $('#step').textContent = t < 18.5 ? 'step 1 · write files' : t < 24 ? 'step 2 · add one commit' : '💥 crash mid-write';
+    $('#step').style.background = t >= 24 ? 'var(--red)' : t >= 20.5 ? 'var(--green)' : 'var(--ink)';
+    const sp = prog(t, 28.6, 28.75);
+    $('#slam').style.opacity = sp; $('#slam').style.transform = `scale(${1.6 - 0.6 * sp})`;
+    $('#tree').style.opacity = 1 - 0.75 * sp;
+  }
+  // S5
+  if (t >= 32.3 && t < 55.1) {
+    lgs.forEach((d, i) => { const p = prog(t, 32.5 + i * 0.3, 32.8 + i * 0.3); d.style.opacity = p; });
+    let v = 5;
+    if (t < 35) v = Math.floor(prog(t, 32.6, 34.6) * 5.99);
+    else if (t >= 37.5 && t < 42) v = Math.round(5 - 2 * eo(prog(t, 38, 39.2)));
+    lgs.forEach((d, i) => { d.style.background = i <= v ? 'var(--blue)' : '#fff'; d.style.color = i <= v ? '#fff' : 'var(--ink)'; });
+    $('#knob').style.left = (90 + v * 150 + 43) + 'px';
+    $('#ver').textContent = v === 5 ? 'version 5 · current' : v === 3 ? 'version 3 · time travel ⟲' : `replaying v${v}…`;
+    $('#s5h').textContent = t < 37.5 ? 'replay the log →' : t < 42 ? 'time travel: VERSION AS OF 3' : t < 47 ? 'schema enforcement' : 'merge into';
+    const nrows = t >= 37.5 && t < 42 ? 4 : 6;
+    rws.forEach((d, i) => {
+      d.style.opacity = i < nrows ? 1 : 0.12;
+      let txt = ROWDATA[i], bg = '#fff', col = 'var(--ink)';
+      if (t >= 42 && t < 47 && i === 5) { txt = 'id "seven" ✗ (string ≠ int)'; bg = 'var(--red)'; col = '#fff'; }
+      if (t >= 48.5 && i === 2) { txt = 'id 3 · cy · oslo → bergen'; bg = 'var(--green)'; col = '#fff'; }
+      d.textContent = txt; d.style.background = bg; d.style.color = col;
+    });
+    const st = prog(t, 43.6, 43.8); $('#stamp').style.opacity = t < 47 ? st : 0; $('#stamp').style.transform = `rotate(-10deg) scale(${1.5 - 0.5 * st})`;
+    $('#untouched').style.opacity = prog(t, 50, 50.4);
+    $('#ucount').textContent = fmt(2366079 * eo(prog(t, 50.2, 53.5)));
+    $('#tbl').style.height = t >= 50 ? "620px" : "700px";
+  }
+  // S6/S7
+  if (t >= 55.1 && t < 75.4) {
+    const n = Math.floor(225 * eo(prog(t, 55.3, 57.6)));
+    const merge = prog(t, 62.4, 64.0);
+    const z = t >= 66;
+    sms.forEach((d, i) => {
+      d.style.opacity = i < n ? 1 - merge : 0;
+      d.style.background = ['var(--blue)', 'var(--grey)', 'var(--blue)', 'var(--sand)'][(i * 7) % 4];
+      const gx = (i % 15) < 8 ? 0 : 1, gy = Math.floor(i / 15) < 8 ? 0 : 1;
+      const tx = (gx * 460 + 220 - ((i % 15) * 60 + 29)) * eo(merge), ty = (gy * 460 + 220 - (Math.floor(i / 15) * 60 + 29)) * eo(merge);
+      d.style.transform = `translate(${tx}px,${ty}px)`;
+    });
+    const filesNow = t < 62.4 ? n * 4 + (t > 57.6 ? Math.floor((t - 57.6) * 400) : 0) : Math.round(2240 - 2236 * eo(merge));
+    $('#s7c').textContent = fmt(Math.max(filesNow, 0));
+    $('#s7h').textContent = t < 58 ? 'after 1,000 commits' : t < 62.2 ? 'tiny files → slow queries' : t < 66 ? 'OPTIMIZE' : t < 71 ? 'OPTIMIZE … ZORDER BY (user_id)' : 'files read: 4 → 1';
+    bigs.forEach((d, i) => {
+      d.style.opacity = prog(t, 63.6, 64.2);
+      const skip = t >= 69 && i !== 0;
+      d.style.background = z ? ZC[i] : 'var(--blue)';
+      d.style.filter = skip ? 'grayscale(1)' : '';
+      d.style.opacity = skip ? 0.35 : prog(t, 63.6, 64.2);
+      d.innerHTML = z ? `user_id ${i * 250}–${i * 250 + 249}${skip ? '<br>⤼ skipped' : t >= 69 ? '<br>✓ read' : ''}` : `part-big-${i}.parquet`;
+      d.style.outline = t >= 69 && i === 0 ? '6px solid var(--green)' : '';
+    });
+    $('#query').style.opacity = prog(t, 67.5, 68);
+    const sl = t > 58 && t < 62.2; $('#s7c').style.color = sl ? 'var(--red)' : t > 64 ? 'var(--green)' : 'var(--ink)';
+  }
+  // S8
+  if (t >= 75.4) chipEls.forEach((c, i) => { const p = prog(t, 76 + i * 0.25, 76.3 + i * 0.25); c.style.opacity = p; c.style.transform = `translateY(${(1 - eo(p)) * 20}px)`; c.style.background = p >= 1 ? '#fff' : '#fff'; c.style.borderColor = 'var(--green)'; });
+  $('#scrub').value = t;
+  $('#time').textContent = `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')} / 1:21`;
+}
+
+// ---- playback ----
+let t = 0, playing = false, last = 0, voiceOn = true, spoken = -1;
+const synth = window.speechSynthesis;
+function speakAt(t) {
+  if (!voiceOn || !synth) return;
+  const i = LINES.findIndex(([a, b]) => t >= a && t < b);
+  if (i !== -1 && i !== spoken && t - LINES[i][0] < 0.3) {
+    spoken = i; try { const u = new SpeechSynthesisUtterance(LINES[i][2].replace('_delta_log', 'underscore delta log')); u.rate = 1.12; synth.speak(u); } catch (e) {}
+  }
+}
+function loop(now) {
+  if (!playing) return;
+  t += (now - last) / 1000; last = now;
+  if (t >= D) { t = D; playing = false; $('#play').textContent = '↺'; }
+  speakAt(t); render(t);
+  requestAnimationFrame(loop);
+}
+$('#play').onclick = () => {
+  if (t >= D) { t = 0; spoken = -1; }
+  playing = !playing; $('#play').textContent = playing ? '❚❚' : '▶';
+  if (playing) { last = performance.now(); requestAnimationFrame(loop); } else synth && synth.cancel();
+};
+$('#scrub').oninput = (e) => { t = +e.target.value; spoken = -1; synth && synth.cancel(); render(t); };
+$('#voice').onclick = () => { voiceOn = !voiceOn; $('#voice').textContent = voiceOn ? '🔊' : '🔇'; if (!voiceOn && synth) synth.cancel(); };
+document.addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); $('#play').click(); } });
+
+function fit() {
+  const w = $('#wrap'), s = Math.min(w.clientWidth / 1080, w.clientHeight / 1920);
+  $('#stage').style.transform = `translate(-50%,-50%) scale(${s})`;
+}
+addEventListener('resize', fit); fit(); render(0);
+</script>
+</body>
+</html>
