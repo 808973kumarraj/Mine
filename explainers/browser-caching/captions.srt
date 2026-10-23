@@ -1,0 +1,259 @@
+1
+00:00:00,400 --> 00:00:02,708
+When a page needs a file,
+
+2
+00:00:02,708 --> 00:00:05,400
+the browser checks its own cache first.
+
+3
+00:00:05,800 --> 00:00:08,108
+One question decides what happens next.
+
+4
+00:00:08,108 --> 00:00:10,415
+Do I have a fresh copy?
+
+5
+00:00:10,815 --> 00:00:14,892
+Let's follow one file, style.css, through three requests.
+
+6
+00:00:15,292 --> 00:00:16,062
+First visit.
+
+7
+00:00:16,062 --> 00:00:17,600
+The cache is empty,
+
+8
+00:00:17,600 --> 00:00:19,908
+so this is a cache miss.
+
+9
+00:00:20,308 --> 00:00:23,769
+So the browser sends GET /style.css to the server.
+
+10
+00:00:24,169 --> 00:00:26,092
+The server replies 200 OK
+
+11
+00:00:26,092 --> 00:00:29,569
+with the whole file and two caching headers.
+
+12
+00:00:29,969 --> 00:00:32,662
+Cache-Control: max-age=3600 says the copy stays fresh
+
+13
+00:00:32,662 --> 00:00:33,815
+for 3600 seconds.
+
+14
+00:00:33,815 --> 00:00:35,569
+That's one hour.
+
+15
+00:00:35,969 --> 00:00:38,277
+The ETag is a version tag
+
+16
+00:00:38,277 --> 00:00:40,969
+for this exact file, like a fingerprint.
+
+17
+00:00:41,369 --> 00:00:43,292
+The browser uses the file
+
+18
+00:00:43,292 --> 00:00:45,985
+and saves a copy, headers and all.
+
+19
+00:00:45,985 --> 00:00:48,308
+Its age starts at zero.
+
+20
+00:00:48,708 --> 00:00:51,015
+DevTools logs it as status 200,
+
+21
+00:00:51,015 --> 00:00:52,554
+with the full size.
+
+22
+00:00:52,954 --> 00:00:55,646
+Ten minutes later, you open another page.
+
+23
+00:00:55,646 --> 00:00:57,185
+It needs style.css too.
+
+24
+00:00:57,585 --> 00:00:59,892
+The copy is 600 seconds old.
+
+25
+00:00:59,892 --> 00:01:02,985
+That's under 3600, so it's still fresh.
+
+26
+00:01:03,385 --> 00:01:06,462
+So the browser uses its copy right away.
+
+27
+00:01:06,462 --> 00:01:08,385
+Nothing goes over the network.
+
+28
+00:01:08,785 --> 00:01:10,323
+That's a cache hit.
+
+29
+00:01:10,323 --> 00:01:13,015
+No network wait, and no data used.
+
+30
+00:01:13,415 --> 00:01:14,954
+DevTools still lists it,
+
+31
+00:01:14,954 --> 00:01:17,646
+but the Size column says disk cache
+
+32
+00:01:17,646 --> 00:01:19,400
+or memory cache.
+
+33
+00:01:19,800 --> 00:01:21,338
+Later, you come back.
+
+34
+00:01:21,338 --> 00:01:24,031
+The copy is now two hours old.
+
+35
+00:01:24,431 --> 00:01:27,508
+That's past max-age, so the copy is stale.
+
+36
+00:01:27,508 --> 00:01:30,215
+But stale does not mean deleted.
+
+37
+00:01:30,615 --> 00:01:33,308
+So the browser checks with the server.
+
+38
+00:01:33,308 --> 00:01:36,769
+It sends the stored ETag in an If-None-Match header.
+
+39
+00:01:37,169 --> 00:01:38,323
+In plain words:
+
+40
+00:01:38,323 --> 00:01:41,015
+has the file changed since version a3f9?
+
+41
+00:01:41,415 --> 00:01:43,338
+The server's tag still matches.
+
+42
+00:01:43,338 --> 00:01:45,646
+So it replies 304 Not Modified.
+
+43
+00:01:46,046 --> 00:01:47,969
+A 304 has no body.
+
+44
+00:01:47,969 --> 00:01:50,877
+It's only headers, so it's tiny.
+
+45
+00:01:51,277 --> 00:01:54,738
+The browser reuses its copy and updates its headers.
+
+46
+00:01:54,738 --> 00:01:57,062
+It's fresh for another hour.
+
+47
+00:01:57,462 --> 00:02:00,538
+DevTools shows status 304 and a small size.
+
+48
+00:02:00,938 --> 00:02:04,400
+If the file had changed, the tags would differ.
+
+49
+00:02:04,400 --> 00:02:06,323
+Then the server sends 200
+
+50
+00:02:06,323 --> 00:02:10,200
+with the new file and a new ETag.
+
+51
+00:02:10,600 --> 00:02:11,400
+Three requests.
+
+52
+00:02:11,400 --> 00:02:13,800
+Three outcomes.
+
+53
+00:02:14,200 --> 00:02:16,508
+Your Cache-Control header picks the path.
+
+54
+00:02:16,508 --> 00:02:18,046
+max-age=3600 means path two
+
+55
+00:02:18,046 --> 00:02:20,754
+for an hour, then path three.
+
+56
+00:02:21,154 --> 00:02:23,462
+With no-cache, the copy is stored
+
+57
+00:02:23,462 --> 00:02:25,385
+but checked first, every time.
+
+58
+00:02:25,385 --> 00:02:26,538
+That's path three.
+
+59
+00:02:26,938 --> 00:02:28,862
+With no-store, nothing is saved.
+
+60
+00:02:28,862 --> 00:02:31,169
+Every request is a first visit.
+
+61
+00:02:31,569 --> 00:02:33,877
+To replay a first visit yourself,
+
+62
+00:02:33,877 --> 00:02:35,800
+tick Disable cache in DevTools.
+
+63
+00:02:36,200 --> 00:02:38,508
+A fresh hit uses no network.
+
+64
+00:02:38,508 --> 00:02:41,200
+A 304 costs one small round trip.
+
+65
+00:02:41,200 --> 00:02:45,508
+A 200 sends the whole file.

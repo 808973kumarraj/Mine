@@ -1,0 +1,5 @@
+0:00 Intro
+0:15 Request 1 · First visit
+0:52 Request 2 · Cache hit
+1:19 Request 3 · Expired
+2:10 Recap
