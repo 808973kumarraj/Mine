@@ -99,6 +99,7 @@ function world(s, origin = [540, 640], unit = 30) {
 const FOOT = { server: [120, 90], 'server-stage': [120, 90], 'server-hot': [120, 90], tray: [130, 96], disk: [113, 113], switch: [110, 60],
   lookup: [70, 50], cost: [44, 44], belt: [300, 70], node: [34, 34], 'node-hot': [34, 34] };
 const HEIGHT = { server: 96, 'server-stage': 96, cost: 48 };
+const FLAT = { belt: 1, tray: 1, row: 1, 'row-head': 1 };   // low surfaces: always under what sits on them
 // isometric planes for text: floor (reads along x), left face y=const (reads along x), right face x=const (reads along -y)
 const PLANE = { floor: [C, S, -C, S], left: [C, S, 0, 1], right: [C, -S, 0, 1] };
 const depth = (x, y, z) => Math.round((x + y) * 2 + z * 2.4 + 3000);
@@ -125,7 +126,7 @@ function spr(w, name, x, y, z = 0, opt = {}) {
   }
   sp.place = () => {
     const [sx, sy] = proj(w.origin, sp.p.x, sp.p.y, sp.p.z);
-    gsap.set(e, { x: sx - a.ax, y: sy - a.ay, zIndex: depth(sp.p.x, sp.p.y, sp.p.z) });
+    gsap.set(e, { x: sx - a.ax, y: sy - a.ay, zIndex: FLAT[name] ? 900 + Math.round(sp.p.x + sp.p.y) : depth(sp.p.x, sp.p.y, sp.p.z) });
     if (sp.sh) { const [fx, fy] = proj(w.origin, sp.p.x, sp.p.y, 0); const k = Math.max(.25, 1 - sp.p.z / 500);
       gsap.set(sp.sh, { x: fx - sp.shr * .8, y: fy - sp.shr * .4 + 6, scale: k, opacity: k, zIndex: 1 }); }
   };
@@ -151,7 +152,7 @@ function slide(sp, t, x, y, d = 1, ease = 'power2.inOut') { tl.to(sp.p, { x, y, 
 function fadeOut(sp, t, d = .4) { tl.to([sp.el, sp.sh, sp.label].filter(Boolean), { autoAlpha: 0, duration: d }, t); }
 // dashed iso path on the floor/through the air, drawn on at t
 function arc(w, pts, t, color = 'var(--ink)', d = 1) {
-  const sv = el('div', '', w); sv.style.cssText = 'position:absolute;inset:0;z-index:1500;pointer-events:none';
+  const sv = el('div', '', w); sv.style.cssText = 'position:absolute;inset:0;z-index:9000;pointer-events:none';
   const P = pts.map(q => proj(w.origin, ...q));
   let dd = `M${P[0][0]} ${P[0][1]}`; for (let i = 1; i < P.length; i++) dd += ` L${P[i][0]} ${P[i][1]}`;
   if (pts.length === 3) dd = `M${P[0][0]} ${P[0][1]} Q${P[1][0]} ${P[1][1]} ${P[2][0]} ${P[2][1]}`;
@@ -244,7 +245,11 @@ s = scene(20, 25);
 up(20, o(s, 'h center', 'top:130px', 'same key → same partition'));
 let cl = cluster(s, 20.4);
 for (let i = 0; i < 4; i++) for (let k = 0; k < 6; k++) spr(cl.w, 'cube-' + keyOf(i, k), row4(i) - 30 + (k % 3) * 30, -198 + Math.floor(k / 3) * 36, 96, { shadow: false });
-for (let i = 0; i < 4; i++) arc(cl.w, [[row4(i), -180, 140], [(row4(i) + row4(0)) / 2, 0, 260], [row4(0), 180, 30]], 21.2 + i * .35, 'var(--blue)');
+for (let i = 0; i < 4; i++) {
+  const k = [0, 1, 2, 3, 4, 5].find(k => keyOf(i, k) === 'in');
+  const cx = row4(i) - 30 + (k % 3) * 30, cy = -198 + Math.floor(k / 3) * 36;
+  arc(cl.w, [[cx, cy, 118], [(cx + row4(0)) / 2, (cy + 180) / 2, 300], [row4(0), 180, 22]], 21.2 + i * .35, 'var(--blue)');
+}
 
 // 25-32 the shuffle: every cube hops into the tray for its key
 s = scene(25, 32);
@@ -380,8 +385,15 @@ tl.set({}, {}, DUR);
 
 // ---------- player: the FilmCraft mix is the clock ----------
 const v = document.getElementById('v'), seek = document.getElementById('seek'), stage = document.getElementById('stage');
-function fit() { panel.style.transform = `scale(${stage.clientWidth / 1080})`; }
-addEventListener('resize', fit); fit();
+function fit() {
+  const vw = document.documentElement.clientWidth - 32, vh = innerHeight - 110;
+  const wpx = Math.max(200, Math.min(560, vw, vh * 1080 / 1100));
+  stage.style.width = wpx + 'px';
+  panel.style.transform = `scale(${wpx / 1080})`;
+}
+addEventListener('resize', fit); addEventListener('load', fit); addEventListener('orientationchange', fit);
+if (window.ResizeObserver) new ResizeObserver(fit).observe(document.body);
+fit();
 function frame() {
   const t = v.currentTime;
   tl.time(Math.min(t, DUR));
