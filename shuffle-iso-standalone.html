@@ -346,7 +346,7 @@ for (let i = 0; i < 4; i++) {
 
 // 20-25 same key -> same partition
 function cluster(s, t) {
-  const w = world(s, [585, 660]);
+  const w = world(s, [555, 670]); gsap.set(w, { scale: .94 });
   const servers = [0, 1, 2, 3].map(i => spr(w, 'server', row4(i), -190, 0, { label: 'EXECUTOR ' + (i + 1) }));
   const trays = KEYS.map((k, i) => { const tr = spr(w, 'tray', row4(i), 170, 0, { label: 'PARTITION · ' + KEY[k] }); if (t != null) dropIn(tr, t + i * .12, 260); return tr; });
   return { w, servers, trays };
