@@ -116,7 +116,7 @@ function itext(w, str, x, y, z = 0, o = {}) {
 // a sprite at world (x, y, z); its p proxy is what tweens move
 function spr(w, name, x, y, z = 0, opt = {}) {
   const a = ANCHOR[name], e = el('div', 'spr', w, ART[name]);
-  const sp = { el: e, p: { x, y, z }, name, w };
+  const sp = { el: e, p: { x, y, z }, name, w }; e.dataset.n = name;
   if (opt.shadow !== false) { sp.sh = el('div', 'shadow', w); const r = Math.max(a.w * .55, 30); Object.assign(sp.sh.style, { width: r * 1.6 + 'px', height: r * .8 + 'px' }); sp.shr = r; }
   if (opt.label) {   // printed on the box's front face, or painted on the floor in front of it
     const [fw, fd] = FOOT[name] || [60, 60], h = HEIGHT[name];
@@ -134,7 +134,8 @@ function spr(w, name, x, y, z = 0, opt = {}) {
 }
 const upd = sp => () => sp.place();
 // sprite tweens on the timeline
-function dropIn(sp, t, h = 320, d = .8) {
+function dropIn(sp, t, h = 120, d = .8) {
+  h = Math.min(h, 120);   // keep falling objects inside the frame and below the titles
   tl.from(sp.p, { z: sp.p.z + h, duration: d, ease: 'bounce.out', immediateRender: true, onUpdate: upd(sp) }, t);
   tl.from([sp.el, sp.label].filter(Boolean), { autoAlpha: 0, duration: .2, immediateRender: true }, t);
   if (sp.sh) tl.from(sp.sh, { autoAlpha: 0, duration: .3, immediateRender: true }, t);
@@ -184,7 +185,7 @@ let s, w;
 const row4 = i => -270 + i * 180;          // four executors along the x axis
 
 // 0-8  a cluster of 100 executors; groupBy heats it up and the job slows down
-s = scene(0, 8); w = world(s, [540, 560], 45);
+s = scene(0, 8); w = world(s, [540, 640], 45);
 const n1 = o(s, 'big center', 'top:120px'); count(n1, 24, 100, 0, 2.2);
 const c1 = o(s, 'cap center', 'top:262px', 'SPARK EXECUTORS');
 const nodes = [], hot = [];
@@ -194,7 +195,7 @@ for (let r = 0; r < 10; r++) for (let q = 0; q < 10; q++) {
   dropIn(sp, .2 + Math.hypot(q - 4.5, r - 4.5) * .12, 260, .6); nodes.push(sp); hot.push(hs);
 }
 tl.to([n1, c1], { autoAlpha: 0, y: -30, duration: .5 }, 4.2);
-tl.to(w, { y: 90, duration: 1, ease: 'power2.inOut' }, 4.2);
+tl.to(w, { y: 50, duration: 1, ease: 'power2.inOut' }, 4.2);
 tl.to(hot.map(h => h.el), { autoAlpha: 1, duration: .2, stagger: { each: .012, from: 'random' } }, 4.6);
 const job = o(s, 'card', 'left:222px;top:130px;width:636px;padding:24px 30px',
   `<div class="cap" style="font-size:15px">SPARK JOB · STAGE 2 OF 3</div>
@@ -208,7 +209,7 @@ from(4.8, job.querySelector('.d'), { scaleX: 0, duration: 3, ease: 'power1.out' 
 pop(6.3, o(s, 'chip r', 'left:404px;top:1000px', '● SLOWING DOWN'));
 
 // 8-14  one billion orders rain into four executors
-s = scene(8, 14); w = world(s, [540, 560]);
+s = scene(8, 14); w = world(s, [540, 680]);
 const n2 = o(s, 'mid center', 'top:140px'); count(n2, 985661228, 1e9, 8, 1.6);
 o(s, 'cap center', 'top:240px', 'ORDERS');
 for (let i = 0; i < 4; i++) {
@@ -268,14 +269,14 @@ function rig(s, rightLabel) {
   return { w, A, D, N, B };
 }
 s = scene(32, 33.2); let R = rig(s);
-pop(32, o(s, 'card', 'left:300px;top:140px;width:480px;font-size:26px;line-height:1.7',
+pop(32, o(s, 'card', 'left:520px;top:140px;width:480px;font-size:26px;line-height:1.7',
   '<div class="cap" style="font-size:13px">ORDER RECORD</div>order_id&nbsp; 48213907<br>country&nbsp;&nbsp; IN<br>amount&nbsp;&nbsp;&nbsp; ₹1,240'));
 let pk = spr(R.w, 'cube-in', -300, 60, 96); dropIn(pk, 32.3, 200);
 
 s = scene(33.2, 34.2); R = rig(s); stepHead(s, 1, 'serialize', 33.2); costCard(s, 1, 33.3);
 pk = spr(R.w, 'cube-in', -300, 60, 96);
 tl.to(pk.el, { scale: .5, autoAlpha: 0, duration: .4 }, 33.5);
-const bt = o(s, 'bits', 'left:110px;top:520px', '01001001 01001110 00110100'); pop(33.6, bt);
+const bt = o(s, 'bits', 'left:60px;top:880px', '01001001 01001110 00110100'); pop(33.6, bt);
 
 s = scene(34.2, 36.2); R = rig(s); stepHead(s, 2, 'write to disk', 34.2); costCard(s, 2, 34.3);
 pk = spr(R.w, 'cube-in', -300, 60, 96); hop(pk, 34.5, -60, 270, 46, 160, .9);
@@ -285,7 +286,7 @@ pop(35.4, o(s, 'chip r', 'left:300px;top:930px;font-size:16px', '● disk I/O'))
 s = scene(36.2, 41.2); R = rig(s); stepHead(s, 3, 'send over network', 36.2); costCard(s, 3, 36.3);
 arc(R.w, [[-60, 270, 40], [30, -240, 26]], 36.4, 'var(--ink)', .8); arc(R.w, [[30, -240, 26], [300, 30, 96]], 37, 'var(--ink)', .8);
 pk = spr(R.w, 'cube-in', -60, 270, 46); hop(pk, 37.6, 30, -240, 30, 120, .9); hop(pk, 38.6, 300, 30, 96, 120, .9);
-pop(38, o(s, 'bits', 'left:640px;top:420px;font-size:15px', '01001001 01001110'));
+pop(38, o(s, 'bits', 'left:360px;top:420px;font-size:15px', '01001001 01001110'));
 pop(39.4, o(s, 'chip r', 'left:420px;top:950px;font-size:16px', '● network I/O'));
 
 s = scene(41.2, 43.2); R = rig(s, 'STAGE 2'); stepHead(s, 4, 'fetch', 41.2); costCard(s, 3, null);
@@ -316,7 +317,7 @@ const hg = o(s, 'icon', 'right:70px;top:400px;width:46px;height:62px', ICONS.hou
 tl.to(hg, { rotation: 180, duration: .8, ease: 'power2.inOut', repeat: 4, repeatDelay: .6 }, 50.6);
 
 // 56-63 fix 1: move less data, or spread it over more executors
-s = scene(56, 63); w = world(s, [540, 660]);
+s = scene(56, 63); w = world(s, [540, 710]); gsap.set(w, { scale: .92 });
 up(56, o(s, 'cap', 'left:62px;top:124px', 'FIX THE OVERHEAD'));
 spr(w, 'server', -240, 0, 0, { label: 'STAGE 1' }); spr(w, 'belt', 0, 0, 0); spr(w, 'server-stage', 240, 0, 0, { label: 'STAGE 2' });
 const belt = [];
@@ -328,7 +329,7 @@ up(61, o(s, 'h r', 'left:62px;top:212px', '+ more executors'));
 [[-240, -240], [240, -240], [-240, 240], [240, 240]].forEach(([x, y], i) => dropIn(spr(w, 'server', x, y, 0), 61.3 + i * .15));
 
 // 63-67 fix 2: filter rows + columns before the shuffle
-s = scene(63, 67); w = world(s, [520, 620], 34); gsap.set(w, { scale: 1.6 });
+s = scene(63, 67); w = world(s, [520, 670], 34); gsap.set(w, { scale: 1.6 });
 up(63, o(s, 'cap', 'left:62px;top:124px', 'BEFORE THE SHUFFLE'));
 up(63.2, o(s, 'h', 'left:62px;top:152px', 'filter <span class="g">rows</span> + <span class="g">columns</span>'));
 const colNames = ['order_id', 'country', 'amount', 'item', 'ts', 'notes'];
@@ -338,7 +339,7 @@ for (let r = 0; r < 7; r++) for (let q = 0; q < 6; q++) {
   dropIn(sp, 63.1 + (r * 6 + q) * .012, 140, .5);
   if (q > 2 || (r && r % 2 === 0)) tl.to([sp.el, sp.label].filter(Boolean), { autoAlpha: .1, duration: .6 }, q > 2 ? 65.3 : 64.4);
 }
-const sh1 = o(s, 'card', 'right:90px;top:690px;width:170px;height:150px;text-align:center;padding:26px 0 0', `<div class="icon" style="width:66px;height:56px;margin:0 auto 12px">${ICONS.shuffle || ''}</div><div class="cap" style="font-size:12px">SHUFFLE</div>`);
+const sh1 = o(s, 'card', 'right:60px;top:880px;width:170px;height:150px;text-align:center;padding:26px 0 0', `<div class="icon" style="width:66px;height:56px;margin:0 auto 12px">${ICONS.shuffle || ''}</div><div class="cap" style="font-size:12px">SHUFFLE</div>`);
 pop(65.8, sh1);
 
 // 67-70 fix 3: avoid the shuffle altogether
@@ -352,14 +353,14 @@ pop(67.5, xs); from(68.3, xs.querySelector('i'), { scaleX: 0, duration: .5 });
 up(68.9, o(s, 'cap center g', 'top:740px;font-size:17px', '✓ less data moved · faster job'));
 
 // 70-78 the powerful trick: broadcast the small table to every executor, no shuffle
-s = scene(70, 78); w = world(s, [540, 640]);
+s = scene(70, 78); w = world(s, [540, 680]);
 up(70, o(s, 'cap', 'left:62px;top:124px', 'LESS DATA MOVEMENT'));
 up(70.1, o(s, 'h', 'left:62px;top:152px', 'a powerful trick…'));
 const spots = [[-240, -150], [240, -150], [-240, 180], [240, 180]];
 spots.forEach(([x, y], i) => dropIn(spr(w, 'server', x, y, 0, { label: 'EXEC ' + (i + 1) }), 70.4 + i * .12));
-const lk = spr(w, 'lookup', 0, 15, 0, { label: 'countries · 200 rows' }); dropIn(lk, 71.3);
+const lk = spr(w, 'lookup', 0, 15, 0); lk.label = itext(w, 'countries', -30, 2, 18, { size: 11, color: 'var(--blue)', spacing: '.04em', z: depth(0, 15, 18) + 2 }); dropIn(lk, 71.3);
 spots.forEach(([x, y], i) => { const cp = spr(w, 'lookup', 0, 15, 18, { shadow: false }); gsap.set(cp.el, { scale: .7 }); from(72.6 + i * .35, cp.el, { autoAlpha: 0, duration: .2 }); hop(cp, 72.6 + i * .35, x, y, 96, 180, .8); });
-from(75, itext(w, 'broadcast join · no shuffle', 30, 300, 0, { size: 24, color: 'var(--blue)' }), { autoAlpha: 0, duration: .6 });
+from(75, itext(w, 'broadcast join · no shuffle', -120, 330, 0, { size: 20, color: 'var(--blue)' }), { autoAlpha: 0, duration: .6 });
 tl.to(w, { scale: 1.05, duration: 7.5, ease: 'none' }, 70.3);
 
 // 78-end: the EffectCraft end card (Lottie)
