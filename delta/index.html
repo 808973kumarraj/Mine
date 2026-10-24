@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delta Lake</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400&family=Silkscreen&family=Space+Mono:wght@400;700&family=Archivo:wdth,wght@75,800;100,800&display=block" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; background: #E4E1D4; overflow: hidden }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block }
+  .hdr { font-family: 'Silkscreen', monospace; }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+  .space { font-family: 'Space Mono', monospace; font-weight: 700; }
+  .sans { font-family: 'IBM Plex Sans', sans-serif; }
+  .display { font-family: 'Archivo', sans-serif; font-weight: 800; font-stretch: 75%; }
+</style>
+</head>
+<body>
+<!--
+  "Delta Lake: how it works" (1080x1920, 72.5 s), in the visual language of the BinaryHabit Spark shuffle episode.
+  Contract: window.anim = { tl, duration, seek(t), play(from), pause() }; ?t= freezes, ?external=1 does not autoplay;
+  <html data-ready="1"> once fonts are loaded and frame 0 is drawn.
+  Everything visible is a pure function of t: render(t) resets each scene and draws the shots active at t.
+-->
+<svg id="stage" viewBox="0 0 1080 1920" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="frame"><rect width="1080" height="1920"/></clipPath>
+    <radialGradient id="bgGrad" cx="540" cy="700" r="1250" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F2EFE2"/><stop offset="0.55" stop-color="#E6E3D6"/><stop offset="1" stop-color="#CFCCBF"/>
+    </radialGradient>
+    <pattern id="gridPat" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M12.5 0V24M0 12.5H24" stroke="#5A5440" stroke-opacity="0.075" stroke-width="1" fill="none"/>
+    </pattern>
+    <pattern id="stripes" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+      <rect width="16" height="16" fill="#3E7A68"/><rect width="7" height="16" fill="#5E9585"/>
+    </pattern>
+    <pattern id="hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+      <rect width="12" height="12" fill="#E2DED0"/><rect width="5" height="12" fill="#D2CDBD"/>
+    </pattern>
+    <linearGradient id="funnelGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EEEBE0"/><stop offset="0.5" stop-color="#E3DFD2"/><stop offset="1" stop-color="#CDC8B8"/>
+    </linearGradient>
+    <pattern id="hatchRed" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+      <rect width="12" height="12" fill="#F1DCD4"/><rect width="5" height="12" fill="#D9A497"/>
+    </pattern>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="10"/></filter>
+    <filter id="soft24" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="24"/></filter>
+    <filter id="soft4" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="soft2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.6"/></filter>
+  </defs>
+  <g clip-path="url(#frame)">
+    <rect id="bg" width="1080" height="1920" fill="url(#bgGrad)"/>
+    <rect id="grid" width="1080" height="1920" fill="url(#gridPat)"/>
+    <g id="scenes"></g>
+    <g id="header"></g>
+  </g>
+</svg>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+(() => {
+const DUR = 72.5;
+const CUTS = [];
+const toSource = t => t;
+const NS = 'http://www.w3.org/2000/svg';
+const C = {
+  ink: '#1E1A14', inkSoft: '#3A342C', gray: '#6E685B', grayLight: '#9C9585', line: '#CBC7B8',
+  paper: '#EFECE0', paperDark: '#E3DFD1', side: '#DCD8C9', sideDark: '#D2CDBC',
+  green: '#3D7A62', greenDim: '#B9C4B2', red: '#A23B2C', redDim: '#E3B9AC',
+  blue: '#24428A', blueLight: '#C9D4EA', orange: '#C98A4B', term: '#1F1B15', termText: '#E9E4D6'
+};
+
+// ---------- helpers ----------
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, p) => a + (b - a) * p;
+const EC = {}; const ease = n => EC[n] || (EC[n] = gsap.parseEase(n));
+const prog = (t, a, b, e = 'none') => ease(e)(clamp((t - a) / (b - a)));
+function kf(t, K) {
+  if (t <= K[0][0]) return K[0][1];
+  for (let i = 1; i < K.length; i++) if (t <= K[i][0]) {
+    const [t0, v0] = K[i - 1], [t1, v1, e] = K[i];
+    const p = ease(e || 'power1.inOut')((t - t0) / (t1 - t0));
+    return Array.isArray(v0) ? v0.map((x, j) => lerp(x, v1[j], p)) : lerp(v0, v1, p);
+  }
+  return K[K.length - 1][1];
+}
+const f1 = v => (Math.round(v * 10) / 10).toString();
+const rnd = (s => () => (s = (s * 16807) % 2147483647) / 2147483647)(20240315);
+function E(tag, attrs = {}, parent = null) {
+  const el = document.createElementNS(NS, tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(el);
+  return el;
+}
+function T(parent, str, attrs) { const el = E('text', attrs, parent); el.textContent = str; return el; }
+const S = (el, attrs) => { for (const k in attrs) el.setAttribute(k, attrs[k]); };
+const show = (el, on) => { el.style.display = on ? '' : 'none'; };
+const op = (el, v) => { el.setAttribute('opacity', f1(clamp(v) * 100) / 100); show(el, v > 0.001); };
+const pts = P => P.map(p => f1(p[0]) + ',' + f1(p[1])).join(' ');
+const poly = (P) => 'M' + P.map(p => f1(p[0]) + ' ' + f1(p[1])).join('L') + 'Z';
+const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
+const mix = (a, b, p) => [lerp(a[0], b[0], p), lerp(a[1], b[1], p)];
+const hex = c => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+const mixColor = (a, b, p) => { const A = hex(a), B = hex(b); return 'rgb(' + A.map((x, i) => Math.round(lerp(x, B[i], clamp(p)))).join(',') + ')'; };
+const fmt = n => Math.round(n).toLocaleString('en-US');
+// affine matrix that maps a local w x h rectangle onto a face given by its top-left, top-right and bottom-left corners
+const faceMatrix = (TL, TR, BL, w, h) =>
+  `matrix(${[(TR[0] - TL[0]) / w, (TR[1] - TL[1]) / w, (BL[0] - TL[0]) / h, (BL[1] - TL[1]) / h, TL[0], TL[1]].map(v => +v.toFixed(4)).join(' ')})`;
+
+// plane homography from four correspondences (solved once, 8x8 Gauss-Jordan)
+function homography(src, dst) {
+  const A = [], b = [];
+  src.forEach(([u, v], i) => {
+    const [x, y] = dst[i];
+    A.push([u, v, 1, 0, 0, 0, -x * u, -x * v]); b.push(x);
+    A.push([0, 0, 0, u, v, 1, -y * u, -y * v]); b.push(y);
+  });
+  const n = 8, M = A.map((r, i) => [...r, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    for (let r = 0; r < n; r++) if (r !== c) { const f = M[r][c] / M[c][c]; for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+  }
+  const h = M.map((r, i) => r[n] / r[i]);
+  return (u, v) => { const w = h[6] * u + h[7] * v + 1; return [(h[0] * u + h[1] * v + h[2]) / w, (h[3] * u + h[4] * v + h[5]) / w]; };
+}
+
+// A hand-placed perspective box: front face is a w x h rectangle rotated by rot around its bottom centre,
+// the top face is the front-top edge pushed back by (sx, -d), sx growing away from the vanishing x.
+function boxGeom(g) {
+  const r = (g.rot || 0) * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+  const P = (x, y) => [g.cx + x * c - y * s, g.by + x * s + y * c];
+  const FBL = P(-g.w / 2, 0), FBR = P(g.w / 2, 0), FTR = P(g.w / 2, -g.h), FTL = P(-g.w / 2, -g.h);
+  const sx = -(g.k ?? 0.04) * (g.cx - (g.vx ?? 530));
+  const BTL = add(FTL, [sx, -g.d]), BTR = add(FTR, [sx, -g.d]);
+  return { FTL, FTR, FBR, FBL, BTL, BTR, sx, g };
+}
+const lerpGeom = (a, b, p) => { const o = {}; for (const k in a) o[k] = typeof a[k] === 'number' ? lerp(a[k], b[k] ?? a[k], p) : a[k]; return o; };
+
+// ---------- layers ----------
+const svg = document.getElementById('stage');
+const L = { scenes: document.getElementById('scenes'), header: document.getElementById('header') };
+const scenes = [];
+function scene(id, build, draw) { const g = E('g', { id }, L.scenes); const s = { g, draw }; build(g, s); scenes.push(s); return s; }
+
+// ---------- header: typed breadcrumb, blinking cursor, progress rule ----------
+const HDR = '> BINARY HABIT / DELTA LAKE / 01';
+const header = {};
+function buildHeader() {
+  const g = L.header;
+  header.rule = E('rect', { x: 66, y: 233.5, width: 948, height: 1.5, fill: '#C9C5B6' }, g);
+  header.prog = E('rect', { x: 66, y: 232, width: 0, height: 4, fill: '#2E4A86' }, g);
+  header.text = T(g, '', { class: 'hdr', x: 66, y: 220, 'font-size': 24.5, 'letter-spacing': 5.25, fill: '#4F493E' });
+  header.cursor = E('rect', { x: 757, y: 196, width: 14, height: 26, fill: C.orange }, g);
+  header.widths = [];
+}
+function measureHeader() {
+  for (let n = 0; n <= HDR.length; n++) {
+    header.text.textContent = HDR.slice(0, n);
+    header.widths[n] = n ? header.text.getComputedTextLength() : 0;
+  }
+}
+function drawHeader(t, src) {
+  // types in over the first 0.7 s, rubs out in the return to the opening frame
+  let n = Math.round(clamp(t * 46, 0, HDR.length));
+  if (t > DUR - 0.75) n = Math.round(HDR.length * (1 - prog(t, DUR - 0.75, DUR - 0.3)));
+  header.text.textContent = HDR.slice(0, n);
+  const typing = (t < 0.72) || (t > DUR - 0.8);
+  const blinkOn = src > 1.07 && src < DUR - 3.2 && ((src - 1.07) % 1.0625) < 0.533;
+  show(header.cursor, typing || blinkOn);
+  S(header.cursor, { x: f1(66 + header.widths[n] + (n ? 2 : -30 + 30)) });
+  const w = t < DUR - 0.75 ? 948 * clamp(t / (DUR - 0.27)) : 948 * clamp(t / (DUR - 0.27)) * (1 - prog(t, DUR - 0.75, DUR - 0.3, 'power2.inOut'));
+  S(header.prog, { width: f1(w) });
+}
+
+// A labelled machine box (executor / stage): top, front with label, led and ruled lines, optional dashed hidden edge.
+function makeBox(parent, label, opts = {}) {
+  const o = { g: E('g', {}, parent) };
+  o.shadow = E('ellipse', { fill: '#3B3528', opacity: 0.2, filter: 'url(#soft)' }, o.g);
+  o.dash = E('path', { fill: 'none', stroke: C.inkSoft, 'stroke-width': 1.2, 'stroke-dasharray': '3 3' }, o.g);
+  o.top = E('path', { fill: opts.top || C.paper, stroke: C.inkSoft, 'stroke-width': 1.8, 'stroke-linejoin': 'round' }, o.g);
+  o.lid = E('path', { fill: 'none', stroke: '#B5AF9F', 'stroke-width': 1 }, o.g);
+  o.front = E('path', { fill: opts.front || '#E9E5D8', stroke: C.inkSoft, 'stroke-width': 1.8, 'stroke-linejoin': 'round' }, o.g);
+  o.face = E('g', {}, o.g);
+  o.label = T(o.face, label, { class: 'space', x: 16, y: 30, 'font-size': 15, 'letter-spacing': 1.8, fill: C.inkSoft });
+  o.led = E('circle', { cx: 172, cy: 20, r: 5.5, fill: '#5E8F78', filter: 'url(#soft2)' }, o.face);
+  for (const y of [47, 59, 71]) E('line', { x1: 18, x2: 168, y1: y, y2: y - 1, stroke: '#C2BDAD', 'stroke-width': 1.4 }, o.face);
+  o.set = (geo) => {
+    const b = boxGeom(geo);
+    S(o.top, { d: poly([b.BTL, b.BTR, b.FTR, b.FTL]) });
+    S(o.lid, { d: poly([b.BTL, b.BTR, b.FTR, b.FTL].map(q => mix(q, mix(b.BTL, b.FTR, 0.5), 0.08))) });
+    S(o.front, { d: poly([b.FTL, b.FTR, b.FBR, b.FBL]) });
+    S(o.dash, { d: b.sx < -4 ? `M${f1(b.BTL[0])} ${f1(b.BTL[1])}L${f1(b.BTL[0] + 4)} ${f1(b.BTL[1] + geo.h)}` : '' });
+    S(o.face, { transform: faceMatrix(b.FTL, b.FTR, b.FBL, 190, 92) });
+    const c = mix(b.FBL, b.FBR, 0.5);
+    S(o.shadow, { cx: f1(c[0] + 18), cy: f1(c[1] - 4), rx: f1(geo.w * 0.56), ry: 14 });
+    return b;
+  };
+  return o;
+}
+// the binary chip: a dark strip of bits that stands for one serialized record
+function makeChip(parent) {
+  const o = { g: E('g', {}, parent) };
+  o.clip = E('clipPath', { id: 'chipClip' + (makeChip.n = (makeChip.n || 0) + 1) }, E('defs', {}, o.g));
+  o.clipRect = E('rect', {}, o.clip);
+  o.rect = E('rect', { fill: C.term }, o.g);
+  o.textG = E('g', { 'clip-path': `url(#${o.clip.id})` }, o.g);
+  o.text = T(o.textG, '01001001 01001110 00110100 00111000', { class: 'mono', 'font-size': 17, fill: C.termText });
+  o.set = (cx, cy, w, h, alpha = 1, fill = C.term) => {
+    const x = cx - w / 2, y = cy - h / 2;
+    S(o.rect, { x: f1(x), y: f1(y), width: f1(w), height: f1(h), fill });
+    S(o.clipRect, { x: f1(x), y: f1(y), width: f1(w), height: f1(h) });
+    const fs = clamp(h * 0.4, 8, 17);
+    S(o.text, { x: f1(x + 10), y: f1(cy + fs * 0.35), 'font-size': f1(fs) });
+    op(o.g, alpha);
+  };
+  return o;
+}
+// an order record card
+function makeRecord(parent, compact) {
+  const o = { g: E('g', {}, parent) };
+  E('rect', { x: 8, y: 10, width: 596, height: 199, rx: 8, fill: '#2D281F', opacity: 0.14, filter: 'url(#soft)' }, o.g);
+  E('rect', { x: 0, y: 0, width: 596, height: 199, rx: 8, fill: '#F1EEE3', stroke: C.inkSoft, 'stroke-width': 2.2 }, o.g);
+  T(o.g, 'ORDER RECORD', { class: 'mono', x: 27, y: 40, 'font-size': 17, 'letter-spacing': 2, fill: '#8A8476' });
+  [['order_id', '48213907'], ['country', 'IN'], ['amount', '₹1,240']].forEach(([k, v], i) => {
+    T(o.g, k, { class: 'mono', x: 27, y: 82 + i * 40, 'font-size': 24, fill: '#8A8476' });
+    T(o.g, v, { class: 'mono', x: 176, y: 82 + i * 40, 'font-size': 24, fill: k === 'country' ? C.blue : C.ink, 'font-weight': k === 'country' ? 600 : 400 });
+  });
+  // place the 596 x 199 card into a box (cx, cy, w, h) with rotation
+  o.set = (cx, cy, w, h, rot = 0, alpha = 1) => {
+    S(o.g, { transform: `translate(${f1(cx)} ${f1(cy)}) rotate(${f1(rot)}) scale(${(w / 596).toFixed(4)} ${(h / 199).toFixed(4)}) translate(-298 -99.5)` });
+    op(o.g, alpha);
+  };
+  return o;
+}
+function makePill(parent, label, red) {
+  const g = E('g', {}, parent);
+  const w = label.length * 13.4 + 44;
+  E('rect', { x: -w / 2, y: -25, width: w, height: 50, rx: 25, fill: red ? '#F3E4DC' : '#E8EBDE', stroke: red ? '#B0584A' : '#5D8F77', 'stroke-width': 2 }, g);
+  T(g, label, { class: 'mono', x: 0, y: 8, 'font-size': 23, 'font-weight': 500, 'text-anchor': 'middle', fill: red ? C.red : C.green });
+  return g;
+}
+const popIn = (g, t, a, b, x, y, rot = 0) => {
+  const p = prog(t, a, b, 'back.out(2)');
+  op(g, prog(t, a, a + 0.06));
+  S(g, { transform: `translate(${x} ${y}) rotate(${rot}) scale(${(0.6 + 0.4 * p).toFixed(3)})` });
+  return p;
+};
+
+// shared title block: small caps label + big title (the step scenes, filter, broadcast)
+function makeTitle(parent) {
+  const o = { g: E('g', {}, parent) };
+  o.label = T(o.g, '', { class: 'mono', x: 128, y: 288, 'font-size': 20, 'letter-spacing': 2.5, fill: '#8A8476' });
+  o.title = T(o.g, '', { class: 'space', x: 129, y: 350, 'font-size': 48, fill: C.ink });
+  return o;
+}
+// the shuffle icon: two crossing arrows, drawn around (0,0), about 100 px wide
+function shuffleIcon(parent, stroke, sw = 9) {
+  const g = E('g', { fill: 'none', stroke, 'stroke-width': sw, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, parent);
+  E('path', { d: 'M-50 -22H-24C-4 -22 4 22 24 22H44M-50 22H-24C-4 22 4 -22 24 -22H44' }, g);
+  E('path', { d: 'M32 -35L46 -22L32 -9M32 9L46 22L32 35' }, g);
+  return g;
+}
+// iso box: front-bottom-left corner BL, front edge u, depth v (towards the back left), height h
+function makeIsoBox(parent, label, opts = {}) {
+  const o = { g: E('g', {}, parent) };
+  o.shadow = E('ellipse', { fill: '#3B3528', opacity: 0.22, filter: 'url(#soft)' }, o.g);
+  o.body = E('g', {}, o.g);
+  o.side = E('path', { fill: opts.side || '#DCD7C7', stroke: C.ink, 'stroke-width': 2, 'stroke-linejoin': 'round' }, o.body);
+  o.top = E('path', { fill: opts.top || '#EFECE1', stroke: C.ink, 'stroke-width': 2, 'stroke-linejoin': 'round' }, o.body);
+  o.front = E('path', { fill: opts.front || '#E8E4D7', stroke: C.ink, 'stroke-width': 2, 'stroke-linejoin': 'round' }, o.body);
+  o.face = E('g', {}, o.body);
+  if (label) {
+    T(o.face, label, { class: 'space', x: 14, y: 34, 'font-size': 15, 'letter-spacing': 1.5, fill: C.inkSoft });
+    E('circle', { cx: 150, cy: 22, r: 5, fill: '#4F8A6E', filter: 'url(#soft2)' }, o.face);
+    for (const y of [50, 62, 74]) E('line', { x1: 16, x2: 146, y1: y, y2: y - 6, stroke: '#BDB8A8', 'stroke-width': 1.4 }, o.face);
+  }
+  o.set = (BL, u, v, h) => {
+    const BR = add(BL, u), FTL = [BL[0], BL[1] - h], FTR = [BR[0], BR[1] - h];
+    const BTL = add(FTL, v), BTR = add(FTR, v), BBL = add(BL, v);
+    S(o.front, { d: poly([FTL, FTR, BR, BL]) });
+    S(o.top, { d: poly([FTL, FTR, BTR, BTL]) });
+    S(o.side, { d: poly([BTL, FTL, BL, BBL]) });
+    S(o.face, { transform: faceMatrix(FTL, FTR, BL, 170, 92) });
+    return { FTL, FTR, BTL, BTR, BL, BR };
+  };
+  return o;
+}
+
+// ---------- Delta Lake helpers ----------
+const TONES = { red: ['#F3E4DC', '#B0584A', '#A23B2C'], green: ['#E8EBDE', '#5D8F77', '#3D7A62'], gray: ['#ECE9DF', '#9C9585', '#6E685B'], blue: ['#E3E8F3', '#5E74AA', '#2C4A8E'] };
+function makeTag(parent, label, tone) {
+  const [bg, st, fg] = TONES[tone], g = E('g', {}, parent), w = label.length * 13.8 + 48;
+  E('rect', { x: -w / 2, y: -26, width: w, height: 52, rx: 26, fill: bg, stroke: st, 'stroke-width': 2 }, g);
+  T(g, label, { class: 'mono', x: 0, y: 8, 'font-size': 23, 'font-weight': 500, 'text-anchor': 'middle', fill: fg });
+  return g;
+}
+// pop a tag in at time a, fade it out at time out
+function tagAt(g, t, a, x, y, out = 1e9) {
+  if (t < a || t > out + 0.25) { op(g, 0); return; }
+  popIn(g, t, a, a + 0.25, x, y);
+  op(g, prog(t, a, a + 0.08) * (1 - prog(t, out, out + 0.2)));
+}
+function headTitle(h, t, a, label, title) {
+  h.label.textContent = label; h.title.textContent = title;
+  S(h.title, { fill: mixColor('#C9C4B5', C.ink, prog(t, a + 0.05, a + 0.4)) });
+}
+// a file card: coloured tab ({ } json, PQ parquet, CP checkpoint) and a mono name, drawn around (0,0)
+function makeFile(parent, label, kind = 'json', w = 300) {
+  const o = { g: E('g', {}, parent) };
+  E('rect', { x: -w / 2 + 5, y: -17, width: w, height: 46, rx: 6, fill: '#2D281F', opacity: 0.16, filter: 'url(#soft4)' }, o.g);
+  o.box = E('rect', { x: -w / 2, y: -23, width: w, height: 46, rx: 6, fill: '#F1EEE3', stroke: C.ink, 'stroke-width': 2 }, o.g);
+  const [col, mark] = { json: ['#2C4A8E', '{ }'], parquet: [C.green, 'PQ'], ckpt: [C.orange, 'CP'] }[kind];
+  E('rect', { x: -w / 2, y: -23, width: 46, height: 46, rx: 6, fill: col, stroke: C.ink, 'stroke-width': 2 }, o.g);
+  T(o.g, mark, { class: 'mono', x: -w / 2 + 23, y: 6, 'font-size': 16, 'font-weight': 600, 'text-anchor': 'middle', fill: '#FFFFFF' });
+  o.text = T(o.g, label, { class: 'mono', x: -w / 2 + 60, y: 7, 'font-size': 19, fill: C.ink });
+  o.set = (x, y, s = 1, rot = 0, a = 1) => {
+    S(o.g, { transform: `translate(${f1(x)} ${f1(y)}) rotate(${f1(rot)}) scale(${s.toFixed(3)})` });
+    op(o.g, a);
+  };
+  return o;
+}
+// a flat tray (a folder of files) in the same perspective as the machine boxes; local(x, y) maps its top face
+function makeTray(parent, label, geo, TW, TD) {
+  const o = { g: E('g', {}, parent) }, b = boxGeom(geo);
+  E('ellipse', { cx: geo.cx + 20, cy: geo.by, rx: geo.w * 0.55, ry: 18, fill: '#3B3528', opacity: 0.18, filter: 'url(#soft)' }, o.g);
+  E('path', { d: poly([b.BTL, b.BTR, b.FTR, b.FTL]), fill: '#DCD5C3', stroke: C.inkSoft, 'stroke-width': 1.8, 'stroke-linejoin': 'round' }, o.g);
+  E('path', { d: poly([b.BTL, b.BTR, b.FTR, b.FTL].map(q => mix(q, mix(b.BTL, b.FTR, 0.5), 0.05))), fill: 'none', stroke: '#9C9585', 'stroke-width': 1, 'stroke-dasharray': '4 3' }, o.g);
+  E('path', { d: poly([b.FTL, b.FTR, b.FBR, b.FBL]), fill: C.paper, stroke: C.inkSoft, 'stroke-width': 1.8, 'stroke-linejoin': 'round' }, o.g);
+  const lab = E('g', { transform: faceMatrix(b.FTL, b.FTR, b.FBL, geo.w, geo.h) }, o.g);
+  T(lab, label, { class: 'space', x: 16, y: geo.h * 0.7, 'font-size': 18, 'letter-spacing': 2, fill: C.inkSoft });
+  const m = faceMatrix(b.BTL, b.BTR, b.FTL, TW, TD).slice(7, -1).split(' ').map(Number);
+  o.local = (x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+  o.quad = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]].map(q => o.local(...q));
+  return o;
+}
+// a thin file slab lying in a tray: top face P (4 corners), coloured tab in its corner
+function makeTile(parent, label, color) {
+  const o = { g: E('g', {}, parent) };
+  o.front = E('path', { fill: '#D2CCBC', stroke: C.inkSoft, 'stroke-width': 1.2 }, o.g);
+  o.top = E('path', { fill: '#F3F0E6', stroke: C.inkSoft, 'stroke-width': 1.3, 'stroke-linejoin': 'round' }, o.g);
+  o.tab = E('path', { fill: color }, o.g);
+  o.lab = E('g', {}, o.g);
+  T(o.lab, label, { class: 'mono', x: 56, y: 42, 'font-size': 18, 'text-anchor': 'middle', fill: C.inkSoft });
+  o.set = (P, th = 8) => {
+    S(o.top, { d: poly(P) });
+    S(o.front, { d: poly([P[3], P[2], add(P[2], [0, th]), add(P[3], [0, th])]) });
+    const a = mix(P[0], P[1], 0.24), d = mix(P[0], P[3], 0.42);
+    S(o.tab, { d: poly([P[0], a, add(a, [d[0] - P[0][0], d[1] - P[0][1]]), d]) });
+    S(o.lab, { transform: faceMatrix(P[0], P[1], P[3], 100, 60) });
+  };
+  return o;
+}
+// the black rail with white ties (data in motion), drawn progressively
+function makeRail(parent) {
+  const o = { g: E('g', {}, parent) };
+  o.a = E('path', { fill: 'none', stroke: C.ink, 'stroke-width': 5, 'stroke-linecap': 'round', pathLength: 100 }, o.g);
+  o.b = E('path', { fill: 'none', stroke: '#F4F1E8', 'stroke-width': 2, 'stroke-dasharray': '7 7' }, o.g);
+  o.set = (d, p) => {
+    S(o.a, { d, 'stroke-dasharray': `${f1(100 * p)} 100` });
+    S(o.b, { d, opacity: p > 0.99 ? 1 : 0 });
+    op(o.g, p > 0 ? 1 : 0);
+  };
+  return o;
+}
+function makeTerm(parent, y, size = 33) {
+  const o = { g: E('g', {}, parent) };
+  E('rect', { x: 135, y: y + 19, width: 817, height: 104, fill: '#000', opacity: 0.25, filter: 'url(#soft)' }, o.g);
+  E('rect', { x: 125, y, width: 830, height: 104, fill: C.term }, o.g);
+  T(o.g, '>>>', { class: 'mono', x: 160, y: y + 65, 'font-size': size, fill: '#8E887A' });
+  o.text = T(o.g, '', { class: 'mono', x: 242, y: y + 65, 'font-size': size, fill: C.termText });
+  o.cursor = E('rect', { y: y + 37, width: 15, height: 34, fill: C.orange }, o.g);
+  o.set = (str, n, t) => {
+    o.text.textContent = str.slice(0, n);
+    S(o.cursor, { x: f1(242 + n * size * 0.6 + 2) });
+    show(o.cursor, n < str.length || ((t * 0.94) % 1) < 0.5);
+  };
+  return o;
+}
+const fly = (from, to, p, arc) => add(mix(from, to, p), [0, -arc * Math.sin(Math.PI * p)]);
+const BOX = (cx, by, w = 230, h = 110, d = 80) => ({ cx, by, w, h, d, rot: -3, k: 0.05 });
+
+// =====================================================================================
+// SCENE A (0 - 7.0 s): a data lake is just files. 49 parquet files land; what plain files cannot do.
+// =====================================================================================
+const GRIDA = homography([[0, 0], [7, 0], [0, 7], [7, 7]], [[600, 660], [1010, 900], [70, 880], [480, 1170]]);
+const sA = scene('a-files', (g, s) => {
+  s.count = T(g, '0', { class: 'space', x: 540, y: 470, 'font-size': 120, 'text-anchor': 'middle', fill: C.ink });
+  s.countLabel = T(g, 'PARQUET FILES IN A FOLDER', { class: 'mono', x: 540, y: 522, 'font-size': 24, 'letter-spacing': 3.2, 'text-anchor': 'middle', fill: C.gray });
+  s.world = E('g', {}, g);
+  s.tiles = [];
+  for (let i = 0; i < 7; i++) for (let j = 0; j < 7; j++) {
+    const tile = makeTile(s.world, '', rnd() < 0.5 ? C.green : '#5E9585');
+    const a = 0.1, c = GRIDA(i + 0.5, j + 0.5);
+    const P = [[i + a, j + a], [i + 1 - a, j + a], [i + 1 - a, j + 1 - a], [i + a, j + 1 - a]].map(([u, v]) => GRIDA(u, v));
+    s.tiles.push({ tile, P, x: c[0], y: c[1], jit: rnd() });
+  }
+  s.tiles.slice().sort((p, q) => p.y - q.y).forEach(o => s.world.appendChild(o.tile.g));
+  s.tiles.slice().sort((p, q) => (p.x + p.jit * 160) - (q.x + q.jit * 160)).forEach((o, k, all) => { o.t0 = 0.3 + 1.0 * k / all.length; });
+  s.store = makeTag(g, '● plain files on S3 / ADLS / GCS', 'gray');
+  s.bad = ['× no transactions', '× no schema checks', '× no version history'].map(l => makeTag(g, l, 'red'));
+}, (t, s) => {
+  const on = t < 7.0;
+  show(s.g, on); if (!on) return;
+  const out = prog(t, 6.55, 6.95);
+  op(s.g, 1 - out);
+  S(s.g, { transform: `translate(0 ${f1(-30 * out)})` });
+  s.count.textContent = fmt(10000 * prog(t, 0.3, 1.4, 'power2.out'));
+  op(s.count, prog(t, 0.25, 0.45)); op(s.countLabel, prog(t, 0.3, 0.6));
+  for (const o of s.tiles) {
+    const p = prog(t, o.t0, o.t0 + 0.22, 'power2.out');
+    op(o.tile.g, p);
+    if (p > 0) o.tile.set(o.P.map(q => [q[0], q[1] - 60 * (1 - p)]), 9);
+  }
+  tagAt(s.store, t, 2.4, 540, 1290);
+  s.bad.forEach((b, i) => tagAt(b, t, 3.9 + 0.45 * i, 540, 1400 + 82 * i));
+});
+
+// =====================================================================================
+// SCENE B (7.0 - 15.0 s): the problem. Two jobs write into one folder, job A crashes, readers see half a write.
+// =====================================================================================
+const sB = scene('b-problem', (g, s) => {
+  s.head = makeTitle(g);
+  s.jobA = makeBox(g, 'JOB A'); s.jobA.set(BOX(250, 700));
+  s.jobB = makeBox(g, 'JOB B'); s.jobB.set(BOX(830, 680));
+  s.tray = makeTray(g, 'orders/', { cx: 540, by: 1080, w: 460, h: 44, d: 170, rot: -3, k: 0.03 }, 460, 170);
+  s.files = [];
+  for (let k = 0; k < 8; k++) {
+    const fromA = k < 4, c = k % 4, r = Math.floor(k / 4);
+    s.files.push({ tile: makeTile(g, 'part-' + k, fromA ? '#5E74AA' : C.green), fromA, broken: fromA && c >= 2,
+      Q: s.tray.quad(22 + 108 * c, 22 + 74 * r, 92, 58), t0: (fromA ? 8.0 : 8.12) + 0.28 * c });
+  }
+  s.rail = makeRail(g);
+  s.reader = makeBox(g, 'READER'); s.reader.set(BOX(830, 1500, 220, 100, 70));
+  s.tags = [makeTag(g, '× job A crashed mid-write', 'red'), makeTag(g, '× readers see half a write', 'red'), makeTag(g, '× no way to undo it', 'red')];
+}, (t, s) => {
+  const on = t > 6.95 && t < 15.0;
+  show(s.g, on); if (!on) return;
+  op(s.g, prog(t, 7.0, 7.3) * (1 - prog(t, 14.6, 14.95)));
+  headTitle(s.head, t, 7.1, 'THE PROBLEM', 'two jobs, one folder');
+  const crash = prog(t, 9.85, 10.05);
+  S(s.jobA.led, { fill: mixColor('#5E8F78', '#C0392B', crash) });
+  S(s.jobA.front, { fill: mixColor('#E9E5D8', '#F0D9D2', crash) });
+  for (const f of s.files) {
+    op(f.tile.g, prog(t, f.t0, f.t0 + 0.06));
+    if (t < f.t0) continue;
+    const p = prog(t, f.t0, f.t0 + 0.55, 'power2.inOut');
+    const cq = mix(f.Q[0], f.Q[2], 0.5), at = fly(f.fromA ? [250, 560] : [830, 540], cq, p, 160);
+    f.tile.set(f.Q.map(q => add(q, [at[0] - cq[0], at[1] - cq[1]])));
+    const bad = f.broken && prog(t, 10.0, 10.25) > 0.5;
+    S(f.tile.top, { fill: bad ? 'url(#hatchRed)' : '#F3F0E6', stroke: bad ? '#B0584A' : C.inkSoft });
+  }
+  const rp = prog(t, 11.0, 11.3, 'back.out(1.6)');
+  op(s.reader.g, prog(t, 11.0, 11.1));
+  S(s.reader.g, { transform: `translate(0 ${f1(30 * (1 - rp))})` });
+  s.rail.set('M700 1000C860 1000 860 1150 850 1300', prog(t, 11.3, 11.9, 'power1.inOut'));
+  tagAt(s.tags[0], t, 10.2, 540, 1190);
+  tagAt(s.tags[1], t, 12.2, 380, 1420);
+  tagAt(s.tags[2], t, 13.0, 380, 1505);
+});
+
+// =====================================================================================
+// SCENE C (15.0 - 23.0 s): DELTA LAKE = parquet files + a transaction log. The folder, then the write call.
+// =====================================================================================
+const TREE = [['orders/', 0, 'dir'], ['_delta_log/', 1, 'log'], ['00000000000000000000.json', 2, 'json'], ['00000000000000000001.json', 2, 'json'],
+  ['00000000000000000002.json', 2, 'json'], ['part-00000-a1f3.snappy.parquet', 1, 'pq'], ['part-00001-9c2e.snappy.parquet', 1, 'pq'], ['part-00002-47bd.snappy.parquet', 1, 'pq']];
+const sC = scene('c-delta', (g, s) => {
+  s.word = E('g', {}, g);
+  T(s.word, 'DELTA LAKE', { class: 'display', x: 540, y: 400, 'font-size': 138, 'text-anchor': 'middle', fill: C.ink });
+  s.rule = E('rect', { x: 230, y: 418, width: 620, height: 7, fill: C.blue }, s.word);
+  s.sub = T(g, '', { class: 'mono', x: 540, y: 505, 'font-size': 30, 'text-anchor': 'middle', fill: C.gray });
+  s.sub.innerHTML = '= parquet files + a <tspan fill="#24428A" font-weight="600">transaction log</tspan>';
+  s.card = E('g', {}, g);
+  E('rect', { x: 130, y: 590, width: 830, height: 560, rx: 10, fill: '#2D281F', opacity: 0.16, filter: 'url(#soft)' }, s.card);
+  E('rect', { x: 120, y: 576, width: 840, height: 560, rx: 10, fill: '#F1EEE3', stroke: C.inkSoft, 'stroke-width': 2.2 }, s.card);
+  s.lines = TREE.map(([name, ind, kind], i) => {
+    const lg = E('g', {}, s.card), y = 640 + 64 * i, x = 160 + 46 * ind, file = kind === 'json' || kind === 'pq';
+    if (ind) E('path', { d: `M${x - 30} ${y - 42}V${y - 10}H${x - 8}`, fill: 'none', stroke: '#B5AF9F', 'stroke-width': 2 }, lg);
+    if (file) E('rect', { x, y: y - 22, width: 26, height: 26, rx: 4, fill: kind === 'json' ? '#2C4A8E' : C.green }, lg);
+    T(lg, name, { class: file ? 'mono' : 'space', x: file ? x + 40 : x, y, 'font-size': file ? 24 : 30,
+      fill: kind === 'log' ? '#24428A' : C.ink, 'font-weight': file ? 400 : 700 });
+    return lg;
+  });
+  s.noteLog = T(s.card, 'commits', { class: 'mono', x: 925, y: 832, 'font-size': 22, 'text-anchor': 'end', fill: '#24428A' });
+  s.noteData = T(s.card, 'data', { class: 'mono', x: 925, y: 1024, 'font-size': 22, 'text-anchor': 'end', fill: C.green });
+  s.term = makeTerm(g, 1240);
+}, (t, s) => {
+  const on = t > 14.95 && t < 23.0;
+  show(s.g, on); if (!on) return;
+  op(s.g, 1 - prog(t, 22.6, 22.95));
+  const sh = prog(t, 15.1, 15.35, 'back.out(2)');
+  op(s.word, prog(t, 15.1, 15.18));
+  S(s.word, { transform: `translate(540 380) rotate(-1.5) scale(${(0.85 + 0.15 * sh).toFixed(3)}) translate(-540 -380)` });
+  S(s.rule, { width: f1(620 * prog(t, 15.2, 15.5, 'power2.out')) });
+  op(s.sub, prog(t, 15.8, 16.2));
+  op(s.card, prog(t, 16.2, 16.5));
+  S(s.card, { transform: `translate(0 ${f1(20 * (1 - prog(t, 16.2, 16.5, 'power2.out')))})` });
+  s.lines.forEach((l, i) => op(l, prog(t, 16.5 + 0.22 * i, 16.7 + 0.22 * i)));
+  op(s.noteLog, prog(t, 18.6, 18.9)); op(s.noteData, prog(t, 18.9, 19.2));
+  const CODE = 'df.write.format("delta").save(path)';
+  op(s.term.g, prog(t, 19.4, 19.7));
+  s.term.set(CODE, Math.round(clamp((t - 19.8) * 22, 0, CODE.length)), t);
+});
+
+// =====================================================================================
+// SCENE D (23.0 - 38.0 s): how one commit works, in four steps, while the commit panel fills.
+// =====================================================================================
+const DSTEPS = [[23.3, 'write data files'], [27.0, 'add a log entry'], [30.2, 'all or nothing'], [33.6, 'readers replay log']];
+const sD = scene('d-commit', (g, s) => {
+  s.head = makeTitle(g);
+  s.writer = makeBox(g, 'WRITER'); s.writer.set(BOX(250, 760));
+  s.tray = makeTray(g, 'orders/  parquet', { cx: 330, by: 1290, w: 460, h: 44, d: 170, rot: -3, k: 0.03 }, 460, 170);
+  s.files = [0, 1, 2, 3, 4, 5, 6, 7].map(k => ({ k, tile: makeTile(g, '0000' + k, C.green),
+    Q: s.tray.quad(22 + 108 * (k % 4), 22 + 74 * Math.floor(k / 4), 92, 58) }));
+  s.removed = T(g, 'removed · still on disk', { class: 'mono', x: 330, y: 1345, 'font-size': 21, 'text-anchor': 'middle', fill: '#8A8476' });
+  T(g, '_delta_log/', { class: 'space', x: 650, y: 795, 'font-size': 26, fill: '#24428A' });
+  s.glow = E('rect', { x: -160, y: -33, width: 320, height: 66, rx: 10, fill: '#7F96CF', opacity: 0, filter: 'url(#soft4)' }, g);
+  s.logs = ['…0000.json', '…0001.json', '…0002.json', '…0003.json'].map(l => makeFile(g, l, 'json'));
+  s.rail = makeRail(g);
+  s.reader = makeBox(g, 'READER'); s.reader.set(BOX(830, 1580, 220, 100, 70));
+  s.tagWait = makeTag(g, 'readers can\'t see them yet', 'gray');
+  s.tagVis = makeTag(g, '√ v3 is visible to every reader', 'green');
+  s.tagSnap = makeTag(g, 'snapshot v3 · 7 files', 'blue');
+  s.panel = E('g', {}, g);
+  E('rect', { x: 711, y: 270, width: 262, height: 224, rx: 10, fill: '#2D281F', opacity: 0.16, filter: 'url(#soft)' }, s.panel);
+  E('rect', { x: 703, y: 260, width: 262, height: 224, rx: 10, fill: '#F1EEE3', stroke: C.ink, 'stroke-width': 2 }, s.panel);
+  T(s.panel, 'COMMIT · v3', { class: 'mono', x: 723, y: 296, 'font-size': 18, 'letter-spacing': 2, fill: '#8A8476' });
+  E('rect', { x: 723, y: 309, width: 222, height: 17, rx: 2, fill: '#F6F3EA', stroke: C.ink, 'stroke-width': 1.6 }, s.panel);
+  s.bar = E('rect', { x: 724, y: 310, width: 0, height: 15, fill: '#2C4A8E' }, s.panel);
+  s.items = ['add 00006', 'add 00007', 'remove 00002', 'commitInfo'].map((name, i) => ({
+    box: E('rect', { x: 724, y: 337 + 35 * i, width: 22, height: 22, rx: 2, 'stroke-width': 1.6 }, s.panel),
+    txt: T(s.panel, name, { class: 'mono', x: 757, y: 356 + 35 * i, 'font-size': 20 }) }));
+}, (t, s) => {
+  const on = t > 23.0 && t < 38.0;
+  show(s.g, on); if (!on) return;
+  op(s.g, prog(t, 23.0, 23.3) * (1 - prog(t, 37.6, 37.95)));
+  let k = 0; DSTEPS.forEach(([a], i) => { if (t >= a) k = i; });
+  headTitle(s.head, t, DSTEPS[k][0], `STEP ${k + 1} / 4`, DSTEPS[k][1]);
+  // commit panel slides in, actions tick as they happen
+  const pin = prog(t, 23.5, 23.9, 'power3.out');
+  op(s.panel, pin > 0 ? 1 : 0);
+  S(s.panel, { transform: `translate(${f1(420 * (1 - pin))} 0)` });
+  [24.65, 25.05, 27.9, 28.3].forEach((a, i) => {
+    const p = prog(t, a, a + 0.2), it = s.items[i];
+    S(it.box, { fill: mixColor('#F1EEE3', '#2C4A8E', p), stroke: mixColor('#CFCABB', '#1B3370', p) });
+    S(it.txt, { fill: mixColor('#CFCABB', C.ink, p) });
+  });
+  S(s.bar, { width: f1(220 * kf(t, [[24.6, 0], [24.9, 0.25], [25.0, 0.25], [25.3, 0.5], [27.85, 0.5], [28.15, 0.75], [28.25, 0.75], [28.55, 1]])) });
+  // data files: 0-5 are there already, 6 and 7 fly in from the writer (dashed until the commit lands)
+  for (const f of s.files) {
+    let off = [0, 0], a = 1;
+    if (f.k >= 6) {
+      const t0 = f.k === 6 ? 24.0 : 24.4, p = prog(t, t0, t0 + 0.6, 'power2.inOut'), cq = mix(f.Q[0], f.Q[2], 0.5), at = fly([250, 600], cq, p, 150);
+      a = prog(t, t0, t0 + 0.06); off = [at[0] - cq[0], at[1] - cq[1]];
+    }
+    if (f.k === 2) a = 1 - 0.6 * prog(t, 31.6, 31.9);
+    op(f.tile.g, a); if (a <= 0) continue;
+    f.tile.set(f.Q.map(q => add(q, off)));
+    S(f.tile.top, { 'stroke-dasharray': f.k >= 6 && t < 30.4 ? '5 4' : 'none' });
+  }
+  op(s.removed, prog(t, 31.8, 32.1));
+  // the log: 0000-0002 exist, 0003 is written in step 2; in step 4 the reader replays them in order
+  s.logs.forEach((c, i) => {
+    const y = 840 + 62 * i;
+    if (i < 3) c.set(800, y);
+    else {
+      const p = prog(t, 27.5, 28.3, 'power2.inOut'), at = fly([250, 600], [800, y], p, 140);
+      c.set(at[0], at[1], lerp(0.7, 1, p), lerp(-6, 0, p), prog(t, 27.5, 27.6));
+    }
+    const h = prog(t, 34.3 + 0.35 * i, 34.45 + 0.35 * i) * (1 - prog(t, 36.6, 37.0));
+    S(c.box, { stroke: mixColor(C.ink, '#2C4A8E', h), 'stroke-width': f1(2 + 2 * h) });
+  });
+  S(s.glow, { transform: 'translate(800 1026)', opacity: f1(0.55 * prog(t, 30.4, 30.8) * (1 - prog(t, 32.6, 33.2)) * 100) / 100 });
+  const rp = prog(t, 33.8, 34.1, 'back.out(1.6)');
+  op(s.reader.g, prog(t, 33.8, 33.9));
+  S(s.reader.g, { transform: `translate(0 ${f1(30 * (1 - rp))})` });
+  s.rail.set('M800 1052C800 1220 840 1250 840 1420', prog(t, 34.0, 34.4));
+  tagAt(s.tagWait, t, 25.6, 400, 1440, 26.8);
+  tagAt(s.tagVis, t, 30.9, 400, 1440, 33.3);
+  tagAt(s.tagSnap, t, 36.0, 400, 1520);
+});
+
+// =====================================================================================
+// SCENE E (38.0 - 47.0 s): two writers race for the same log version; one wins, the other re-checks and retries.
+// =====================================================================================
+const sE = scene('e-race', (g, s) => {
+  s.head = makeTitle(g);
+  s.a = makeBox(g, 'WRITER A'); s.a.set(BOX(230, 700));
+  s.b = makeBox(g, 'WRITER B'); s.b.set(BOX(850, 680));
+  T(g, '_delta_log/', { class: 'space', x: 390, y: 845, 'font-size': 26, fill: '#24428A' });
+  s.old = ['…0002.json', '…0003.json'].map(l => makeFile(g, l, 'json'));
+  s.slots = [0, 1].map(i => E('rect', { x: 390, y: 981 + 62 * i, width: 300, height: 46, rx: 6, fill: 'none', stroke: '#9C9585', 'stroke-width': 2, 'stroke-dasharray': '6 5' }, g));
+  s.ca = makeFile(g, '…0004.json', 'json');
+  s.cb = makeFile(g, '…0004.json', 'json');
+  s.tags = [makeTag(g, '√ A wins: commits v4', 'green'), makeTag(g, '× B: v4 already exists', 'red'),
+    makeTag(g, 'B re-checks: no overlapping files', 'gray'), makeTag(g, '√ B retries and commits v5', 'green')];
+  s.note = T(g, 'a log entry is put-if-absent: one winner per version', { class: 'mono', x: 540, y: 1640, 'font-size': 22, 'text-anchor': 'middle', fill: '#8A8476' });
+}, (t, s) => {
+  const on = t > 38.0 && t < 47.0;
+  show(s.g, on); if (!on) return;
+  op(s.g, prog(t, 38.0, 38.3) * (1 - prog(t, 46.6, 46.95)));
+  headTitle(s.head, t, 38.1, 'TWO WRITERS AT ONCE', 'optimistic commits');
+  s.old.forEach((c, i) => c.set(540, 880 + 62 * i));
+  op(s.slots[0], 1 - prog(t, 39.85, 39.9));
+  op(s.slots[1], prog(t, 42.6, 42.9) * (1 - prog(t, 43.65, 43.7)));
+  const pa = prog(t, 39.0, 39.9, 'power2.inOut'), at = fly([230, 560], [540, 1004], pa, 120);
+  s.ca.set(at[0], at[1], lerp(0.75, 1, pa), lerp(-8, 0, pa), prog(t, 39.0, 39.1));
+  // B arrives a moment late, bounces back, re-checks, then takes the next version
+  let x, y, sc, rot;
+  if (t < 40.0) { const p = prog(t, 39.1, 40.0, 'power2.in'), q = fly([850, 540], [560, 990], p, 120); [x, y] = q; sc = lerp(0.75, 1, p); rot = lerp(8, 0, p); }
+  else if (t < 42.9) { const p = prog(t, 40.0, 40.6, 'power2.out'); x = lerp(560, 820, p) + 8 * Math.sin(t * 60) * (1 - prog(t, 40.0, 40.5)); y = lerp(990, 840, p); sc = 0.9; rot = lerp(0, 6, p); }
+  else { const p = prog(t, 42.9, 43.7, 'power2.inOut'), q = fly([820, 840], [540, 1066], p, 80); [x, y] = q; sc = lerp(0.9, 1, p); rot = lerp(6, 0, p); }
+  s.cb.set(x, y, sc, rot, prog(t, 39.1, 39.2));
+  s.cb.text.textContent = t < 42.75 ? '…0004.json' : '…0005.json';
+  const red = prog(t, 40.0, 40.15) * (1 - prog(t, 42.6, 42.9));
+  S(s.cb.box, { fill: mixColor('#F1EEE3', '#F3E4DC', red), stroke: mixColor(C.ink, '#B0584A', red) });
+  tagAt(s.tags[0], t, 40.1, 540, 1220);
+  tagAt(s.tags[1], t, 40.5, 540, 1305);
+  tagAt(s.tags[2], t, 41.6, 540, 1390);
+  tagAt(s.tags[3], t, 43.9, 540, 1475);
+  op(s.note, prog(t, 44.5, 44.9));
+});
+
+// =====================================================================================
+// SCENE F (47.0 - 56.0 s): time travel. Every version stays readable; read version 2 of the table.
+// =====================================================================================
+const TABLE2 = homography([[0, 0], [4, 0], [0, 8], [4, 8]], [[220, 790], [800, 715], [265, 1180], [900, 1080]]);
+const COLS2 = ['order_id', 'country', 'amount', 'ts'];
+const sF = scene('f-time', (g, s) => {
+  s.head = makeTitle(g);
+  s.line = E('line', { x1: 180, x2: 900, y1: 580, y2: 580, stroke: C.inkSoft, 'stroke-width': 3 }, g);
+  s.chips = [0, 1, 2, 3, 4, 5].map(i => {
+    const cg = E('g', {}, g);
+    const r = E('rect', { x: -46, y: -26, width: 92, height: 52, rx: 8, stroke: C.ink, 'stroke-width': 2 }, cg);
+    const tx = T(cg, 'v' + i, { class: 'mono', x: 0, y: 9, 'font-size': 25, 'font-weight': 600, 'text-anchor': 'middle' });
+    return { g: cg, r, tx };
+  });
+  s.ring = E('rect', { x: -58, y: -38, width: 116, height: 76, rx: 12, fill: 'none', stroke: '#2C4A8E', 'stroke-width': 3, 'stroke-dasharray': '6 5' }, g);
+  s.ptr = T(g, 'reading', { class: 'mono', y: 650, 'font-size': 20, 'text-anchor': 'middle', fill: '#2C4A8E' });
+  s.table = E('g', {}, g);
+  s.cells = [];
+  for (let v = 0; v < 8; v++) for (let u = 0; u < 4; u++) {
+    const cg = E('g', {}, s.table);
+    const c = { g: cg, u, v, front: E('path', { fill: '#CFCABA', stroke: C.inkSoft, 'stroke-width': 1.2 }, cg),
+      top: E('path', { fill: v ? '#F1EEE4' : '#DFE4F1', stroke: C.inkSoft, 'stroke-width': 1.3, 'stroke-linejoin': 'round' }, cg) };
+    c.content = E('g', {}, cg);
+    if (v === 0) T(c.content, COLS2[u], { class: 'space', x: 50, y: 21, 'font-size': 13, 'text-anchor': 'middle', fill: '#3C548F' });
+    else E('line', { x1: 12, x2: 12 + 30 + ((u * 7 + v * 5) % 9) * 6, y1: 18, y2: 18, stroke: '#A8A293', 'stroke-width': 2.4 }, c.content);
+    s.cells.push(c);
+  }
+  s.caption = T(g, '', { class: 'mono', x: 540, y: 1262, 'font-size': 26, 'text-anchor': 'middle', fill: C.ink });
+  s.term = makeTerm(g, 1310);
+  s.tag = makeTag(g, '√ audit · rollback · reproduce', 'green');
+  s.note = T(g, 'VACUUM later deletes old files (7-day retention by default)', { class: 'mono', x: 540, y: 1640, 'font-size': 22, 'text-anchor': 'middle', fill: '#8A8476' });
+}, (t, s) => {
+  const on = t > 47.0 && t < 56.0;
+  show(s.g, on); if (!on) return;
+  op(s.g, prog(t, 47.0, 47.3) * (1 - prog(t, 55.6, 55.95)));
+  headTitle(s.head, t, 47.1, 'EVERY VERSION IS KEPT', 'time travel');
+  const act = kf(t, [[50.0, 5], [50.8, 2, 'power2.inOut']]), ai = Math.round(act);
+  op(s.line, prog(t, 47.2, 47.5));
+  s.chips.forEach((c, i) => {
+    const p = popIn(c.g, t, 47.3 + 0.08 * i, 47.55 + 0.08 * i, 180 + 144 * i, 580);
+    S(c.r, { fill: i === ai ? '#2C4A8E' : '#F2EFE5' });
+    S(c.tx, { fill: i === ai ? '#FFFFFF' : i > ai ? '#B5AF9F' : C.ink });
+  });
+  S(s.ring, { transform: `translate(${f1(180 + 144 * act)} 580)` });
+  op(s.ring, prog(t, 48.0, 48.3)); op(s.ptr, prog(t, 48.0, 48.3));
+  S(s.ptr, { x: f1(180 + 144 * act) });
+  // the table at the version being read: v2 has three rows fewer
+  const rise = prog(t, 47.6, 48.0, 'power2.out');
+  op(s.table, rise);
+  S(s.table, { transform: `translate(0 ${f1(30 * (1 - rise))})` });
+  for (const c of s.cells) {
+    let a = 1, dy = 0;
+    if (c.v >= 5) { const p = prog(t, 50.2 + 0.06 * (c.v - 5), 50.6 + 0.06 * (c.v - 5), 'power2.in'); a = 1 - p; dy = 50 * p; }
+    op(c.g, a); if (a <= 0.001) continue;
+    const i = 0.045, u = c.u, v = c.v;
+    const P = [[u + i, v + i], [u + 1 - i, v + i], [u + 1 - i, v + 1 - i], [u + i, v + 1 - i]].map(([x, y]) => add(TABLE2(x, y), [0, dy]));
+    S(c.top, { d: poly(P) });
+    S(c.front, { d: poly([P[3], P[2], add(P[2], [0, 7]), add(P[3], [0, 7])]) });
+    S(c.content, { transform: faceMatrix(P[0], P[1], P[3], 100, 32) });
+  }
+  s.caption.textContent = `orders @ v${ai} · ${fmt(kf(t, [[50.2, 1240], [50.8, 980]]))} rows`;
+  op(s.caption, prog(t, 47.8, 48.1));
+  const CODE = '.option("versionAsOf", 2)';
+  op(s.term.g, prog(t, 48.2, 48.5));
+  s.term.set(CODE, Math.round(clamp((t - 48.6) * 20, 0, CODE.length)), t);
+  tagAt(s.tag, t, 52.0, 540, 1530);
+  op(s.note, prog(t, 53.0, 53.4));
+});
+
+// =====================================================================================
+// SCENE G (56.0 - 63.0 s): checkpoints. Ten commits are summed up in one parquet file; readers start from it.
+// =====================================================================================
+const sG = scene('g-checkpoint', (g, s) => {
+  s.head = makeTitle(g);
+  s.jsons = Array.from({ length: 10 }, (_, i) => makeFile(g, `…00${String(i).padStart(2, '0')}.json`, 'json', 260));
+  s.ck = makeFile(g, '…0010.checkpoint.parquet', 'ckpt', 400);
+  s.ckNote = T(g, '= the whole table state at v10', { class: 'mono', x: 720, y: 912, 'font-size': 21, 'text-anchor': 'middle', fill: '#8A8476' });
+  s.newer = ['…0011.json', '…0012.json'].map(l => makeFile(g, l, 'json', 300));
+  s.rail = makeRail(g);
+  s.reader = makeBox(g, 'READER'); s.reader.set(BOX(560, 1450, 220, 100, 70));
+  s.tag = makeTag(g, '√ read 1 checkpoint + 2 commits', 'green');
+  s.note = T(g, 'by default, a checkpoint every 10 commits', { class: 'mono', x: 540, y: 1650, 'font-size': 22, 'text-anchor': 'middle', fill: '#8A8476' });
+}, (t, s) => {
+  const on = t > 56.0 && t < 63.0;
+  show(s.g, on); if (!on) return;
+  op(s.g, prog(t, 56.0, 56.3) * (1 - prog(t, 62.6, 62.95)));
+  headTitle(s.head, t, 56.1, 'KEEPING READS FAST', 'checkpoints');
+  const dim = 1 - 0.65 * prog(t, 58.1, 58.4);
+  s.jsons.forEach((c, i) => {
+    const a = 56.3 + 0.08 * i, p = prog(t, a, a + 0.2, 'back.out(1.6)');
+    c.set(300, 600 + 52 * i, 0.85 + 0.15 * p, 0, prog(t, a, a + 0.06) * dim);
+  });
+  const m = prog(t, 57.8, 58.3, 'power2.inOut');
+  s.ck.set(lerp(300, 720, m), lerp(834, 860, m), lerp(0.6, 1, m), 0, prog(t, 57.8, 57.9));
+  op(s.ckNote, prog(t, 58.5, 58.8));
+  s.newer.forEach((c, i) => {
+    const a = 59.4 + 0.2 * i, p = prog(t, a, a + 0.25, 'back.out(1.6)');
+    c.set(720, 980 + 62 * i, 0.85 + 0.15 * p, 0, prog(t, a, a + 0.06));
+  });
+  const rp = prog(t, 60.0, 60.3, 'back.out(1.6)');
+  op(s.reader.g, prog(t, 60.0, 60.1));
+  S(s.reader.g, { transform: `translate(0 ${f1(30 * (1 - rp))})` });
+  s.rail.set('M720 1070C720 1180 580 1170 575 1290', prog(t, 60.2, 60.7));
+  [s.ck, ...s.newer].forEach((c, i) => {
+    const h = prog(t, 60.7 + 0.2 * i, 60.85 + 0.2 * i);
+    S(c.box, { stroke: mixColor(C.ink, '#2C4A8E', h), 'stroke-width': f1(2 + 2 * h) });
+  });
+  tagAt(s.tag, t, 61.3, 540, 1560);
+  op(s.note, prog(t, 61.7, 62.0));
+});
+
+// =====================================================================================
+// SCENE H (63.0 - 68.5 s): what a Delta table gives you, ticked one by one.
+// =====================================================================================
+const GETS = ['ACID transactions', 'schema enforcement', 'time travel', 'MERGE · UPDATE · DELETE', 'batch + streaming'];
+const sH = scene('h-gets', (g, s) => {
+  s.head = makeTitle(g);
+  s.panel = E('g', {}, g);
+  E('rect', { x: 170, y: 530, width: 760, height: 690, rx: 12, fill: '#2D281F', opacity: 0.16, filter: 'url(#soft)' }, s.panel);
+  E('rect', { x: 160, y: 516, width: 760, height: 690, rx: 12, fill: '#F1EEE3', stroke: C.ink, 'stroke-width': 2.2 }, s.panel);
+  T(s.panel, 'DELTA TABLE', { class: 'mono', x: 200, y: 572, 'font-size': 22, 'letter-spacing': 3, fill: '#8A8476' });
+  s.items = GETS.map((name, i) => ({
+    box: E('rect', { x: 200, y: 620 + 112 * i, width: 44, height: 44, rx: 4, 'stroke-width': 2.2 }, s.panel),
+    tick: E('path', { d: `M210 ${643 + 112 * i}l10 10l16 -20`, fill: 'none', stroke: '#FFFFFF', 'stroke-width': 5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, s.panel),
+    txt: T(s.panel, name, { class: 'space', x: 270, y: 655 + 112 * i, 'font-size': 36 }) }));
+  s.tag = makeTag(g, '= parquet + _delta_log', 'blue');
+}, (t, s) => {
+  const on = t > 63.0 && t < 68.5;
+  show(s.g, on); if (!on) return;
+  op(s.g, prog(t, 63.0, 63.3) * (1 - prog(t, 68.1, 68.45)));
+  headTitle(s.head, t, 63.1, 'ON TOP OF PLAIN FILES', 'what you get');
+  const pin = prog(t, 63.2, 63.5, 'power2.out');
+  S(s.panel, { transform: `translate(0 ${f1(24 * (1 - pin))})` });
+  op(s.panel, pin);
+  s.items.forEach((it, i) => {
+    const p = prog(t, 63.7 + 0.5 * i, 63.9 + 0.5 * i);
+    S(it.box, { fill: mixColor('#F1EEE3', C.green, p), stroke: mixColor('#CFCABB', '#2A5A47', p) });
+    S(it.txt, { fill: mixColor('#CFCABB', C.ink, p) });
+    op(it.tick, p);
+  });
+  tagAt(s.tag, t, 66.4, 540, 1310);
+});
+
+// =====================================================================================
+// SCENE I (68.5 s - end): end card. The last 0.7 s returns to the opening frame.
+// =====================================================================================
+const sI = scene('i-end', (g, s) => {
+  s.top = E('g', {}, g);
+  T(s.top, 'DATA / 04', { class: 'hdr', x: 540, y: 410, 'font-size': 24, 'letter-spacing': 6, 'text-anchor': 'middle', fill: '#6E685B' });
+  T(s.top, 'Delta Lake', { class: 'space', x: 540, y: 514, 'font-size': 66, 'text-anchor': 'middle', fill: C.ink });
+  T(s.top, 'How it works', { class: 'sans', x: 540, y: 584, 'font-size': 32, 'text-anchor': 'middle', fill: '#8A8476' });
+  const labels = ['ACID', 'LOG', 'TIME TRAVEL', 'MERGE'], ws = labels.map(l => l.length * 15.6 + 48);
+  let x = 540 - (ws.reduce((a, b) => a + b, 0) + 20 * (ws.length - 1)) / 2;
+  s.chips = labels.map((k, i) => {
+    const cg = E('g', {}, g), w = ws[i], cx = x + w / 2; x += w + 20;
+    E('rect', { x: -w / 2, y: -27, width: w, height: 54, rx: 6, fill: '#2D281F', opacity: 0.16, filter: 'url(#soft4)', transform: 'translate(3 6)' }, cg);
+    E('rect', { x: -w / 2, y: -27, width: w, height: 54, rx: 6, fill: i ? '#F2EFE5' : '#2C4A8E', stroke: C.ink, 'stroke-width': 2 }, cg);
+    T(cg, k, { class: 'mono', x: 0, y: 9, 'font-size': 24, 'font-weight': 500, 'text-anchor': 'middle', fill: i ? C.ink : '#FFFFFF' });
+    return { g: cg, cx };
+  });
+  s.brand = T(g, '', { class: 'space', x: 540, y: 942, 'font-size': 47, 'text-anchor': 'middle', fill: '#2B2620' });
+  s.brand.innerHTML = 'BinaryHabit<tspan fill="#C98A4B">.</tspan>';
+}, (t, s) => {
+  const on = t > 68.45;
+  show(s.g, on); if (!on) return;
+  op(s.g, 1 - prog(t, DUR - 0.72, DUR - 0.4));
+  const tin = prog(t, 68.5, 68.9, 'power2.out');
+  op(s.top, tin);
+  S(s.top, { transform: `translate(0 ${f1(20 * (1 - tin))})` });
+  s.chips.forEach((c, i) => {
+    const a = 69.0 + 0.16 * i, p = prog(t, a, a + 0.3, 'back.out(1.8)');
+    op(c.g, prog(t, a, a + 0.15));
+    S(c.g, { transform: `translate(${f1(c.cx)} ${f1(708 + 14 * (1 - p))})` });
+  });
+  op(s.brand, prog(t, 69.7, 70.1));
+});
+
+// =====================================================================================
+// render: one pure function of t
+// =====================================================================================
+let built = false;            // compare.html may call seek() before the fonts are in
+function render(t) {
+  if (!built) return;
+  const src = toSource(t);
+  for (const s of scenes) s.draw(src, s);
+  drawHeader(t, src);
+}
+
+const clock = { t: 0 };
+const tl = gsap.timeline({ paused: true, repeat: -1 });
+tl.fromTo(clock, { t: 0 }, { t: DUR, duration: DUR, ease: 'none', immediateRender: false, onUpdate: () => render(clock.t) });
+window.anim = {
+  tl, duration: DUR,
+  seek(t) { t = clamp(t, 0, DUR); tl.pause(); tl.time(t, true); render(t); },
+  play(from = 0) { tl.restart(); tl.time(from); tl.play(); },
+  pause() { tl.pause(); }
+};
+
+const qs = new URLSearchParams(location.search);
+const fontsReady = Promise.race([
+  Promise.all([
+    document.fonts.load('700 100px "Space Mono"', '0123456789'), document.fonts.load('24px "Silkscreen"', 'BINARY'),
+    document.fonts.load('400 24px "IBM Plex Mono"', 'SPARK'), document.fonts.load('500 24px "IBM Plex Mono"', 'ALL'),
+    document.fonts.load('600 24px "IBM Plex Mono"', 'key'), document.fonts.load('400 24px "IBM Plex Sans"', 'Episode'),
+    document.fonts.load('800 100px "Archivo"', 'DELTA LAKE'), document.fonts.ready]),
+  new Promise(r => setTimeout(r, 6000))
+]);
+fontsReady.then(() => {
+  buildHeader(); measureHeader();
+  built = true;
+  anim.seek(0);
+  if (qs.has('t')) anim.seek(parseFloat(qs.get('t')));
+  else if (!qs.has('external')) tl.play(0);
+  document.documentElement.dataset.ready = '1';
+});
+})();
+</script>
+</body>
+</html>
