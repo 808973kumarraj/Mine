@@ -23,8 +23,7 @@
   Motion2Code rebuild of "Spark Performance, Episode 3: Shuffling" (1080x1920, 80.47 s).
   Contract: window.anim = { tl, duration, seek(t), play(from), pause() }; ?t= freezes, ?external=1 does not autoplay;
   <html data-ready="1"> once fonts are loaded and frame 0 is drawn.
-  The presenter footage cannot be redrawn as vector shapes: #cam is a flat placeholder card that moves and resizes
-  exactly like the webcam card in the source, so the footage can be composited on top of it in an editor.
+  The presenter webcam card of the source is left out: only the graphics are rebuilt.
   Everything visible is a pure function of t: render(t) resets each scene and draws the shots active at t.
 -->
 <svg id="stage" viewBox="0 0 1080 1920" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
@@ -55,7 +54,6 @@
     <rect id="grid" width="1080" height="1920" fill="url(#gridPat)"/>
     <g id="scenes"></g>
     <g id="header"></g>
-    <g id="cam"></g>
   </g>
 </svg>
 
@@ -68,8 +66,7 @@ const C = {
   ink: '#1E1A14', inkSoft: '#3A342C', gray: '#6E685B', grayLight: '#9C9585', line: '#CBC7B8',
   paper: '#EFECE0', paperDark: '#E3DFD1', side: '#DCD8C9', sideDark: '#D2CDBC',
   green: '#3D7A62', greenDim: '#B9C4B2', red: '#A23B2C', redDim: '#E3B9AC',
-  blue: '#24428A', blueLight: '#C9D4EA', orange: '#C98A4B', term: '#1F1B15', termText: '#E9E4D6',
-  cam: '#8E7662', bezel: '#EEEADB'
+  blue: '#24428A', blueLight: '#C9D4EA', orange: '#C98A4B', term: '#1F1B15', termText: '#E9E4D6'
 };
 
 // ---------- helpers ----------
@@ -141,7 +138,7 @@ const lerpGeom = (a, b, p) => { const o = {}; for (const k in a) o[k] = typeof a
 
 // ---------- layers ----------
 const svg = document.getElementById('stage');
-const L = { scenes: document.getElementById('scenes'), header: document.getElementById('header'), cam: document.getElementById('cam') };
+const L = { scenes: document.getElementById('scenes'), header: document.getElementById('header') };
 const scenes = [];
 function scene(id, build, draw) { const g = E('g', { id }, L.scenes); const s = { g, draw }; build(g, s); scenes.push(s); return s; }
 
@@ -174,37 +171,6 @@ function drawHeader(t) {
   const w = t < DUR - 0.75 ? 948 * clamp(t / 80.2) : 948 * clamp(t / 80.2) * (1 - prog(t, DUR - 0.75, DUR - 0.3, 'power2.inOut'));
   S(header.prog, { width: f1(w) });
 }
-
-// ---------- webcam placeholder card ----------
-const CAM = { x: 65, w: 949, small: 1140, big: 256, bottom: 1785 };
-const CAM_MOVES = [ // [start, end, toBig]
-  [6.465, 6.77, 1], [7.745, 8.05, 0], [28.995, 29.3, 1], [31.44, 31.745, 0],
-  [54.335, 54.64, 1], [57.14, 57.445, 0], [75.2, 75.505, 1], [77.335, 77.64, 0]];
-const cam = {};
-function buildCam() {
-  const g = L.cam;
-  cam.shadow = E('rect', { x: CAM.x + 10, width: CAM.w - 20, rx: 24, fill: '#3B3528', opacity: 0.32, filter: 'url(#soft)' }, g);
-  cam.bezel = E('rect', { x: CAM.x, width: CAM.w, rx: 18, fill: C.bezel, stroke: '#A9A493', 'stroke-width': 1.2 }, g);
-  cam.video = E('rect', { x: CAM.x + 7, width: CAM.w - 14, rx: 12, fill: C.cam }, g);
-  cam.label = T(g, 'CAMERA', { class: 'mono', x: 540, 'font-size': 22, 'letter-spacing': 6, 'text-anchor': 'middle', fill: '#A8937F' });
-}
-function camTop(t) {
-  let big = 0;
-  for (const [a, b, to] of CAM_MOVES) {
-    if (t >= b) big = to;
-    else if (t > a) { const p = prog(t, a, b, 'power2.inOut'); big = to ? p : 1 - p; break; }
-    else break;
-  }
-  return lerp(CAM.small, CAM.big, big);
-}
-function drawCam(t) {
-  const top = camTop(t), h = CAM.bottom - top;
-  S(cam.shadow, { y: f1(top + 30), height: f1(h - 10) });
-  S(cam.bezel, { y: f1(top), height: f1(h) });
-  S(cam.video, { y: f1(top + 7), height: f1(h - 14) });
-  S(cam.label, { y: f1(top + h / 2 + 8) });
-}
-const camIsBig = t => camTop(t) < 300;
 
 // =====================================================================================
 // SCENE 1 (0 - 6.8 s): 100 executors land as an isometric grid, run green, groupBy turns them red,
@@ -1173,7 +1139,6 @@ function render(t) {
   if (!built) return;
   for (const s of scenes) s.draw(t, s);
   drawHeader(t);
-  drawCam(t);
 }
 
 const clock = { t: 0 };
@@ -1196,7 +1161,7 @@ const fontsReady = Promise.race([
   new Promise(r => setTimeout(r, 6000))
 ]);
 fontsReady.then(() => {
-  buildHeader(); buildCam(); measureHeader();
+  buildHeader(); measureHeader();
   built = true;
   anim.seek(0);
   if (qs.has('t')) anim.seek(parseFloat(qs.get('t')));
