@@ -60,7 +60,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script>
 (() => {
-const DUR = 2414 / 30;               // 80.467 s, the source length
+const SRC_DUR = 2414 / 30;           // 80.467 s, the source length
+// The source cuts to a full-screen webcam four times; those stretches are blank here, so they are cut out.
+// ?full=1 keeps the source timeline (compare.html uses it to stay in sync with the video).
+const CUTS = new URLSearchParams(location.search).has('full') ? [] : [[6.8, 7.7], [29.4, 31.32], [54.7, 57.3], [75.6, 77.3]];
+const DUR = SRC_DUR - CUTS.reduce((a, [s, e]) => a + e - s, 0);
+const toSource = t => { for (const [s, e] of CUTS) if (t >= s) t += e - s; return t; };
 const NS = 'http://www.w3.org/2000/svg';
 const C = {
   ink: '#1E1A14', inkSoft: '#3A342C', gray: '#6E685B', grayLight: '#9C9585', line: '#CBC7B8',
@@ -159,16 +164,16 @@ function measureHeader() {
     header.widths[n] = n ? header.text.getComputedTextLength() : 0;
   }
 }
-function drawHeader(t) {
+function drawHeader(t, src) {
   // types in over the first 0.7 s, rubs out in the return to the opening frame
   let n = Math.round(clamp(t * 46, 0, HDR.length));
   if (t > DUR - 0.75) n = Math.round(HDR.length * (1 - prog(t, DUR - 0.75, DUR - 0.3)));
   header.text.textContent = HDR.slice(0, n);
   const typing = (t < 0.72) || (t > DUR - 0.8);
-  const blinkOn = t > 1.07 && t < 77.3 && ((t - 1.07) % 1.0625) < 0.533;
+  const blinkOn = src > 1.07 && src < 77.3 && ((src - 1.07) % 1.0625) < 0.533;
   show(header.cursor, typing || blinkOn);
   S(header.cursor, { x: f1(66 + header.widths[n] + (n ? 2 : -30 + 30)) });
-  const w = t < DUR - 0.75 ? 948 * clamp(t / 80.2) : 948 * clamp(t / 80.2) * (1 - prog(t, DUR - 0.75, DUR - 0.3, 'power2.inOut'));
+  const w = t < DUR - 0.75 ? 948 * clamp(t / (DUR - 0.27)) : 948 * clamp(t / (DUR - 0.27)) * (1 - prog(t, DUR - 0.75, DUR - 0.3, 'power2.inOut'));
   S(header.prog, { width: f1(w) });
 }
 
@@ -1122,7 +1127,7 @@ const s8 = scene('s8-end', (g, s) => {
 }, (t, s) => {
   const on = t > 77.3;
   show(s.g, on); if (!on) return;
-  op(s.g, 1 - prog(t, DUR - 0.72, DUR - 0.4));
+  op(s.g, 1 - prog(t, SRC_DUR - 0.72, SRC_DUR - 0.4));
   s.chips.forEach((c, i) => {
     const a = 77.72 + 0.16 * i, p = prog(t, a, a + 0.3, 'back.out(1.8)');
     op(c, prog(t, a, a + 0.15));
@@ -1137,8 +1142,9 @@ const s8 = scene('s8-end', (g, s) => {
 let built = false;            // compare.html may call seek() before the fonts are in
 function render(t) {
   if (!built) return;
-  for (const s of scenes) s.draw(t, s);
-  drawHeader(t);
+  const src = toSource(t);
+  for (const s of scenes) s.draw(src, s);
+  drawHeader(t, src);
 }
 
 const clock = { t: 0 };
