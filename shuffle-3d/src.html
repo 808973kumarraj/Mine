@@ -6,118 +6,114 @@
 <title>Spark Shuffle Explainer</title>
 <!--FONTS-->
 <style>
-/* Spark shuffle short, rebuilt as HTML: CSS 3D boxes + a GSAP timeline driven by the footage.
-   Icons are SVG cleaned up with VectorCraft (icons/). build.py inlines everything into one file. */
+/* Spark shuffle explainer, graphics only. CSS 3D boxes on a GSAP timeline, clocked by the
+   narration track. Icons are SVG cleaned up with VectorCraft (icons/). build.py inlines it all. */
 :root{
   --paper:#ece8dc; --grid:#dcd6c6; --ink:#1d1b17; --muted:#8a8475; --rule:#c9c2b0;
-  --face:#f7f4ec; --top:#fcfaf5; --side:#ddd7c8; --side2:#cfc8b6; --edge:#8d8573;
+  --face:#f4f0e6; --top:#faf7f0; --side:#dcd5c4; --side2:#cec6b3; --edge:#6f6858;
+  --tray:#d9d2c0; --tray-in:#c8c0ab;
   --blue:#1f3f8f; --red:#b23a2a; --green:#2f6b55; --dark:#1f1d1a; --amber:#c8782f;
 }
 *{box-sizing:border-box;margin:0}
 body{background:#111;color:#fff;font:13px system-ui,sans-serif;min-height:100vh;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px}
-.stage{position:relative;width:min(420px,100%,calc((100vh - 90px)*9/16));aspect-ratio:9/16;overflow:hidden;border-radius:14px;background:#000}
-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-/* the graphics panel is authored at 1080x1090 and scaled to the stage */
-#panel{position:absolute;left:0;top:0;width:1080px;height:1090px;transform-origin:0 0;overflow:hidden;
-  background:var(--paper);color:var(--ink);font-family:"JetBrains Mono",monospace;transition:opacity .35s}
-#panel.hide{opacity:0}
+.stage{position:relative;width:min(560px,100%,calc((100vh - 110px)*1080/1100));aspect-ratio:1080/1100;overflow:hidden;border-radius:14px;background:var(--paper)}
+#panel{position:absolute;left:0;top:0;width:1080px;height:1100px;transform-origin:0 0;overflow:hidden;
+  background:var(--paper);color:var(--ink);font-family:"JetBrains Mono",monospace}
 #panel::before{content:"";position:absolute;inset:0;
   background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
-  background-size:42px 42px;opacity:.7}
+  background-size:27px 27px;opacity:.75}
 #panel::after{content:"";position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(120% 90% at 50% 40%,transparent 60%,rgba(80,70,50,.12))}
-.crumb{position:absolute;left:32px;right:32px;top:40px;font-size:24px;letter-spacing:.32em;color:#555;
+  background:radial-gradient(110% 80% at 50% 45%,rgba(255,255,255,.18),transparent 55%,rgba(90,78,55,.14))}
+.crumb{position:absolute;left:58px;right:58px;top:84px;font-size:23px;letter-spacing:.3em;color:#444;font-weight:700;
   padding-bottom:14px;border-bottom:2px solid var(--rule);z-index:5;white-space:nowrap}
-.crumb i{position:absolute;left:0;bottom:-2px;height:3px;background:var(--blue);width:0}
+.crumb i{position:absolute;left:0;bottom:-2px;height:4px;background:var(--blue);width:0}
 .crumb b{display:inline-block;width:12px;height:24px;background:var(--amber);vertical-align:-3px;margin-left:6px;animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
 .sc{position:absolute;inset:0;visibility:hidden}
 /* 3D world */
-.view{position:absolute;inset:0;perspective:2400px;perspective-origin:50% 30%}
-.cam{position:absolute;left:540px;top:560px;width:0;height:0;transform-style:preserve-3d;transform:rotateX(56deg) rotateZ(-14deg)}
+.view{position:absolute;inset:0;perspective:2600px;perspective-origin:50% 20%}
+.cam{position:absolute;left:540px;top:640px;width:0;height:0;transform-style:preserve-3d;transform:rotateX(54deg) rotateZ(-4deg)}
 .b3,.b3 *{transform-style:preserve-3d}
 .b3{position:absolute;left:0;top:0}
-.b3 .f{position:absolute;border:2px solid var(--edge)}
+.b3 .f{position:absolute;border:2.5px solid var(--edge)}
 .b3 .tp{inset:0;background:var(--top)}
 .b3 .fr{left:0;background:var(--face);transform-origin:50% 100%}
 .b3 .rs{top:0;background:var(--side);transform-origin:0 50%}
 .b3 .ls{top:0;left:0;background:var(--side2);transform-origin:0 50%}
-.b3 .sh{position:absolute;inset:-6px;background:rgba(40,32,20,.28);filter:blur(10px);transform:translate3d(14px,16px,0)}
-.b3 .lb{position:absolute;left:14px;bottom:12px;font-size:15px;font-weight:700;letter-spacing:.14em;white-space:nowrap}
-.b3 .led{position:absolute;right:14px;top:12px;width:11px;height:11px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
-.b3 .meter{position:absolute;left:14px;right:14px;bottom:8px;height:7px;background:var(--green);border-radius:3px;transform-origin:left}
-.b3 .lines{position:absolute;left:14px;right:40px;top:18px;height:30px;
-  background:repeating-linear-gradient(transparent 0 7px,#cfc8b6 7px 9px)}
-.b3.red .tp{background:#c4523f}.b3.red .fr{background:var(--red);color:#fff}.b3.red .rs,.b3.red .ls{background:#8a2a1d}
-.b3.red .f{border-color:#6b2016}
-.b3.blue .tp{background:#3456a8}.b3.blue .fr{background:var(--blue)}.b3.blue .rs,.b3.blue .ls{background:#162d66}
-.b3.blue .f{border-color:#10224f}
-.b3.white .tp{background:#fff}
-.b3.ghost .f{background:transparent;border-style:dashed;border-color:#aaa}
-.b3.disk .f{border-radius:50%}
-/* 2D overlay pieces */
+.b3 .sh{position:absolute;inset:-4px;background:rgba(45,36,22,.32);filter:blur(12px);transform:translate3d(18px,26px,0)}
+.b3 .lb{position:absolute;left:14px;top:14px;font-size:15px;font-weight:800;letter-spacing:.12em;white-space:nowrap}
+.b3 .led{position:absolute;right:14px;top:14px;width:11px;height:11px;border-radius:50%;background:#4c8f6f;box-shadow:0 0 0 2px rgba(47,107,85,.25)}
+.b3 .meter{position:absolute;left:14px;right:24px;bottom:12px;height:10px;border:2px solid var(--edge);border-radius:2px;background:#fff;overflow:hidden}
+.b3 .meter i{position:absolute;inset:0;background:var(--green);transform-origin:left;width:78%}
+.b3 .lines{position:absolute;left:14px;right:30px;top:44px;height:34px;background:repeating-linear-gradient(transparent 0 8px,#c9c1ad 8px 10px)}
+.b3.tray .tp{background:var(--tray)}
+.b3.tray .tp::after{content:"";position:absolute;inset:10px;background:var(--tray-in);border:2px solid #a99f88;box-shadow:inset 0 4px 8px rgba(0,0,0,.15)}
+.b3.tray .fr{background:#e6dfcf}
+.b3.red .tp{background:#c4523f}.b3.red .fr{background:#a83526;color:#fff}.b3.red .rs,.b3.red .ls{background:#7f2618}.b3.red .f{border-color:#5d1a10}
+.b3.blue .tp{background:#2c4f9e}.b3.blue .fr{background:#1f3f8f;color:#fff}.b3.blue .rs,.b3.blue .ls{background:#162d66}.b3.blue .f{border-color:#0e1f48}
+.b3.slab .tp{background:#fbf9f4}.b3.slab .f{border-width:2px}
+/* 2D pieces */
 .o{position:absolute}
 .center{left:0;right:0;text-align:center}
-.big{font-weight:800;font-size:150px;line-height:1;letter-spacing:-.02em}
-.mid{font-weight:800;font-size:96px;line-height:1}
-.cap{font-size:22px;letter-spacing:.25em;color:var(--muted);text-transform:uppercase}
-.h{font-weight:700;font-size:46px}
+.big{font-weight:800;font-size:140px;line-height:1;letter-spacing:-.02em}
+.mid{font-weight:800;font-size:92px;line-height:1}
+.cap{font-size:19px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase}
+.h{font-weight:800;font-size:44px}
 .r{color:var(--red)}.g{color:var(--green)}
-.term{background:var(--dark);color:#eee;font-size:32px;padding:20px 26px;border-radius:6px;box-shadow:0 16px 30px rgba(0,0,0,.25);white-space:nowrap}
-.term .k{color:#9db1ff}.term .p{color:#888}
+.term{background:var(--dark);color:#eee;font-size:31px;padding:24px 28px;border-radius:4px;box-shadow:0 18px 32px rgba(0,0,0,.28);white-space:nowrap}
+.term .k{color:#b9c6ff}.term .p{color:#888}
 .cur{display:inline-block;width:16px;height:32px;background:var(--amber);vertical-align:-5px;animation:blink 1s steps(1) infinite}
-.card{background:var(--face);border:2px solid #9a927f;border-radius:6px;box-shadow:0 18px 34px rgba(40,32,20,.2);padding:20px}
-.chip{display:inline-block;border:2px solid currentColor;border-radius:6px;padding:6px 14px;font-size:20px;font-weight:700;background:var(--face)}
-.prog{position:relative;height:44px;border:2px solid var(--edge);background:var(--top);border-radius:5px;overflow:hidden}
-.prog .w{position:absolute;inset:0 auto 0 0;background:repeating-linear-gradient(45deg,#ddd6c5 0 9px,#efeadf 9px 18px);transform-origin:left}
+.card{background:#f7f4ec;border:2.5px solid #5f594b;border-radius:8px;box-shadow:0 16px 30px rgba(40,32,20,.22);padding:22px}
+.chip{display:inline-block;border:2px solid currentColor;border-radius:999px;padding:6px 18px;font-size:20px;font-weight:700;background:#f7f4ec}
+.pill{display:inline-block;border:2.5px solid var(--ink);border-radius:8px;padding:8px 0;width:96px;text-align:center;font-size:22px;font-weight:800;background:#f7f4ec;box-shadow:0 4px 0 #bdb6a5;margin:0 14px}
+.prog{position:relative;height:52px;border:2.5px solid var(--edge);background:#f7f4ec;border-radius:3px;overflow:hidden}
+.prog .w{position:absolute;inset:0 auto 0 0;background:repeating-linear-gradient(45deg,#d8d1c0 0 8px,#ece7db 8px 16px);transform-origin:left}
 .prog .d{position:absolute;top:0;bottom:0;background:var(--green);transform-origin:left}
-.prog span{position:relative;font-size:18px;color:var(--muted);line-height:40px;padding-left:14px}
+.o.prog{position:absolute}
+.prog span{position:relative;font-size:19px;color:var(--muted);line-height:47px;padding-left:14px}
+.bits{background:var(--dark);color:#ddd;font-size:19px;padding:12px 18px;white-space:nowrap;box-shadow:0 10px 20px rgba(0,0,0,.25)}
 .icon svg{width:100%;height:100%;display:block}
 /* controls */
 .ctrl{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;color:#aaa}
 button{background:#222;color:#fff;border:1px solid #444;border-radius:99px;padding:7px 14px;font-weight:600;cursor:pointer}
-input[type=range]{width:min(420px,90vw)}
+input[type=range]{width:min(560px,90vw)}
 </style>
 </head>
 <body>
 <div class="stage" id="stage">
-  <video id="v" src="VIDEO_SRC" playsinline preload="auto"></video>
   <div id="panel">
     <div class="crumb">&gt; BINARY HABIT / SPARK PERF / 03<b></b><i id="prog"></i></div>
   </div>
 </div>
+<audio id="v" src="AUDIO_SRC" preload="auto"></audio>
 <input type="range" id="seek" min="0" max="80.4" step="0.05" value="0">
 <div class="ctrl">
   <button id="play">▶ Play</button>
-  <button id="orig">Show original graphics</button>
+  <button id="mute">Mute voice</button>
   <span id="clock">0.0s</span>
 </div>
 <!--GSAP-->
 <script>
 const ICONS = /*ICONS*/{};
 const DUR = 80.4;
-// Seconds where the speaker is full-frame: the graphics step aside.
-const FACE = [[7, 8], [29, 32], [54, 56], [75, 78]];
 const panel = document.getElementById('panel');
 const tl = gsap.timeline({ paused: true });
 const E = 'power3.out';
+const KEYS = ['IN', 'US', 'BR', 'DE'];
 
 // ---------- builders ----------
 function el(tag, cls, parent, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; parent && parent.appendChild(e); return e; }
-function scene(t0, t1) {
-  const s = el('div', 'sc', panel);
-  tl.set(s, { visibility: 'visible' }, t0).set(s, { visibility: 'hidden' }, t1);
-  return s;
-}
-function world(s, cam) {
+function scene(t0, t1) { const s = el('div', 'sc', panel); tl.set(s, { visibility: 'visible' }, t0).set(s, { visibility: 'hidden' }, t1); return s; }
+function world(s, cam, left, top) {
   const v = el('div', 'view', s), c = el('div', 'cam', v);
-  if (cam) c.style.transform = cam;
+  if (cam) c.style.transform = cam; if (left != null) c.style.left = left + 'px'; if (top != null) c.style.top = top + 'px';
   return c;
 }
-// a 3D box standing on the floor; (x, y) is its centre on the floor, h its height
+// a 3D box on the floor; (x, y) is its centre, h its height. The front face is turned to face
+// the camera, so its contents sit in an un-mirrored inner layer.
 function box(cam, o) {
-  const { x = 0, y = 0, w = 180, d = 120, h = 90, cls = '', label = '', led = true, meter = false, lines = false, shadow = true } = o;
+  const { x = 0, y = 0, w = 180, d = 120, h = 90, cls = '', label = '', led = false, meter = false, lines = false, shadow = true } = o;
   const b = el('div', 'b3 ' + cls, cam);
   b.style.width = w + 'px'; b.style.height = d + 'px';
   if (shadow) el('div', 'sh', b);
@@ -125,277 +121,282 @@ function box(cam, o) {
   const fr = el('div', 'f fr', b); Object.assign(fr.style, { width: w + 'px', height: h + 'px', top: (d - h) + 'px', transform: 'rotateX(-90deg) rotateY(180deg)' });
   const rs = el('div', 'f rs', b); Object.assign(rs.style, { width: h + 'px', height: d + 'px', left: w + 'px', transform: 'rotateY(-90deg)' });
   const ls = el('div', 'f ls', b); Object.assign(ls.style, { width: h + 'px', height: d + 'px', transform: 'rotateY(-90deg)' });
-  const inner = el('div', '', fr); inner.style.cssText = 'position:absolute;inset:0;transform:scaleX(-1)';  // the front face is turned to face the camera; un-mirror its contents
-  if (label) el('div', 'lb', inner, label);
-  if (led && h > 40) el('div', 'led', inner);
-  if (meter) b.meter = el('div', 'meter', inner);
-  if (lines) el('div', 'lines', inner);
-  b.face = inner;
-  b.top = tp;
+  const face = el('div', '', fr); face.style.cssText = 'position:absolute;inset:0;transform:scaleX(-1)';
+  if (label) el('div', 'lb', face, label);
+  if (led) el('div', 'led', face);
+  if (lines) el('div', 'lines', face);
+  if (meter) { const m = el('div', 'meter', face); b.meter = el('i', '', m); }
+  b.top = tp; b.face = face;
   gsap.set(b, { x: x - w / 2, y: y - d / 2 });
   return b;
 }
-// little data blocks sitting on a box's top face
-function blocks(parent, keys, opt = {}) {
-  const out = [], cols = opt.cols || 3, bw = opt.bw || 40, bd = opt.bd || 26, gap = 8;
-  keys.forEach((k, i) => {
-    const c = box(parent, { x: 30 + (i % cols) * (bw + gap) + bw / 2 + (opt.ox || 0), y: 18 + Math.floor(i / cols) * (bd + gap) + bd / 2 + (opt.oy || 0),
-      w: bw, d: bd, h: opt.h || 14, cls: k === 'IN' ? 'blue' : 'white', led: false, shadow: false });
-    if (opt.text) el('div', 'lb', c.face, k).style.cssText = 'left:4px;bottom:0;font-size:9px;letter-spacing:0' + (k === 'IN' ? ';color:#fff' : '');
-    out.push(c);
-  });
+// stacked data slabs on an executor's top face: cols x rows x layers
+function slabs(b, w, d, h, o = {}) {
+  const cols = o.cols || 2, rows = o.rows || 2, layers = o.layers || 2, gap = 6;
+  const sw = (w - 24 - gap * (cols - 1)) / cols, sd = (d - 24 - gap * (rows - 1)) / rows, out = [];
+  for (let l = 0; l < layers; l++) for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const k = o.keys ? o.keys[(l * rows + r) * cols + c] : '';
+    const s = box(b.top, { x: 12 + c * (sw + gap) + sw / 2, y: 12 + r * (sd + gap) + sd / 2, w: sw, d: sd, h: 14, cls: k === 'IN' ? 'blue' : 'slab', shadow: false });
+    gsap.set(s, { z: l * 16 });
+    if (k) { const t = el('div', 'lb', s.top, k); t.style.cssText = `left:50%;top:50%;transform:translate(-50%,-50%);font-size:12px;letter-spacing:0;${k === 'IN' ? 'color:#fff' : ''}`; }
+    out.push(s);
+  }
   return out;
 }
 function o(s, cls, css, html) { const e = el('div', 'o ' + cls, s, html); if (css) e.style.cssText += css; return e; }
 function icon(s, name, css) { return o(s, 'icon', css, ICONS[name] || ''); }
 const fmt = n => Math.round(n).toLocaleString('en-US');
-function count(e, a, b, t, d, f = fmt) {
-  const st = { v: a }; e.textContent = f(a);
-  tl.to(st, { v: b, duration: d, ease: 'power2.out', onUpdate: () => e.textContent = f(st.v) }, t);
-}
-function type(e, html, t, d) {   // types plain text, then swaps in the highlighted html
+function count(e, a, b, t, d, f = fmt) { const st = { v: a }; e.textContent = f(a); tl.to(st, { v: b, duration: d, ease: 'power2.out', onUpdate: () => e.textContent = f(st.v) }, t); }
+function type(e, html, t, d) {
   const plain = html.replace(/<[^>]+>/g, ''), st = { n: 0 };
-  tl.to(st, { n: plain.length, duration: d, ease: 'none', onUpdate: () => {
-    const n = Math.round(st.n); e.innerHTML = n >= plain.length ? html : plain.slice(0, n).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  } }, t);
+  tl.to(st, { n: plain.length, duration: d, ease: 'none', onUpdate: () => { const n = Math.round(st.n); e.innerHTML = n >= plain.length ? html : plain.slice(0, n).replace(/</g, '&lt;'); } }, t);
 }
-const from = (t, targets, vars) => tl.from(targets, Object.assign({ duration: .6, ease: E, immediateRender: false }, vars), t);
-const up = (t, e, extra) => from(t, e, Object.assign({ autoAlpha: 0, y: 40 }, extra));
-const drop = (t, e, extra) => from(t, e, Object.assign({ autoAlpha: 0, z: 260, duration: .7, ease: 'back.out(1.4)' }, extra));
-const show = (t, e) => tl.fromTo(e, { autoAlpha: 0, scale: .6 }, { autoAlpha: 1, scale: 1, duration: .6, ease: 'back.out(1.6)', immediateRender: false }, t);
+const from = (t, targets, vars) => tl.from(targets, Object.assign({ duration: .6, ease: E, immediateRender: true }, vars), t);
+const up = (t, e, extra) => from(t, e, Object.assign({ autoAlpha: 0, y: 36 }, extra));
+const drop = (t, e, extra) => from(t, e, Object.assign({ autoAlpha: 0, z: 280, duration: .7, ease: 'back.out(1.3)' }, extra));
 const pop = (t, e, extra) => from(t, e, Object.assign({ autoAlpha: 0, scale: .6, ease: 'back.out(1.6)' }, extra));
-// the four executors in a row
-function executors(cam, t, opt = {}) {
-  return [0, 1, 2, 3].map(i => {
-    const b = box(cam, { x: -345 + i * 230, y: opt.y || 0, w: 180, d: 130, h: 110, label: 'EXECUTOR ' + (i + 1), meter: opt.meter, lines: !opt.meter });
-    if (t != null) { drop(t + i * .1, b); if (b.meter) from(t + .4 + i * .1, b.meter, { scaleX: 0, duration: 1 }); }
-    return b;
-  });
+const show = (t, e) => tl.fromTo(e, { autoAlpha: 0, scale: .7 }, { autoAlpha: 1, scale: 1, duration: .6, ease: 'back.out(1.6)', immediateRender: false }, t);
+function executor(cam, x, y, i, o = {}) {
+  return box(cam, Object.assign({ x, y, w: 190, d: 130, h: 118, label: o.label || 'EXECUTOR ' + i, led: true, lines: !o.meter, meter: o.meter }, o.box));
 }
-function partitions(cam, keys, t, y) {
-  return keys.map((k, i) => {
-    const b = box(cam, { x: -345 + i * 230, y, w: 180, d: 130, h: 50, label: 'PARTITION · ' + k, led: false });
-    if (t != null) drop(t + i * .12, b);
-    return b;
-  });
+function tray(cam, x, y, k) { return box(cam, { x, y, w: 196, d: 120, h: 34, cls: 'tray', label: 'PARTITION · ' + k }); }
+function disk(cam, x, y) {
+  const g = el('div', 'b3', cam); gsap.set(g, { x, y });
+  const sh = el('div', '', g); sh.style.cssText = 'position:absolute;left:-90px;top:-80px;width:200px;height:190px;border-radius:50%;background:rgba(45,36,22,.3);filter:blur(14px);transform:translate3d(18px,24px,0)';
+  for (let i = 0; i < 7; i++) {
+    const p = el('div', '', g);
+    p.style.cssText = `position:absolute;left:-85px;top:-85px;width:170px;height:170px;border-radius:50%;border:2px solid #7b7464;
+      background:${i === 6 ? 'radial-gradient(circle,#1c1b18 0 11%,#efebe1 12% 66%,#dcd6c8 67%)' : '#d5cfbf'};transform:translateZ(${i * 7}px)`;
+  }
+  return g;
 }
 function costCard(s, step, t) {
   const items = ['serialize', 'disk I/O', 'network I/O', 'deserialize'];
-  const c = o(s, 'card', 'right:36px;top:120px;width:270px;font-size:21px;line-height:1.75',
-    `<div class="cap" style="font-size:14px">SHUFFLE COST</div>
-     <div style="height:12px;border:2px solid #888;margin:8px 0 10px;position:relative"><i class="cb" style="position:absolute;inset:0;width:${step * 25}%;background:var(--red);transform-origin:left"></i></div>` +
-    items.map((x, i) => `<div style="opacity:${i < step ? 1 : .32}"><span style="display:inline-block;width:18px;height:18px;margin-right:12px;vertical-align:-3px;border:2px solid #888;background:${i < step ? 'var(--red)' : 'none'}"></span>${x}</div>`).join(''));
-  if (t != null) { pop(t, c); tl.from(c.querySelector('.cb'), { scaleX: (step - 1) / step, duration: .7, ease: E, immediateRender: false }, t + .2); }
+  const c = o(s, 'card', 'right:58px;top:150px;width:236px;font-size:19px;line-height:1.7;padding:14px 18px',
+    `<div class="cap" style="font-size:13px">SHUFFLE COST</div>
+     <div style="height:12px;border:2px solid #555;margin:6px 0 8px;position:relative;border-radius:2px"><i class="cb" style="position:absolute;inset:0;width:${step * 25}%;background:var(--red);transform-origin:left"></i></div>` +
+    items.map((x, i) => `<div style="opacity:${i < step ? 1 : .3}"><span style="display:inline-block;width:17px;height:17px;margin-right:12px;vertical-align:-2px;border:2px solid #777;background:${i < step ? 'var(--red)' : 'none'}"></span>${x}</div>`).join(''));
+  if (t != null) { pop(t, c); tl.from(c.querySelector('.cb'), { scaleX: (step - 1) / step, duration: .7, ease: E, immediateRender: false }, t + .25); }
 }
-function stepHead(s, n, title, t) {
-  up(t, o(s, 'cap', 'left:40px;top:126px', `STEP ${n} / 6`));
-  up(t + .1, o(s, 'h', 'left:40px;top:160px', title));
-}
-function arcSvg(s, t, css) {
-  const e = o(s, '', css || 'left:180px;top:330px;width:700px;height:320px',
-    `<svg viewBox="0 0 700 320" width="100%" height="100%" style="overflow:visible"><path d="M20 300 C 220 -60, 480 -60, 680 240" fill="none" stroke="#1d1b17" stroke-width="4" stroke-dasharray="14 10"/>
-     <circle r="9" fill="var(--red)"><animateMotion dur="1.6s" repeatCount="indefinite" path="M20 300 C 220 -60, 480 -60, 680 240"/></circle></svg>`);
-  if (t != null) { const p = e.querySelector('path'); tl.fromTo(p, { strokeDashoffset: 900, opacity: 0 }, { strokeDashoffset: 0, opacity: 1, duration: 1.2, ease: 'power2.inOut', immediateRender: false }, t); }
-  o(s, 'cap', 'left:470px;top:322px;font-size:16px', 'NETWORK');
+function stepHead(s, n, title, t) { up(t, o(s, 'cap', 'left:62px;top:148px', `STEP ${n} / 6`)); up(t + .1, o(s, 'h', 'left:62px;top:178px', title)); }
+function netArc(s, t, x0, y0, x1, y1) {
+  const e = o(s, '', 'left:0;top:0;width:1080px;height:1100px', `<svg viewBox="0 0 1080 1100" width="100%" height="100%" style="overflow:visible">
+    <path d="M${x0} ${y0} C ${x0 + 120} ${y0 - 260}, ${x1 - 120} ${y1 - 300}, ${x1} ${y1}" fill="none" stroke="#1d1b17" stroke-width="4" stroke-dasharray="13 9"/></svg>`);
+  if (t != null) tl.fromTo(e.querySelector('path'), { strokeDashoffset: 900, opacity: 0 }, { strokeDashoffset: 0, opacity: 1, duration: 1.2, ease: 'power2.inOut', immediateRender: false }, t);
   return e;
-}
-function bits(s, t, css) { const b = o(s, 'term', (css || 'right:20px;top:420px') + ';font-size:19px;padding:10px 18px', '01001001 01001110 00110100 00110011'); if (t != null) pop(t, b); }
-function disk(cam, x, y, t) {
-  const g = el('div', 'b3', cam); gsap.set(g, { x, y });
-  for (let i = 0; i < 4; i++) { const p = box(g, { x: 0, y: 0, w: 170, d: 170, h: 10 + i * 12, cls: 'disk', led: false, shadow: i === 0 }); p.querySelectorAll('.fr,.rs,.ls').forEach(f => f.remove()); }
-  const hole = el('div', '', g); Object.assign(hole.style, { position: 'absolute', left: '-14px', top: '-14px', width: '28px', height: '28px', borderRadius: '50%', background: '#222', transform: 'translateZ(48px)' });
-  if (t != null) pop(t, g);
-  return g;
 }
 
 // ================= SCENES =================
 let s, c;
-const KEYS = ['IN', 'US', 'BR', 'DE'];
 
-// 0-4  executor count, the 10x10 field rises
-s = scene(0, 7);
-const n1 = o(s, 'big center', 'top:120px'); count(n1, 24, 100, 0, 2.2);
-o(s, 'cap center', 'top:280px', 'SPARK EXECUTORS');
-c = world(s, 'rotateX(58deg) rotateZ(-38deg)'); c.style.top = '700px';
+// 0-8  100 executors; groupBy makes the field go red and the job slow down
+s = scene(0, 8);
+const n1 = o(s, 'big center', 'top:150px'); count(n1, 24, 100, 0, 2.2);
+const cap1 = o(s, 'cap center', 'top:300px', 'SPARK EXECUTORS');
+c = world(s, 'rotateX(57deg) rotateZ(-45deg)', 540, 760);
 const field = [];
 for (let r = 0; r < 10; r++) for (let q = 0; q < 10; q++) {
-  const b = box(c, { x: (q - 4.5) * 62, y: (r - 4.5) * 62, w: 46, d: 46, h: 26, led: false, shadow: false });
-  b.dot = el('div', '', b.top); b.dot.style.cssText = 'position:absolute;inset:14px;background:#b8b0a0;opacity:.6';
+  const b = box(c, { x: (q - 4.5) * 64, y: (r - 4.5) * 64, w: 50, d: 50, h: 24, shadow: false });
+  b.dot = el('div', '', b.top); b.dot.style.cssText = 'position:absolute;inset:16px;background:#5f9a7f;opacity:.55;border-radius:2px';
   field.push(b);
 }
-drop(.2, field, { stagger: { each: .012, from: 'center', grid: [10, 10] }, duration: .5 });
-// 4-7  groupBy turns the field red, the job slows down
-const term1 = o(s, 'term', 'left:120px;top:330px'); tl.set(term1, { autoAlpha: 0 }, 0).set(term1, { autoAlpha: 1 }, 4);
-type(term1, 'df.<span class="k">groupBy</span>("country")', 4.1, .8);
-tl.to(field.map(b => b.dot), { background: '#b23a2a', opacity: 1, duration: .3, stagger: { each: .008, from: 'random' } }, 4.6);
-const job = o(s, 'card', 'left:250px;top:300px;width:520px',
-  `<div class="cap" style="font-size:14px">SPARK JOB · STAGE 1 OF 2</div>
-   <div style="display:flex;justify-content:space-between;font-weight:800;font-size:36px;margin:10px 0 14px">groupBy · count <span class="g">00:<span id="jt">10</span></span></div>
-   <div class="prog" style="height:20px"><div class="d" style="left:0;width:72%"></div></div>`);
-tl.set(job, { autoAlpha: 0 }, 0); show(5, job); count(job.querySelector('#jt'), 10, 35, 5.1, 1.8, n => String(Math.round(n)).padStart(2, '0'));
-from(5.2, job.querySelector('.d'), { scaleX: 0, duration: 1.8, ease: 'power1.out' });
-const slow = o(s, 'chip r', 'left:430px;top:900px', '● SLOWING DOWN'); tl.set(slow, { autoAlpha: 0 }, 0); show(6, slow);
+drop(.2, field, { stagger: { each: .012, from: 'center', grid: [10, 10] }, duration: .55 });
+tl.to([n1, cap1], { autoAlpha: 0, y: -30, duration: .5 }, 4.2);
+tl.to(field.map(b => b.dot), { background: '#c0392b', opacity: .9, duration: .25, stagger: { each: .01, from: 'random' } }, 4.4);
+tl.to(c, { y: 60, duration: 1, ease: 'power2.inOut' }, 4.2);
+const job = o(s, 'card', 'left:222px;top:150px;width:636px;padding:24px 30px',
+  `<div class="cap" style="font-size:16px">SPARK JOB · STAGE 2 OF 3</div>
+   <div style="display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:40px;margin:16px 0 18px">groupBy · count <span class="g" style="font-size:44px">00:<span id="jt">04</span></span></div>
+   <div class="prog" style="height:34px"><div class="d" style="left:0;width:60%;background:repeating-linear-gradient(45deg,#2f6b55 0 10px,#3f7f67 10px 20px)"></div></div>
+   <div style="display:flex;justify-content:space-between;font-size:16px;color:var(--green);margin-top:10px"><span>running…</span><span id="jp">0%</span></div>`);
+tl.set(job, { autoAlpha: 0 }, 0); show(4.6, job);
+count(job.querySelector('#jt'), 4, 27, 4.8, 3, n => String(Math.round(n)).padStart(2, '0'));
+count(job.querySelector('#jp'), 0, 60, 4.8, 3, n => Math.round(n) + '%');
+from(4.8, job.querySelector('.d'), { scaleX: 0, duration: 3, ease: 'power1.out' });
+const slow = o(s, 'chip r', 'left:404px;top:968px', '● SLOWING DOWN'); tl.set(slow, { autoAlpha: 0 }, 0); show(6.4, slow);
 
-// 8-14  one billion orders over four executors
+// 8-14  one billion orders split across four executors
 s = scene(8, 14);
-const n2 = o(s, 'mid center', 'top:140px'); count(n2, 985661228, 1e9, 8, 1.6);
-o(s, 'cap center', 'top:250px', 'ORDERS');
-c = world(s); executors(c, 9.6, { meter: true });
-up(11.5, o(s, 'cap', 'right:40px;top:310px;font-size:18px', '+ 96 more executors'));
-from(10, c, { rotationZ: -24, duration: 4, ease: 'power1.inOut' });
+const n2 = o(s, 'mid center', 'top:170px'); count(n2, 985661228, 1e9, 8, 1.6);
+o(s, 'cap center', 'top:276px;font-size:17px', 'ORDERS');
+c = world(s, null, 540, 700);
+const ex2 = [0, 1, 2, 3].map(i => executor(c, -360 + i * 240, 0, i + 1, { meter: true }));
+ex2.forEach((b, i) => { drop(9.4 + i * .1, b); from(9.9 + i * .1, b.meter, { scaleX: 0, duration: 1.2 }); });
+ex2.forEach((b, i) => drop(10.4 + i * .15, slabs(b, 190, 130, 118, { layers: 2 }), { stagger: .04, z: 200 }));
+const lone = box(c, { x: 230, y: -320, w: 80, d: 50, h: 12, cls: 'slab', shadow: false }); drop(10.2, lone);
+up(11.2, o(s, 'cap center', 'top:440px;font-size:19px;letter-spacing:.05em;text-transform:none;left:300px', '+ 96 more executors'));
 
-// 14-20 the line of code; rows land in each executor
+// 14-20 the line of code
 s = scene(14, 20);
-const term2 = o(s, 'term', 'left:40px;right:40px;top:130px', ''); term2.innerHTML = '<span class="p">&gt;&gt;&gt; </span><span class="tx"></span><span class="cur"></span>';
-type(term2.querySelector('.tx'), 'df.<span class="k">groupBy</span>("country").<span class="k">count</span>()', 14.6, 3.4);
-c = world(s);
-executors(c, null, { meter: true }).forEach((b, i) => {
-  const bl = blocks(b.top, KEYS.concat(KEYS.slice(0, 2)).map((_, j) => KEYS[(i + j) % 4]), { text: true });
-  drop(18.4 + i * .1, bl, { stagger: .05, z: 120 });
-});
+const term = o(s, 'term', 'left:58px;right:58px;top:150px'); term.innerHTML = '<span class="p">&gt;&gt;&gt; </span><span class="tx"></span><span class="cur"></span>';
+type(term.querySelector('.tx'), 'df.<span class="k">groupBy</span>("country").<span class="k">count</span>()', 14.5, 3.4);
+c = world(s, null, 540, 720);
+[0, 1, 2, 3].forEach(i => { const b = executor(c, -360 + i * 240, 0, i + 1, { meter: true }); slabs(b, 190, 130, 118, { layers: 2 }); });
 
 // 20-25 same key -> same partition
 s = scene(20, 25);
-up(20, o(s, 'h center', 'top:150px', 'same key <span style="color:var(--muted)">→</span> same partition'));
-c = world(s); c.style.top = '520px'; c.style.left = '470px';
-executors(c, null).forEach((b, i) => blocks(b.top, [0, 1, 2, 3, 4, 5].map(j => KEYS[(i + j) % 4]), { text: true }));
-partitions(c, KEYS, 20.4, 330);
-const arcs = o(s, '', 'left:0;top:0;width:1080px;height:1090px',
-  `<svg viewBox="0 0 1080 1090" width="100%" height="100%" style="overflow:visible">${[0, 1, 2, 3].map(k =>
-    `<path d="M${200 + k * 240} 470 C ${180 + k * 160} 300, 140 520, 170 720" fill="none" stroke="var(--blue)" stroke-width="3.5" stroke-dasharray="8 8"/>`).join('')}</svg>`);
-arcs.querySelectorAll('path').forEach((p, k) => tl.fromTo(p, { strokeDashoffset: 700, opacity: 0 }, { strokeDashoffset: 0, opacity: 1, duration: 1, ease: 'power2.inOut', immediateRender: false }, 21.2 + k * .35));
+up(20, o(s, 'h center', 'top:170px', 'same key → same partition'));
+c = world(s, 'rotateX(54deg) rotateZ(-6deg)', 520, 620);
+const keyOf = (i, j) => KEYS[(i + j) % 4];
+[0, 1, 2, 3].forEach(i => { const b = executor(c, -360 + i * 240, -40, i + 1); slabs(b, 190, 130, 118, { layers: 1, rows: 2, cols: 3, keys: [0, 1, 2, 3, 4, 5].map(j => keyOf(i, j)) }); });
+KEYS.forEach((k, i) => drop(20.4 + i * .12, tray(c, -360 + i * 240, 300, k)));
+const arcs = o(s, '', 'left:0;top:0;width:1080px;height:1100px', `<svg viewBox="0 0 1080 1100" width="100%" height="100%" style="overflow:visible">${[0, 1, 2, 3].map(k =>
+  `<path d="M${150 + k * 225} 520 C ${150 + k * 170} 330, 140 600, 160 790" fill="none" stroke="var(--blue)" stroke-width="3" stroke-dasharray="6 7"/>`).join('')}</svg>`);
+arcs.querySelectorAll('path').forEach((p, k) => tl.fromTo(p, { strokeDashoffset: 800, opacity: 0 }, { strokeDashoffset: 0, opacity: 1, duration: 1, ease: 'power2.inOut', immediateRender: false }, 21 + k * .35));
 
-// 25-29 data moves between executors: every IN block flies to partition IN, and so on
-s = scene(25, 29);
-up(25, o(s, 'h center', 'top:150px', 'data moves between executors'));
-c = world(s); c.style.top = '520px'; c.style.left = '470px';
-executors(c, null);
-partitions(c, KEYS, null, 330);
+// 25-32 data moves between executors: each block flies to the tray for its key
+s = scene(25, 32);
+up(25, o(s, 'h center', 'top:170px', 'data moves between executors'));
+c = world(s, 'rotateX(54deg) rotateZ(-6deg)', 520, 620);
+[0, 1, 2, 3].forEach(i => executor(c, -360 + i * 240, -40, i + 1));
+const trays = KEYS.map((k, i) => tray(c, -360 + i * 240, 300, k));
+const filled = [0, 0, 0, 0];
 for (let i = 0; i < 4; i++) for (let j = 0; j < 6; j++) {
-  const k = KEYS[(i + j) % 4], dst = KEYS.indexOf(k);
-  const b = box(c, { x: 0, y: 0, w: 40, d: 26, h: 14, cls: k === 'IN' ? 'blue' : 'white', led: false, shadow: false });
-  const sx = -345 + i * 230 - 70 + (j % 3) * 48, sy = -45 + Math.floor(j / 3) * 34;
-  const slot = (i * 6 + j) % 6, ex = -345 + dst * 230 - 70 + (slot % 3) * 48, ey = 285 + Math.floor(slot / 3) * 34;
-  gsap.set(b, { x: sx - 20, y: sy - 13, z: 110 });
-  const t = 25.5 + j * .22 + i * .1;
-  tl.to(b, { keyframes: [{ z: 260, duration: .35, ease: 'power2.out' }, { x: ex - 20, y: ey - 13, duration: .55, ease: 'power2.inOut' }, { z: 50, duration: .3, ease: 'bounce.out' }] }, t);
+  const k = keyOf(i, j), dst = KEYS.indexOf(k), slot = filled[dst]++;
+  const b = box(c, { x: 0, y: 0, w: 52, d: 36, h: 14, cls: k === 'IN' ? 'blue' : 'slab', shadow: false });
+  const t = el('div', 'lb', b.top, k); t.style.cssText = `left:50%;top:50%;transform:translate(-50%,-50%);font-size:12px;letter-spacing:0;${k === 'IN' ? 'color:#fff' : ''}`;
+  const sx = -360 + i * 240 - 58 + (j % 3) * 58, sy = -40 - 24 + Math.floor(j / 3) * 46;
+  const ex = -360 + dst * 240 - 58 + (slot % 3) * 58, ey = 300 - 22 + Math.floor(slot / 3) * 44;
+  gsap.set(b, { x: sx - 26, y: sy - 18, z: 118 });
+  tl.to(b, { keyframes: [{ z: 300, duration: .35, ease: 'power2.out' }, { x: ex - 26, y: ey - 18, duration: .6, ease: 'power2.inOut' }, { z: 34, duration: .35, ease: 'bounce.out' }] }, 25.6 + j * .25 + i * .12);
 }
-tl.from(c, { rotationZ: -6, duration: 4, ease: 'none', immediateRender: false }, 25);
+tl.to(trays[0].top, { boxShadow: '0 0 0 6px rgba(31,63,143,.35)', duration: .5 }, 28.4);
 
-// 32-46 one record through the six steps of a shuffle
-function shuffleSet(s, right) {
-  const c = world(s, 'rotateX(56deg) rotateZ(-10deg)'); c.style.top = '640px';
-  box(c, { x: -330, y: 60, w: 200, d: 140, h: 120, label: 'EXECUTOR 2', lines: true });
-  box(c, { x: 330, y: -40, w: 200, d: 140, h: 120, label: right || 'EXECUTOR 4', lines: true });
+// 32-46 one record through the six steps
+function rig(s, right) {
+  const c = world(s, 'rotateX(54deg) rotateZ(-8deg)', 540, 720);
+  executor(c, -330, 40, 2);
+  executor(c, 330, -60, 4, { label: right || 'EXECUTOR 4' });
+  disk(c, 0, 230);
+  o(s, 'cap center', 'top:1040px;font-size:16px', 'DISK');
   return c;
 }
-s = scene(32, 33); c = shuffleSet(s);
-pop(32, o(s, 'card', 'left:270px;top:140px;width:460px;font-size:28px;line-height:1.6',
+s = scene(32, 33.2); c = rig(s);
+pop(32, o(s, 'card', 'left:300px;top:180px;width:480px;font-size:27px;line-height:1.7',
   '<div class="cap" style="font-size:14px">ORDER RECORD</div>order_id&nbsp; 48213907<br>country&nbsp;&nbsp; IN<br>amount&nbsp;&nbsp;&nbsp; ₹1,240'));
+s = scene(33.2, 34.2); c = rig(s); stepHead(s, 1, 'serialize', 33.2); costCard(s, 1, 33.3);
+const b1 = o(s, 'bits', 'left:0;top:500px', '01001001 01001110 00110100 00111000'); from(33.5, b1, { x: -400, duration: .7 });
+s = scene(34.2, 36.2); c = rig(s); stepHead(s, 2, 'write to disk', 34.2); costCard(s, 2, 34.3);
+const b2 = o(s, 'bits', 'left:0;top:500px', '001 01001110 00110100 00111000');
+tl.to(b2, { x: 440, y: 380, scale: .3, autoAlpha: 0, duration: 1, ease: 'power2.in' }, 34.8);
+s = scene(36.2, 41.2); c = rig(s); stepHead(s, 3, 'send over network', 36.2); costCard(s, 3, 36.3);
+o(s, 'cap', 'left:470px;top:318px;font-size:17px', 'NETWORK'); netArc(s, 36.5, 230, 640, 860, 560);
+const b3 = o(s, 'bits', 'right:0;top:470px;font-size:16px;padding:9px 14px', '01001001 01001110 00110100 00111000'); from(37.4, b3, { x: 300, duration: .7 });
+s = scene(41.2, 43.2); c = rig(s, 'STAGE 2 · EXEC'); stepHead(s, 4, 'fetch', 41.2); costCard(s, 3, null);
+o(s, 'cap', 'left:470px;top:318px;font-size:17px', 'NETWORK'); netArc(s, null, 230, 640, 860, 560);
+o(s, 'bits', 'right:0;top:470px;font-size:16px;padding:9px 14px', '01001001 01001110 00110100 00111000');
+s = scene(43.2, 44.2); c = rig(s, 'STAGE 2 · EXEC'); stepHead(s, 5, 'deserialize', 43.2); costCard(s, 4, 43.3);
+s = scene(44.2, 46.2); c = rig(s, 'STAGE 2 · EXEC'); stepHead(s, 6, 'aggregate', 44.2); costCard(s, 4, null);
+const agg = o(s, 'card mid', 'left:330px;top:400px;font-size:58px;padding:18px 40px'); pop(44.4, agg); count(agg, 0, 2003311, 44.5, 1.2);
 
-s = scene(33, 34); c = shuffleSet(s); stepHead(s, 1, 'serialize', 33); costCard(s, 1, 33.1); bits(s, 33.3, 'left:60px;top:430px'); disk(c, 0, 160, 33.4);
-
-s = scene(34, 36); c = shuffleSet(s); stepHead(s, 2, 'write to disk', 34); costCard(s, 2, 34.1); disk(c, 0, 160, null);
-const rec = box(c, { x: -330, y: 60, w: 120, d: 80, h: 10, cls: 'white', led: false }); gsap.set(rec, { z: 120 });
-tl.to(rec, { keyframes: [{ z: 300, duration: .4 }, { x: -60, y: 120, duration: .6, ease: 'power2.inOut' }, { z: 56, duration: .4, ease: 'bounce.out' }] }, 34.4);
-
-s = scene(36, 41); c = shuffleSet(s); stepHead(s, 3, 'send over network', 36); costCard(s, 3, 36.1); disk(c, 0, 160, null);
-arcSvg(s, 36.4); bits(s, 37.4); pop(38.2, o(s, 'chip r', 'left:410px;top:470px', '● network I/O'));
-
-s = scene(41, 43); c = shuffleSet(s, 'STAGE 2 · EXEC'); stepHead(s, 4, 'fetch', 41); costCard(s, 3, null); disk(c, 0, 160, null); arcSvg(s, null); bits(s, null);
-s = scene(43, 44); c = shuffleSet(s, 'STAGE 2 · EXEC'); stepHead(s, 5, 'deserialize', 43); costCard(s, 4, 43.1); disk(c, 0, 160, null); arcSvg(s, null);
-s = scene(44, 46); c = shuffleSet(s, 'STAGE 2 · EXEC'); stepHead(s, 6, 'aggregate', 44); costCard(s, 4, null); disk(c, 0, 160, null);
-const agg = o(s, 'card mid', 'left:330px;top:380px;font-size:60px;padding:20px 40px'); pop(44.3, agg); count(agg, 0, 2003311, 44.4, 1.2);
-
-// 46-54 shuffle overhead: stage 2 waits for data
-s = scene(46, 54);
-up(46, o(s, 'h center', 'top:130px', 'shuffle <span class="r">overhead</span>'));
-c = world(s, 'rotateX(56deg) rotateZ(-8deg)'); c.style.top = '330px';
-box(c, { x: -390, y: 0, w: 150, d: 110, h: 90, label: 'STAGE 1' });
-box(c, { x: 390, y: 0, w: 150, d: 110, h: 90, label: 'STAGE 2' });
-['serialize', 'disk I/O', 'network', 'deser.'].forEach((t, i) => drop(46.3 + i * .3, box(c, { x: -170 + i * 115, y: 0, w: 95, d: 90, h: 60 + i * 22, cls: 'red', label: t, led: false })));
-[1, 2, 3].forEach(i => {
-  const y = 470 + i * 150, w0 = 58 - i * 7, t = 49 + i * .3;
-  up(t, o(s, 'cap', `left:40px;top:${y - 34}px;font-size:16px`, 'STAGE 2 · TASK ' + i));
-  const p = o(s, 'prog', `left:40px;right:40px;top:${y}px`, `<div class="w" style="width:${w0}%"></div><span>waiting for data…</span><div class="d" style="left:${w0}%;width:${10 + i * 3}%"></div>`);
-  up(t, p); from(t, p.querySelector('.w'), { scaleX: 0, duration: 2, ease: 'none' }); from(52 + i * .4, p.querySelector('.d'), { scaleX: 0, duration: .9 });
+// 46-56 shuffle overhead: the cost blocks pile up on the belt, stage 2 waits
+s = scene(46, 56);
+const oh = o(s, 'h center', 'top:150px;font-size:50px', 'shuffle <span class="r">overhead</span>'); up(46, oh);
+c = world(s, 'rotateX(54deg) rotateZ(-6deg)', 540, 560);
+executor(c, -380, 0, 1, { label: 'STAGE 1' }); executor(c, 380, -20, 2, { label: 'STAGE 2' });
+const belt = box(c, { x: 0, y: -10, w: 520, d: 90, h: 10, cls: 'tray', shadow: true });
+belt.top.style.background = 'repeating-linear-gradient(90deg,#d6cfbd 0 14px,#c4bca7 14px 18px)';
+['serialize', 'disk I/O', 'network', 'deser.'].forEach((t, i) => {
+  const b = box(c, { x: -190 + i * 125, y: -10, w: 100, d: 80, h: 70 + i * 6, cls: 'red', label: t, shadow: false });
+  b.face.querySelector('.lb').style.cssText += ';font-size:11px;top:auto;bottom:8px;left:8px;letter-spacing:.02em';
+  gsap.set(b, { z: 10 });
+  drop(46.3 + i * .35, b, { z: 420, ease: 'bounce.out', duration: .9 });
 });
-const hg = icon(s, 'hourglass', 'right:50px;top:420px;width:54px;height:72px'); pop(50, hg);
-tl.to(hg, { rotation: 180, duration: .8, ease: 'power2.inOut', repeat: 3, repeatDelay: .6 }, 50.6);
+// zoom out: the belt shrinks to the top, the waiting tasks appear underneath
+tl.to(c, { scale: .55, y: -225, duration: 1, ease: 'power2.inOut' }, 48.6);
+tl.to(oh, { y: -12, scale: .72, duration: 1, ease: 'power2.inOut' }, 48.6);
+[1, 2, 3, 4].forEach(i => {
+  const y = 470 + (i - 1) * 135, w0 = 54 - i * 8, t = 49.2 + i * .25;
+  up(t, o(s, 'cap', `left:150px;top:${y - 32}px;font-size:15px`, 'STAGE 2 · TASK ' + i));
+  const p = o(s, 'prog', `left:150px;right:150px;top:${y}px`, `<div class="w" style="width:${w0}%"></div><span>waiting for data…</span><div class="d" style="left:${w0}%;width:${12 + i * 2}%"></div>`);
+  up(t, p); from(t, p.querySelector('.w'), { scaleX: 0, duration: 2.4, ease: 'none' }); from(52.4 + i * .4, p.querySelector('.d'), { scaleX: 0, duration: 1 });
+});
+const hg = icon(s, 'hourglass', 'right:70px;top:420px;width:50px;height:66px'); pop(50, hg);
+tl.to(hg, { rotation: 180, duration: .8, ease: 'power2.inOut', repeat: 4, repeatDelay: .6 }, 50.6);
 
-// 56-63 less data flows through the pipe; more executors share it
-function pipe(s, top, h, t) {
-  const p = o(s, '', `left:20px;top:${top}px;width:1040px;height:${h}px`,
-    `<svg viewBox="0 0 1040 ${h}" width="100%" height="100%"><defs><linearGradient id="pg${top}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f1e8"/><stop offset="1" stop-color="#d9d3c3"/></linearGradient></defs>
-     <path d="M0 4 H310 C400 4 420 ${h * .38} 480 ${h * .38} H560 C620 ${h * .38} 640 4 730 4 H1036 V${h - 4} H730 C640 ${h - 4} 620 ${h * .62} 560 ${h * .62} H480 C420 ${h * .62} 400 ${h - 4} 310 ${h - 4} H0 Z" fill="url(#pg${top})" stroke="#1d1b17" stroke-width="3.5"/></svg>`);
-  if (t != null) up(t, p);
-  return p;
+// 56-63 less data flows through the narrow pipe
+function pipe(s, top, h) {
+  return o(s, '', `left:110px;top:${top}px;width:860px;height:${h}px`,
+    `<svg viewBox="0 0 860 ${h}" width="100%" height="100%" style="overflow:visible"><defs><linearGradient id="pg${top}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6f3eb"/><stop offset=".55" stop-color="#e6e1d4"/><stop offset="1" stop-color="#cfc8b6"/></linearGradient></defs>
+     <path d="M2 2 H220 C330 2 340 ${h * .4} 420 ${h * .4} H460 C540 ${h * .4} 560 2 858 2 V${h - 2} H560 C540 ${h - 2} 540 ${h * .6} 460 ${h * .6} H420 C340 ${h * .6} 330 ${h - 2} 220 ${h - 2} H2 Z" fill="url(#pg${top})" stroke="#1d1b17" stroke-width="4"/></svg>`);
 }
 s = scene(56, 63);
-pipe(s, 230, 260, 56);
-for (let i = 0; i < 10; i++) {
-  const b = o(s, '', `left:${50 + (i % 5) * 48}px;top:${268 + Math.floor(i / 5) * 34}px;width:40px;height:26px;border:2px solid ${i % 3 ? 'var(--edge)' : 'var(--blue)'};background:${i % 3 ? '#fff' : 'var(--blue)'};box-shadow:0 4px 0 #bdb6a5`);
-  pop(56.2 + i * .07, b);
-  tl.to(b, { x: 780, y: 20, duration: 2, ease: 'power2.inOut' }, 59);
+const p1 = pipe(s, 470, 170); up(56, p1);
+const cells = [];
+for (let i = 0; i < 24; i++) {
+  const blue = [0, 5, 9, 14, 20, 22].includes(i);
+  const b = o(s, '', `left:${140 + (i % 6) * 36}px;top:${496 + Math.floor(i / 6) * 30}px;width:30px;height:22px;border:2px solid ${blue ? '#0e1f48' : '#555'};background:${blue ? 'var(--blue)' : '#fff'}`);
+  pop(56.3 + i * .03, b); cells.push(b);
 }
-up(58.5, o(s, 'h g', 'left:40px;top:160px', '– less data'));
-const ok = o(s, 'chip g', 'right:40px;top:170px', ''); ok.innerHTML = `<span class="icon" style="display:inline-block;width:20px;height:20px;vertical-align:-3px">${ICONS.check || ''}</span> flows`; pop(59.5, ok);
-up(60.5, o(s, 'h r', 'left:40px;top:560px', '+ more executors'));
-pipe(s, 640, 220, 60.5);
-for (let i = 0; i < 20; i++) pop(61 + i * .03, o(s, '', `left:${50 + (i % 10) * 44}px;top:${672 + Math.floor(i / 10) * 32}px;width:36px;height:24px;border:2px solid ${i % 2 ? 'var(--blue)' : 'var(--edge)'};background:${i % 2 ? 'var(--blue)' : '#fff'}`));
+up(58.2, o(s, 'h g', 'left:120px;top:412px;font-size:34px', '– less data'));
+const flows = o(s, 'chip g', 'right:130px;top:416px;font-size:18px', ''); flows.innerHTML = `<span class="icon" style="display:inline-block;width:18px;height:18px;vertical-align:-2px">${ICONS.check || ''}</span> flows`; pop(59.2, flows);
+cells.forEach((b, i) => { if (i % 4 === 0) tl.to(b, { autoAlpha: 0, duration: .3 }, 58.2 + i * .02); else tl.to(b, { x: 560 - (i % 6) * 20, y: (Math.floor(i / 6) - 1.5) * -6, duration: 2.2, ease: 'power2.inOut' }, 59 + (i % 6) * .05); });
+up(61, o(s, 'h r', 'left:120px;top:700px;font-size:34px', '+ more executors'));
+const p2 = pipe(s, 760, 150); up(61, p2);
+for (let i = 0; i < 16; i++) pop(61.3 + i * .04, o(s, '', `left:${140 + (i % 8) * 34}px;top:${788 + Math.floor(i / 8) * 28}px;width:28px;height:20px;border:2px solid #555;background:${i % 3 ? '#fff' : 'var(--blue)'}`));
 
-// 63-67 filter rows + columns on a table lying on the floor
+// 63-67 filter rows + columns before the shuffle
 s = scene(63, 67);
-up(63.5, o(s, 'h', 'left:40px;top:150px', 'filter')); up(64.2, o(s, 'h g', 'left:230px;top:150px', 'rows')); up(65, o(s, 'h', 'left:380px;top:150px', '+ columns'));
-c = world(s, 'rotateX(58deg) rotateZ(-30deg)'); c.style.top = '640px';
-for (let r = 0; r < 6; r++) for (let q = 0; q < 6; q++) {
-  const cut = r % 2 === 1 || q > 3;
-  const b = box(c, { x: (q - 2.5) * 110, y: (r - 2.5) * 62, w: 104, d: 56, h: 8, led: false, shadow: false });
-  drop(63 + (r * 6 + q) * .015, b, { z: 120, duration: .5 });
-  if (cut) tl.to(b, { z: -6, opacity: .25, duration: .6, ease: E }, q > 3 ? 65.2 : 64.4);
-}
+up(63, o(s, 'cap', 'left:62px;top:148px', 'BEFORE THE SHUFFLE'));
+up(63.2, o(s, 'h', 'left:62px;top:178px', 'filter <span class="g">rows</span> <span style="opacity:.7">+</span> <span class="g">columns</span>'));
+c = world(s, 'rotateX(56deg) rotateZ(-18deg)', 470, 720);
+const cols = ['order_id', 'country', 'amount', 'item', 'ts', 'notes'];
+for (let r = 0; r < 7; r++) cols.forEach((name, q) => {
+  const b = box(c, { x: (q - 2.5) * 104, y: (r - 3) * 50, w: 98, d: 44, h: 6, cls: 'slab', shadow: r === 0 && q === 0 });
+  if (r === 0) { b.top.style.background = '#e3e8f5'; const t = el('div', 'lb', b.top, name); t.style.cssText = 'left:8px;top:12px;font-size:12px;color:var(--blue);letter-spacing:0'; }
+  else { const t = el('div', '', b.top); t.style.cssText = 'position:absolute;left:8px;right:20px;top:18px;height:4px;background:#cfc8b6'; }
+  drop(63.1 + (r * 6 + q) * .012, b, { z: 120, duration: .5 });
+  if (q > 2 || (r > 0 && r % 2 === 0)) tl.to(b, { z: -4, autoAlpha: .12, duration: .6, ease: E }, q > 2 ? 65.3 : 64.4);
+});
+tl.to(c, { x: -40, duration: 1, ease: 'power2.inOut' }, 65.6);
+const sh1 = o(s, 'card', 'right:120px;top:640px;width:170px;height:150px;text-align:center;padding:26px 0 0'); sh1.innerHTML = `<div class="icon" style="width:66px;height:56px;margin:0 auto 12px">${ICONS.shuffle || ''}</div><div class="cap" style="font-size:13px">SHUFFLE</div>`;
+pop(65.8, sh1);
 
 // 67-70 avoid unnecessary shuffles
 s = scene(67, 70);
-up(67, o(s, 'cap', 'left:40px;top:126px', 'AND'));
-up(67.1, o(s, 'h r', 'left:40px;top:160px', 'avoid unnecessary shuffles'));
-const xs = o(s, 'card', 'left:290px;top:290px;width:500px;height:330px;text-align:center;overflow:hidden');
-xs.innerHTML = `<div class="icon" style="width:170px;height:140px;margin:40px auto 10px">${ICONS.shuffle || ''}</div><div class="h" style="font-size:34px">extra shuffle</div>
-  <i style="position:absolute;left:-40px;right:-40px;top:50%;height:9px;background:var(--red);transform:rotate(-30deg);transform-origin:center"></i>`;
+up(67, o(s, 'cap', 'left:62px;top:148px', 'AND'));
+up(67.1, o(s, 'h r', 'left:62px;top:178px', 'avoid unnecessary shuffles'));
+const xs = o(s, 'card', 'left:310px;top:380px;width:460px;height:320px;text-align:center;overflow:hidden;padding-top:56px');
+xs.innerHTML = `<div class="icon" style="width:150px;height:126px;margin:0 auto 18px">${ICONS.shuffle || ''}</div><div class="h" style="font-size:32px">extra shuffle</div>
+  <i style="position:absolute;left:-50px;right:-50px;top:50%;height:9px;background:var(--red);transform:rotate(-34deg)"></i>`;
 pop(67.5, xs); from(68.3, xs.querySelector('i'), { scaleX: 0, duration: .5 });
+up(68.9, o(s, 'cap center g', 'top:760px;font-size:17px', '✓ less data moved · faster job'));
 
-// 70-75 a powerful trick… boxes fall into place
-s = scene(70, 75);
-up(70, o(s, 'h', 'left:40px;top:150px', 'a powerful trick…'));
-c = world(s, 'rotateX(56deg) rotateZ(-20deg)'); c.style.top = '620px';
-[[-360, -120], [-110, -200], [150, -230], [380, -110], [-260, 160], [20, 90], [300, 190]].forEach(([x, y], i) => {
-  const b = box(c, { x, y, w: 150, d: 100, h: 70, led: false, lines: true });
-  drop(70.3 + i * .12, b);
+// 70-78 a powerful trick: a small lookup table copied to every executor
+s = scene(70, 78);
+up(70, o(s, 'cap', 'left:62px;top:148px', 'LESS DATA MOVEMENT'));
+up(70.1, o(s, 'h', 'left:62px;top:178px', 'a powerful trick…'));
+c = world(s, 'rotateX(55deg) rotateZ(-20deg)', 520, 680);
+const spots = [[-260, 60], [60, -200], [320, 90], [-60, 300]];
+const ex4 = spots.map(([x, y], i) => { const b = executor(c, x, y, i + 1, { label: 'EXEC ' + (i + 1), box: { w: 170, d: 120, h: 104 } }); drop(70.4 + i * .12, b); return b; });
+const lut = box(c, { x: 40, y: 80, w: 150, d: 76, h: 14, cls: 'slab' });
+const lt = el('div', 'lb', lut.top, 'countries<br><span style="font-weight:400;color:var(--muted)">200 rows</span>'); lt.style.cssText = 'left:12px;top:10px;font-size:12px;letter-spacing:0;line-height:1.3';
+drop(71.4, lut);
+spots.forEach((tx, i) => {   // copies of the small table fly onto each executor
+  const cp = box(c, { x: 40, y: 80, w: 90, d: 46, h: 10, cls: 'slab', shadow: false }); gsap.set(cp, { z: 14, autoAlpha: 0 });
+  tl.to(cp, { keyframes: [{ autoAlpha: 1, z: 200, duration: .3 }, { x: tx[0] - 45, y: tx[1] - 23, duration: .7, ease: 'power2.inOut' }, { z: 104, duration: .3, ease: 'bounce.out' }] }, 72.8 + i * .3);
 });
-tl.from(c, { rotationZ: -40, duration: 4.7, ease: 'power1.inOut', immediateRender: false }, 70.3);
+tl.from(c, { rotationZ: -40, duration: 7.5, ease: 'power1.inOut', immediateRender: false }, 70.3);
 
 // 78-end title card
 s = scene(78, DUR + 1);
-up(78, o(s, 'cap center', 'top:300px', 'DATA / 03'));
-up(78.2, o(s, 'h center', 'top:350px;font-size:76px', 'Spark Performance'));
-up(78.5, o(s, 'center', 'top:460px;font:400 30px Inter,system-ui,sans-serif;color:var(--muted)', 'Episode 3 · Shuffling'));
-const pills = o(s, 'center', 'top:540px', KEYS.map((k, i) => `<span class="chip" style="margin:0 12px;width:100px;${i ? '' : 'background:var(--blue);color:#fff;border-color:var(--blue)'}">${k}</span>`).join(''));
+up(78, o(s, 'cap center', 'top:360px;letter-spacing:.3em', 'DATA / 03'));
+up(78.2, o(s, 'h center', 'top:410px;font-size:68px', 'Spark Performance'));
+up(78.5, o(s, 'center', 'top:510px;font:400 30px Inter,system-ui,sans-serif;color:var(--muted)', 'Episode 3 · Shuffling'));
+const pills = o(s, 'center', 'top:610px', KEYS.map((k, i) => `<span class="pill" style="${i ? '' : 'background:var(--blue);color:#fff;border-color:var(--blue)'}">${k}</span>`).join(''));
 up(78.8, pills.children, { stagger: .08 });
-up(79.3, o(s, 'h center', 'top:880px', 'BinaryHabit<span style="color:var(--amber)">.</span>'));
+up(79.3, o(s, 'h center', 'top:880px;font-size:44px', 'BinaryHabit<span style="color:var(--amber)">.</span>'));
 
-// progress rule under the breadcrumb
 tl.fromTo('#prog', { width: '0%' }, { width: '100%', duration: DUR, ease: 'none' }, 0);
 tl.set({}, {}, DUR);
 
-// ---------- player: the footage is the clock ----------
+// ---------- player: the narration track is the clock ----------
 const v = document.getElementById('v'), seek = document.getElementById('seek'), stage = document.getElementById('stage');
-let showOrig = false;
 function fit() { panel.style.transform = `scale(${stage.clientWidth / 1080})`; }
 addEventListener('resize', fit); fit();
 function frame() {
   const t = v.currentTime;
   tl.time(Math.min(t, DUR));
-  panel.classList.toggle('hide', showOrig || FACE.some(([a, b]) => t >= a && t < b));
   seek.value = t; document.getElementById('clock').textContent = t.toFixed(1) + 's';
   requestAnimationFrame(frame);
 }
@@ -405,7 +406,7 @@ const playBtn = document.getElementById('play');
 playBtn.onclick = () => v.paused ? v.play() : v.pause();
 v.onplay = () => playBtn.textContent = '❚❚ Pause';
 v.onpause = () => playBtn.textContent = '▶ Play';
-document.getElementById('orig').onclick = e => { showOrig = !showOrig; e.target.textContent = showOrig ? 'Show HTML graphics' : 'Show original graphics'; };
+document.getElementById('mute').onclick = e => { v.muted = !v.muted; e.target.textContent = v.muted ? 'Unmute voice' : 'Mute voice'; };
 </script>
 </body>
 </html>
