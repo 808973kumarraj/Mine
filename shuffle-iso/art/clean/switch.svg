@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="175" height="139" viewBox="0 0 175 139">
+  <title>switch.svg</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <path d="M14 70 L109.1 124.9 L109.1 99 L14 44 Z" fill="#3d3932" stroke="#2b2721" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M161 95 L109.1 124.9 L109.1 99 L161 69 Z" fill="#25221e" stroke="#2b2721" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M65.9 14.1 L161 69 L109.1 99 L14 44 Z" fill="#2f2c27" stroke="#2b2721" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M22.6 67 L29.6 71 L29.6 63 L22.6 59 Z" fill="#6fd19c" stroke="#111111" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M33 73 L39.9 77 L39.9 69 L33 65 Z" fill="#d8c98f" stroke="#111111" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M43.4 79 L50.3 83 L50.3 75 L43.4 71 Z" fill="#d8c98f" stroke="#111111" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M53.8 85 L60.7 89 L60.7 81 L53.8 77 Z" fill="#6fd19c" stroke="#111111" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M64.1 91 L71.1 95 L71.1 87 L64.1 83 Z" fill="#d8c98f" stroke="#111111" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M74.5 97 L81.4 101 L81.4 93 L74.5 89 Z" fill="#d8c98f" stroke="#111111" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M84.9 103 L91.8 107 L91.8 99 L84.9 95 Z" fill="#6fd19c" stroke="#111111" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M95.3 109 L102.2 112.9 L102.2 105 L95.3 101 Z" fill="#d8c98f" stroke="#111111" stroke-width="1" stroke-linejoin="round"/>
+  </g>
+</svg>

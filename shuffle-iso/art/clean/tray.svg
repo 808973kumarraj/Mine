@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="224" height="163" viewBox="0 0 224 163">
+  <title>tray.svg</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <path d="M14.1 84 L126.7 149 L126.7 127 L14.1 62 Z" fill="#e7e0cf" stroke="#2b2721" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M209.9 101 L126.7 149 L126.7 127 L209.9 79 Z" fill="#cbc2ab" stroke="#2b2721" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M97.3 14 L209.9 79 L126.7 127 L14.1 62 Z" fill="#d9d1bd" stroke="#2b2721" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M97.3 24 L192.5 79 L126.7 117 L31.5 62 Z" fill="#c4bba4" stroke="#2b2721" stroke-width="1.6" stroke-linejoin="round"/>
+  </g>
+</svg>

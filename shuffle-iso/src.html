@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spark Shuffle, Isometric</title>
+<!--FONTS-->
+<style>
+/* 2.5D isometric explainer of the Spark shuffle, made with the six ArtCraft creator apps:
+   VectorCraft (isometric sprites), PhotoCraft + LightCraft (paper texture and grade),
+   EffectCraft (end card, Lottie), SoundCraft (music bed), FilmCraft (voice + music mix).
+   build.py inlines everything into one file. */
+:root{
+  --paper:#ece6d6; --ink:#2b2721; --muted:#8a8270; --rule:#cfc6b0; --grid:rgba(120,106,80,.13);
+  --blue:#2a4c9c; --red:#b8432f; --green:#2f6b55; --dark:#24211c; --amber:#c8782f; --card:#f8f5ee;
+}
+*{box-sizing:border-box;margin:0}
+body{background:#151412;color:#fff;font:13px system-ui,sans-serif;min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px}
+.stage{position:relative;width:min(560px,100%,calc((100vh - 110px)*1080/1100));aspect-ratio:1080/1100;overflow:hidden;border-radius:14px;background:var(--paper)}
+#panel{position:absolute;left:0;top:0;width:1080px;height:1100px;transform-origin:0 0;overflow:hidden;
+  background:var(--paper) url(PAPER_SRC) center/cover;color:var(--ink);font-family:"JetBrains Mono",monospace}
+/* isometric floor grid: two families of lines at +-30 degrees */
+#panel::before{content:"";position:absolute;inset:-200px;
+  background:repeating-linear-gradient(30deg,transparent 0 31px,var(--grid) 31px 32.5px),
+             repeating-linear-gradient(150deg,transparent 0 31px,var(--grid) 31px 32.5px)}
+.crumb{position:absolute;left:58px;right:58px;top:64px;font-size:22px;letter-spacing:.3em;color:#4a453b;font-weight:700;
+  padding-bottom:14px;border-bottom:2px solid var(--rule);z-index:900;white-space:nowrap}
+.crumb i{position:absolute;left:0;bottom:-2px;height:4px;background:var(--blue);width:0}
+.crumb b{display:inline-block;width:12px;height:22px;background:var(--amber);vertical-align:-3px;margin-left:6px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.sc{position:absolute;inset:0;visibility:hidden}
+.world{position:absolute;left:0;top:0;width:1080px;height:1100px;transform-origin:540px 640px}
+.spr{position:absolute;left:0;top:0;will-change:transform}
+.spr svg{display:block}
+.spr .lbl{position:absolute;font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--ink);white-space:nowrap;
+  background:var(--card);border:2px solid var(--ink);border-radius:4px;padding:3px 8px;transform:translate(-50%,0)}
+.shadow{position:absolute;border-radius:50%;background:radial-gradient(closest-side,rgba(50,40,25,.32),transparent);pointer-events:none}
+.o{position:absolute;z-index:800}
+.center{left:0;right:0;text-align:center}
+.big{font-weight:800;font-size:132px;line-height:1;letter-spacing:-.02em}
+.mid{font-weight:800;font-size:88px;line-height:1}
+.cap{font-size:18px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase}
+.h{font-weight:800;font-size:44px}
+.r{color:var(--red)}.g{color:var(--green)}
+.term{background:var(--dark);color:#eee;font-size:30px;padding:22px 28px;border-radius:6px;box-shadow:0 18px 32px rgba(0,0,0,.28);white-space:nowrap}
+.term .k{color:#b9c6ff}.term .p{color:#888}
+.cur{display:inline-block;width:15px;height:30px;background:var(--amber);vertical-align:-5px;animation:blink 1s steps(1) infinite}
+.card{background:var(--card);border:2.5px solid var(--ink);border-radius:10px;box-shadow:8px 10px 0 rgba(43,39,33,.14);padding:22px}
+.chip{display:inline-block;border:2.5px solid currentColor;border-radius:999px;padding:6px 18px;font-size:19px;font-weight:800;background:var(--card)}
+.prog{height:50px;border:2.5px solid var(--ink);background:var(--card);border-radius:6px;overflow:hidden}
+.prog .w{position:absolute;inset:0 auto 0 0;background:repeating-linear-gradient(45deg,#ddd5c2 0 8px,#eee9dc 8px 16px);transform-origin:left}
+.prog .d{position:absolute;top:0;bottom:0;background:var(--green);transform-origin:left}
+.prog span{position:relative;font-size:18px;color:var(--muted);line-height:45px;padding-left:14px}
+.bits{background:var(--dark);color:#e8e2d0;font-size:18px;padding:10px 16px;white-space:nowrap;border-radius:4px;box-shadow:0 10px 20px rgba(0,0,0,.25)}
+.icon svg{width:100%;height:100%;display:block}
+#lottie{position:absolute;inset:0;z-index:850}
+.ctrl{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;color:#aaa}
+button{background:#262421;color:#fff;border:1px solid #444;border-radius:99px;padding:7px 14px;font-weight:600;cursor:pointer}
+input[type=range]{width:min(560px,90vw)}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div id="panel">
+    <div class="crumb">&gt; BINARY HABIT / SPARK PERF / 03<b></b><i id="prog"></i></div>
+  </div>
+</div>
+<audio id="v" src="AUDIO_SRC" preload="auto"></audio>
+<input type="range" id="seek" min="0" max="80.4" step="0.05" value="0">
+<div class="ctrl">
+  <button id="play">▶ Play</button>
+  <button id="mute">Mute</button>
+  <span id="clock">0.0s</span>
+</div>
+<!--LIBS-->
+<script>
+const ART = /*ART*/{}, ANCHOR = /*ANCHORS*/{}, ICONS = /*ICONS*/{}, ENDCARD = /*ENDCARD*/null;
+const DUR = 80.4, C = Math.cos(Math.PI / 6), S = Math.sin(Math.PI / 6);
+const panel = document.getElementById('panel');
+const tl = gsap.timeline({ paused: true });
+const E = 'power3.out', KEYS = ['in', 'us', 'br', 'de'], KEY = { in: 'IN', us: 'US', br: 'BR', de: 'DE' };
+
+// ---------- isometric engine ----------
+// world (x to the right-back, y to the left-back, z up) -> screen, around the scene origin
+function proj(o, x, y, z) { return [o[0] + (x - y) * C, o[1] + (x + y) * S - z]; }
+function el(tag, cls, parent, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; parent && parent.appendChild(e); return e; }
+function scene(t0, t1) { const s = el('div', 'sc', panel); tl.set(s, { visibility: 'visible' }, t0).set(s, { visibility: 'hidden' }, t1); return s; }
+function world(s, origin = [540, 640]) { const w = el('div', 'world', s); w.origin = origin; return w; }
+// a sprite at world (x, y, z); its p proxy is what tweens move
+function spr(w, name, x, y, z = 0, opt = {}) {
+  const a = ANCHOR[name], e = el('div', 'spr', w, ART[name]);
+  const sp = { el: e, p: { x, y, z }, name, w };
+  if (opt.shadow !== false) { sp.sh = el('div', 'shadow', w); const r = Math.max(a.w * .55, 30); Object.assign(sp.sh.style, { width: r * 1.6 + 'px', height: r * .8 + 'px' }); sp.shr = r; }
+  if (opt.label) { const l = el('div', 'lbl', e, opt.label); l.style.left = a.ax + 'px'; l.style.top = (a.h - 6) + 'px'; }
+  sp.place = () => {
+    const [sx, sy] = proj(w.origin, sp.p.x, sp.p.y, sp.p.z);
+    gsap.set(e, { x: sx - a.ax, y: sy - a.ay, zIndex: Math.round((sp.p.x + sp.p.y) * 2 + sp.p.z * .1 + 2000) });
+    if (sp.sh) { const [fx, fy] = proj(w.origin, sp.p.x, sp.p.y, 0); const k = Math.max(.25, 1 - sp.p.z / 500);
+      gsap.set(sp.sh, { x: fx - sp.shr * .8, y: fy - sp.shr * .4 + 6, scale: k, opacity: k, zIndex: 1 }); }
+  };
+  sp.place();
+  return sp;
+}
+const upd = sp => () => sp.place();
+// sprite tweens on the timeline
+function dropIn(sp, t, h = 320, d = .8) {
+  tl.from(sp.p, { z: sp.p.z + h, duration: d, ease: 'bounce.out', immediateRender: true, onUpdate: upd(sp) }, t);
+  tl.from(sp.el, { autoAlpha: 0, duration: .2, immediateRender: true }, t);
+  if (sp.sh) tl.from(sp.sh, { autoAlpha: 0, duration: .3, immediateRender: true }, t);
+}
+function hop(sp, t, x, y, z, peak = 200, d = 1) {   // jump in an arc to (x, y, z)
+  const st = { k: 0 }, x0 = sp.p.x, y0 = sp.p.y, z0 = sp.p.z;
+  tl.to(st, { k: 1, duration: d, ease: 'power1.inOut', onUpdate: () => {
+    const k = st.k; sp.p.x = x0 + (x - x0) * k; sp.p.y = y0 + (y - y0) * k; sp.p.z = z0 + (z - z0) * k + Math.sin(Math.PI * k) * peak; sp.place();
+  } }, t);
+  sp.p.x = x; sp.p.y = y; sp.p.z = z;            // later tweens start from the landing spot
+}
+function slide(sp, t, x, y, d = 1, ease = 'power2.inOut') { tl.to(sp.p, { x, y, duration: d, ease, onUpdate: upd(sp) }, t); }
+function fadeOut(sp, t, d = .4) { tl.to([sp.el, sp.sh].filter(Boolean), { autoAlpha: 0, duration: d }, t); }
+// dashed iso path on the floor/through the air, drawn on at t
+function arc(w, pts, t, color = 'var(--ink)', d = 1) {
+  const sv = el('div', '', w); sv.style.cssText = 'position:absolute;inset:0;z-index:1500;pointer-events:none';
+  const P = pts.map(q => proj(w.origin, ...q));
+  let dd = `M${P[0][0]} ${P[0][1]}`; for (let i = 1; i < P.length; i++) dd += ` L${P[i][0]} ${P[i][1]}`;
+  if (pts.length === 3) dd = `M${P[0][0]} ${P[0][1]} Q${P[1][0]} ${P[1][1]} ${P[2][0]} ${P[2][1]}`;
+  sv.innerHTML = `<svg width="1080" height="1100" style="overflow:visible"><path d="${dd}" fill="none" stroke="${color}" stroke-width="3.5" stroke-dasharray="10 9" stroke-linecap="round"/></svg>`;
+  if (t != null) tl.fromTo(sv.querySelector('path'), { strokeDashoffset: 1200, opacity: 0 }, { strokeDashoffset: 0, opacity: 1, duration: d, ease: 'power2.inOut', immediateRender: false }, t);
+  return sv;
+}
+// 2D overlay helpers
+function o(s, cls, css, html) { const e = el('div', 'o ' + cls, s, html); if (css) e.style.cssText += css; return e; }
+const from = (t, targets, vars) => tl.from(targets, Object.assign({ duration: .6, ease: E, immediateRender: true }, vars), t);
+const up = (t, e, extra) => from(t, e, Object.assign({ autoAlpha: 0, y: 34 }, extra));
+const pop = (t, e, extra) => from(t, e, Object.assign({ autoAlpha: 0, scale: .6, ease: 'back.out(1.6)' }, extra));
+const fmt = n => Math.round(n).toLocaleString('en-US');
+function count(e, a, b, t, d, f = fmt) { const st = { v: a }; e.textContent = f(a); tl.to(st, { v: b, duration: d, ease: 'power2.out', onUpdate: () => e.textContent = f(st.v) }, t); }
+function type(e, html, t, d) {
+  const plain = html.replace(/<[^>]+>/g, ''), st = { n: 0 };
+  tl.to(st, { n: plain.length, duration: d, ease: 'none', onUpdate: () => { const n = Math.round(st.n); e.innerHTML = n >= plain.length ? html : plain.slice(0, n).replace(/</g, '&lt;'); } }, t);
+}
+function stepHead(s, n, title, t) { up(t, o(s, 'cap', 'left:62px;top:124px', `STEP ${n} / 6`)); up(t + .1, o(s, 'h', 'left:62px;top:152px', title)); }
+function costCard(s, step, t) {
+  const items = ['serialize', 'disk I/O', 'network I/O', 'deserialize'];
+  const c = o(s, 'card', 'right:58px;top:124px;width:240px;font-size:18px;line-height:1.75;padding:14px 18px',
+    `<div class="cap" style="font-size:12px">SHUFFLE COST</div>
+     <div style="height:12px;border:2px solid var(--ink);margin:6px 0 8px;position:relative;border-radius:3px;overflow:hidden"><i class="cb" style="position:absolute;inset:0;width:${step * 25}%;background:var(--red);transform-origin:left"></i></div>` +
+    items.map((x, i) => `<div style="opacity:${i < step ? 1 : .3}"><span style="display:inline-block;width:16px;height:16px;margin-right:12px;vertical-align:-2px;border:2px solid var(--ink);border-radius:3px;background:${i < step ? 'var(--red)' : 'none'}"></span>${x}</div>`).join(''));
+  if (t != null) { pop(t, c); tl.from(c.querySelector('.cb'), { scaleX: (step - 1) / step, duration: .7, ease: E, immediateRender: true }, t + .25); }
+}
+
+// ================= SCENES =================
+let s, w;
+const row4 = i => -270 + i * 180;          // four executors along the x axis
+
+// 0-8  a cluster of 100 executors; groupBy heats it up and the job slows down
+s = scene(0, 8); w = world(s, [540, 560]);
+const n1 = o(s, 'big center', 'top:120px'); count(n1, 24, 100, 0, 2.2);
+const c1 = o(s, 'cap center', 'top:262px', 'SPARK EXECUTORS');
+const nodes = [], hot = [];
+for (let r = 0; r < 10; r++) for (let q = 0; q < 10; q++) {
+  const x = (q - 4.5) * 46, y = (r - 4.5) * 46, sp = spr(w, 'node', x, y, 0, { shadow: false });
+  const hs = spr(w, 'node-hot', x, y, 0, { shadow: false }); gsap.set(hs.el, { autoAlpha: 0 });
+  dropIn(sp, .2 + Math.hypot(q - 4.5, r - 4.5) * .12, 260, .6); nodes.push(sp); hot.push(hs);
+}
+tl.to([n1, c1], { autoAlpha: 0, y: -30, duration: .5 }, 4.2);
+tl.to(w, { y: 90, duration: 1, ease: 'power2.inOut' }, 4.2);
+tl.to(hot.map(h => h.el), { autoAlpha: 1, duration: .2, stagger: { each: .012, from: 'random' } }, 4.6);
+const job = o(s, 'card', 'left:222px;top:130px;width:636px;padding:24px 30px',
+  `<div class="cap" style="font-size:15px">SPARK JOB · STAGE 2 OF 3</div>
+   <div style="display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:38px;margin:14px 0 16px">groupBy · count <span class="g" style="font-size:42px">00:<span id="jt">04</span></span></div>
+   <div class="prog" style="height:32px;position:relative"><div class="d" style="left:0;width:60%;background:repeating-linear-gradient(45deg,#2f6b55 0 10px,#3f7f67 10px 20px)"></div></div>
+   <div style="display:flex;justify-content:space-between;font-size:15px;color:var(--green);margin-top:10px"><span>running…</span><span id="jp">0%</span></div>`);
+pop(4.6, job);
+count(job.querySelector('#jt'), 4, 27, 4.8, 3, n => String(Math.round(n)).padStart(2, '0'));
+count(job.querySelector('#jp'), 0, 60, 4.8, 3, n => Math.round(n) + '%');
+from(4.8, job.querySelector('.d'), { scaleX: 0, duration: 3, ease: 'power1.out' });
+pop(6.3, o(s, 'chip r', 'left:404px;top:1000px', '● SLOWING DOWN'));
+
+// 8-14  one billion orders rain into four executors
+s = scene(8, 14); w = world(s, [540, 560]);
+const n2 = o(s, 'mid center', 'top:140px'); count(n2, 985661228, 1e9, 8, 1.6);
+o(s, 'cap center', 'top:240px', 'ORDERS');
+for (let i = 0; i < 4; i++) {
+  const sv = spr(w, 'server', row4(i), 0, 0, { label: 'EXECUTOR ' + (i + 1) }); dropIn(sv, 9.2 + i * .12);
+  for (let k = 0; k < 6; k++) { const c = spr(w, 'cube-us', row4(i) - 30 + (k % 3) * 30, -20 + Math.floor(k / 3) * 36, 96, { shadow: false }); dropIn(c, 10.2 + i * .2 + k * .08, 360, .6); }
+}
+up(11.4, o(s, 'cap center', 'top:930px;text-transform:none;letter-spacing:.05em', '+ 96 more executors'));
+
+// 14-20 the line of code; the cubes take on their key's colour
+s = scene(14, 20); w = world(s, [540, 600]);
+const term = o(s, 'term', 'left:58px;right:58px;top:130px'); term.innerHTML = '<span class="p">&gt;&gt;&gt; </span><span class="tx"></span><span class="cur"></span>';
+type(term.querySelector('.tx'), 'df.<span class="k">groupBy</span>("country").<span class="k">count</span>()', 14.5, 3.4);
+const keyOf = (i, k) => KEYS[(i + k) % 4];
+for (let i = 0; i < 4; i++) {
+  spr(w, 'server', row4(i), 0, 0, { label: 'EXECUTOR ' + (i + 1) });
+  for (let k = 0; k < 6; k++) {
+    const x = row4(i) - 30 + (k % 3) * 30, y = -20 + Math.floor(k / 3) * 36;
+    spr(w, 'cube-us', x, y, 96, { shadow: false });
+    const c = spr(w, 'cube-' + keyOf(i, k), x, y, 96, { shadow: false }); from(18 + i * .1 + k * .05, c.el, { autoAlpha: 0, duration: .3 });
+  }
+}
+['IN', 'US', 'BR', 'DE'].forEach((k, i) => up(18.6 + i * .1, o(s, 'chip', `left:${250 + i * 150}px;top:960px;font-size:17px;color:${['#2a4c9c', '#6b6454', '#a77a2e', '#4c8a66'][i]}`, '■ ' + k)));
+
+// 20-25 same key -> same partition
+function cluster(s, t) {
+  const w = world(s, [585, 660]);
+  const servers = [0, 1, 2, 3].map(i => spr(w, 'server', row4(i), -190, 0, { label: 'EXECUTOR ' + (i + 1) }));
+  const trays = KEYS.map((k, i) => { const tr = spr(w, 'tray', row4(i), 170, 0, { label: 'PARTITION · ' + KEY[k] }); if (t != null) dropIn(tr, t + i * .12, 260); return tr; });
+  return { w, servers, trays };
+}
+s = scene(20, 25);
+up(20, o(s, 'h center', 'top:130px', 'same key → same partition'));
+let cl = cluster(s, 20.4);
+for (let i = 0; i < 4; i++) for (let k = 0; k < 6; k++) spr(cl.w, 'cube-' + keyOf(i, k), row4(i) - 30 + (k % 3) * 30, -210 + Math.floor(k / 3) * 36, 96, { shadow: false });
+for (let i = 0; i < 4; i++) arc(cl.w, [[row4(i), -190, 140], [(row4(i) + row4(0)) / 2, -10, 260], [row4(0), 170, 30]], 21.2 + i * .35, 'var(--blue)');
+
+// 25-32 the shuffle: every cube hops into the tray for its key
+s = scene(25, 32);
+up(25, o(s, 'h center', 'top:130px', 'data moves between executors'));
+cl = cluster(s, null);
+const fill = [0, 0, 0, 0];
+for (let i = 0; i < 4; i++) for (let k = 0; k < 6; k++) {
+  const key = keyOf(i, k), d = KEYS.indexOf(key), slot = fill[d]++;
+  const c = spr(cl.w, 'cube-' + key, row4(i) - 30 + (k % 3) * 30, -210 + Math.floor(k / 3) * 36, 96);
+  hop(c, 25.6 + k * .28 + i * .12, row4(d) - 30 + (slot % 3) * 30, 150 + Math.floor(slot / 3) * 34, 22, 220, .9);
+}
+pop(29.4, o(s, 'chip g', 'left:390px;top:990px', '✓ every key in one place'));
+tl.to(cl.w, { scale: 1.04, duration: 6, ease: 'none' }, 25);
+
+// 32-46 one record through the six steps of a shuffle
+function rig(s, rightLabel) {
+  const w = world(s, [540, 600]);
+  const A = spr(w, 'server', -300, 60, 0, { label: 'EXECUTOR 2' });
+  const D = spr(w, 'disk', -60, 260, 0, { label: 'DISK' });
+  const N = spr(w, 'switch', 20, -240, 0, { label: 'NETWORK' });
+  const B = spr(w, rightLabel ? 'server-stage' : 'server', 300, 40, 0, { label: rightLabel || 'EXECUTOR 4' });
+  return { w, A, D, N, B };
+}
+s = scene(32, 33.2); let R = rig(s);
+pop(32, o(s, 'card', 'left:300px;top:140px;width:480px;font-size:26px;line-height:1.7',
+  '<div class="cap" style="font-size:13px">ORDER RECORD</div>order_id&nbsp; 48213907<br>country&nbsp;&nbsp; IN<br>amount&nbsp;&nbsp;&nbsp; ₹1,240'));
+let pk = spr(R.w, 'cube-in', -300, 60, 96); dropIn(pk, 32.3, 200);
+
+s = scene(33.2, 34.2); R = rig(s); stepHead(s, 1, 'serialize', 33.2); costCard(s, 1, 33.3);
+pk = spr(R.w, 'cube-in', -300, 60, 96);
+tl.to(pk.el, { scale: .5, autoAlpha: 0, duration: .4 }, 33.5);
+const bt = o(s, 'bits', 'left:110px;top:520px', '01001001 01001110 00110100'); pop(33.6, bt);
+
+s = scene(34.2, 36.2); R = rig(s); stepHead(s, 2, 'write to disk', 34.2); costCard(s, 2, 34.3);
+pk = spr(R.w, 'cube-in', -300, 60, 96); hop(pk, 34.5, -60, 260, 46, 160, .9);
+tl.to(pk.el, { autoAlpha: 0, duration: .3 }, 35.5);
+pop(35.4, o(s, 'chip r', 'left:300px;top:930px;font-size:16px', '● disk I/O'));
+
+s = scene(36.2, 41.2); R = rig(s); stepHead(s, 3, 'send over network', 36.2); costCard(s, 3, 36.3);
+arc(R.w, [[-60, 260, 40], [20, -240, 26]], 36.4, 'var(--ink)', .8); arc(R.w, [[20, -240, 26], [300, 40, 96]], 37, 'var(--ink)', .8);
+pk = spr(R.w, 'cube-in', -60, 260, 46); hop(pk, 37.6, 20, -240, 30, 120, .9); hop(pk, 38.6, 300, 40, 96, 120, .9);
+pop(38, o(s, 'bits', 'left:640px;top:420px;font-size:15px', '01001001 01001110'));
+pop(39.4, o(s, 'chip r', 'left:420px;top:950px;font-size:16px', '● network I/O'));
+
+s = scene(41.2, 43.2); R = rig(s, 'STAGE 2'); stepHead(s, 4, 'fetch', 41.2); costCard(s, 3, null);
+arc(R.w, [[-60, 260, 40], [20, -240, 26]], null); arc(R.w, [[20, -240, 26], [300, 40, 96]], null);
+for (let k = 0; k < 4; k++) { const c = spr(R.w, 'cube-' + KEYS[k], 20, -240, 30); hop(c, 41.4 + k * .3, 284 + (k % 2) * 34, 20 + Math.floor(k / 2) * 36, 96, 100, .7); }
+
+s = scene(43.2, 44.2); R = rig(s, 'STAGE 2'); stepHead(s, 5, 'deserialize', 43.2); costCard(s, 4, 43.3);
+for (let k = 0; k < 4; k++) spr(R.w, 'cube-' + KEYS[k], 284 + (k % 2) * 34, 20 + Math.floor(k / 2) * 36, 96, { shadow: false });
+pop(43.4, o(s, 'card', 'left:560px;top:330px;font-size:20px;padding:10px 16px', '{ country: "IN", amount: 1240 }'));
+
+s = scene(44.2, 46); R = rig(s, 'STAGE 2'); stepHead(s, 6, 'aggregate', 44.2); costCard(s, 4, null);
+const agg = o(s, 'card mid', 'left:400px;top:300px;font-size:58px;padding:18px 40px'); pop(44.4, agg); count(agg, 0, 2003311, 44.5, 1.2);
+
+// 46-56 shuffle overhead: the cost blocks pile up on the belt while stage 2 waits
+s = scene(46, 56); w = world(s, [540, 640]);
+const oh = o(s, 'h center', 'top:130px;font-size:50px', 'shuffle <span class="r">overhead</span>'); up(46, oh);
+spr(w, 'server', -260, 0, 0, { label: 'STAGE 1' }); spr(w, 'belt', 0, 0, 0); spr(w, 'server-stage', 260, 0, 0, { label: 'STAGE 2' });
+['serialize', 'disk I/O', 'network', 'deserialize'].forEach((t, i) => { const c = spr(w, 'cost', -105 + i * 70, 0, 14, { label: t }); c.el.querySelector('.lbl').style.cssText += ';font-size:10px;padding:1px 5px;top:-26px'; dropIn(c, 46.3 + i * .35, 420, .9); });
+tl.to(w, { scale: .62, y: -300, duration: 1, ease: 'power2.inOut' }, 48.6);
+tl.to(oh, { y: -16, scale: .72, duration: 1, ease: 'power2.inOut' }, 48.6);
+[1, 2, 3, 4].forEach(i => {
+  const y = 470 + (i - 1) * 132, w0 = 54 - i * 8, t = 49.2 + i * .25;
+  up(t, o(s, 'cap', `left:150px;top:${y - 30}px;font-size:14px`, 'STAGE 2 · TASK ' + i));
+  const p = o(s, 'prog', `left:150px;right:150px;top:${y}px`, `<div class="w" style="width:${w0}%"></div><span>waiting for data…</span><div class="d" style="left:${w0}%;width:${12 + i * 2}%"></div>`);
+  up(t, p); from(t, p.querySelector('.w'), { scaleX: 0, duration: 2.4, ease: 'none' }); from(52.4 + i * .4, p.querySelector('.d'), { scaleX: 0, duration: 1 });
+});
+const hg = o(s, 'icon', 'right:70px;top:400px;width:46px;height:62px', ICONS.hourglass || ''); pop(50, hg);
+tl.to(hg, { rotation: 180, duration: .8, ease: 'power2.inOut', repeat: 4, repeatDelay: .6 }, 50.6);
+
+// 56-63 fix 1: move less data, or spread it over more executors
+s = scene(56, 63); w = world(s, [540, 660]);
+up(56, o(s, 'cap', 'left:62px;top:124px', 'FIX THE OVERHEAD'));
+spr(w, 'server', -260, 0, 0, { label: 'STAGE 1' }); spr(w, 'belt', 0, 0, 0); spr(w, 'server-stage', 260, 0, 0, { label: 'STAGE 2' });
+const belt = [];
+for (let i = 0; i < 12; i++) { const c = spr(w, 'cube-' + KEYS[i % 4], -130 + (i % 6) * 34, -16 + Math.floor(i / 6) * 32, 14, { shadow: false }); dropIn(c, 56.2 + i * .05, 200, .5); belt.push(c); }
+up(57.8, o(s, 'h g', 'left:62px;top:152px', '– less data'));
+belt.forEach((c, i) => { if (i % 3 === 0) fadeOut(c, 58.4 + i * .02); else slide(c, 59 + (i % 6) * .06, 150 + (i % 6) * 12, c.p.y, 1.6); });
+pop(60, o(s, 'chip g', 'left:700px;top:160px;font-size:17px', '✓ flows'));
+up(61, o(s, 'h r', 'left:62px;top:212px', '+ more executors'));
+[[-260, -230], [260, -230], [-260, 230], [260, 230]].forEach(([x, y], i) => dropIn(spr(w, 'server', x, y, 0), 61.3 + i * .15));
+
+// 63-67 fix 2: filter rows + columns before the shuffle
+s = scene(63, 67); w = world(s, [520, 620]); gsap.set(w, { scale: 1.6 });
+up(63, o(s, 'cap', 'left:62px;top:124px', 'BEFORE THE SHUFFLE'));
+up(63.2, o(s, 'h', 'left:62px;top:152px', 'filter <span class="g">rows</span> + <span class="g">columns</span>'));
+const colNames = ['order_id', 'country', 'amount', 'item', 'ts', 'notes'];
+for (let r = 0; r < 7; r++) for (let q = 0; q < 6; q++) {
+  const sp = spr(w, r ? 'row' : 'row-head', (q - 2.5) * 70, (r - 3) * 34, 0, { shadow: false });
+  if (!r) { const l = el('div', '', sp.el, colNames[q]); l.style.cssText = `position:absolute;left:${ANCHOR['row-head'].ax - 26}px;top:${ANCHOR['row-head'].ay - 22}px;font-size:10px;font-weight:800;color:var(--blue);transform:rotate(30deg) skewX(-30deg) scaleY(.86)`; }
+  dropIn(sp, 63.1 + (r * 6 + q) * .012, 140, .5);
+  if (q > 2 || (r && r % 2 === 0)) tl.to(sp.el, { autoAlpha: .1, duration: .6 }, q > 2 ? 65.3 : 64.4);
+}
+const sh1 = o(s, 'card', 'right:90px;top:690px;width:170px;height:150px;text-align:center;padding:26px 0 0', `<div class="icon" style="width:66px;height:56px;margin:0 auto 12px">${ICONS.shuffle || ''}</div><div class="cap" style="font-size:12px">SHUFFLE</div>`);
+pop(65.8, sh1);
+
+// 67-70 fix 3: avoid the shuffle altogether
+s = scene(67, 70);
+up(67, o(s, 'cap', 'left:62px;top:124px', 'AND'));
+up(67.1, o(s, 'h r', 'left:62px;top:152px', 'avoid unnecessary shuffles'));
+const xs = o(s, 'card', 'left:310px;top:360px;width:460px;height:320px;text-align:center;overflow:hidden;padding-top:56px',
+  `<div class="icon" style="width:150px;height:126px;margin:0 auto 18px">${ICONS.shuffle || ''}</div><div class="h" style="font-size:32px">extra shuffle</div>
+   <i style="position:absolute;left:-50px;right:-50px;top:50%;height:10px;background:var(--red);transform:rotate(-34deg)"></i>`);
+pop(67.5, xs); from(68.3, xs.querySelector('i'), { scaleX: 0, duration: .5 });
+up(68.9, o(s, 'cap center g', 'top:740px;font-size:17px', '✓ less data moved · faster job'));
+
+// 70-78 the powerful trick: broadcast the small table to every executor, no shuffle
+s = scene(70, 78); w = world(s, [540, 640]);
+up(70, o(s, 'cap', 'left:62px;top:124px', 'LESS DATA MOVEMENT'));
+up(70.1, o(s, 'h', 'left:62px;top:152px', 'a powerful trick…'));
+const spots = [[-230, -150], [230, -150], [-230, 190], [230, 190]];
+spots.forEach(([x, y], i) => dropIn(spr(w, 'server', x, y, 0, { label: 'EXEC ' + (i + 1) }), 70.4 + i * .12));
+const lk = spr(w, 'lookup', 0, 20, 0, { label: 'countries · 200 rows' }); dropIn(lk, 71.3);
+spots.forEach(([x, y], i) => { const cp = spr(w, 'lookup', 0, 20, 18, { shadow: false }); gsap.set(cp.el, { scale: .7 }); from(72.6 + i * .35, cp.el, { autoAlpha: 0, duration: .2 }); hop(cp, 72.6 + i * .35, x, y, 96, 180, .8); });
+up(75, o(s, 'chip', 'left:340px;top:980px;font-size:18px;color:var(--blue)', 'broadcast join · no shuffle'));
+tl.to(w, { scale: 1.05, duration: 7.5, ease: 'none' }, 70.3);
+
+// 78-end: the EffectCraft end card (Lottie)
+s = scene(78, DUR + 1);
+const lot = el('div', '', s); lot.id = 'lottie';
+let endAnim = null;
+if (window.lottie && ENDCARD) {
+  (ENDCARD.fonts && ENDCARD.fonts.list || []).forEach(f => { f.fStyle = { 'JetBrainsMono-Regular': 'Regular', 'JetBrainsMono-Bold': 'Bold', 'JetBrainsMono-ExtraBold': 'Black' }[f.fFamily] || 'Regular'; f.fFamily = 'JetBrains Mono'; });
+  Promise.all(['400', '700', '800'].map(wt => document.fonts.load(`${wt} 40px "JetBrains Mono"`)))
+    .then(() => { endAnim = lottie.loadAnimation({ container: lot, renderer: 'svg', loop: false, autoplay: false, animationData: ENDCARD }); });
+}
+const pills = o(s, 'center', 'top:790px', KEYS.map((k, i) => `<span class="chip" style="margin:0 10px;border-radius:8px;${i ? 'color:var(--ink)' : 'background:var(--blue);color:#fff;border-color:var(--blue)'}">${KEY[k]}</span>`).join(''));
+up(79.2, pills.children, { stagger: .08 });
+
+tl.fromTo('#prog', { width: '0%' }, { width: '100%', duration: DUR, ease: 'none' }, 0);
+tl.set({}, {}, DUR);
+
+// ---------- player: the FilmCraft mix is the clock ----------
+const v = document.getElementById('v'), seek = document.getElementById('seek'), stage = document.getElementById('stage');
+function fit() { panel.style.transform = `scale(${stage.clientWidth / 1080})`; }
+addEventListener('resize', fit); fit();
+function frame() {
+  const t = v.currentTime;
+  tl.time(Math.min(t, DUR));
+  if (endAnim && endAnim.isLoaded) endAnim.goToAndStop(Math.max(0, t - 78) * 1000, false);
+  seek.value = t; document.getElementById('clock').textContent = t.toFixed(1) + 's';
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+seek.oninput = () => { v.currentTime = +seek.value; };
+const playBtn = document.getElementById('play');
+playBtn.onclick = () => v.paused ? v.play() : v.pause();
+v.onplay = () => playBtn.textContent = '❚❚ Pause';
+v.onpause = () => playBtn.textContent = '▶ Play';
+document.getElementById('mute').onclick = e => { v.muted = !v.muted; e.target.textContent = v.muted ? 'Unmute' : 'Mute'; };
+</script>
+</body>
+</html>

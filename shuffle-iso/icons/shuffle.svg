@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="120" height="100" viewBox="0 0 120 100">
+  <title>shuffle.svg</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <g>
+      <path d="M8 26 L30 26 C52 26 64 74 86 74 L104 74" fill="none" stroke="#1d1b17" stroke-width="9" stroke-linecap="square"/>
+      <path d="M8 74 L30 74 C52 74 64 26 86 26 L104 26" fill="none" stroke="#1d1b17" stroke-width="9" stroke-linecap="square"/>
+    </g>
+    <path d="M100 10 L118 26 L100 42 Z" fill="#1d1b17"/>
+    <path d="M100 58 L118 74 L100 90 Z" fill="#1d1b17"/>
+  </g>
+</svg>

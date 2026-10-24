@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="132" height="106" viewBox="0 0 132 106">
+  <title>lookup.svg</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <path d="M14 57 L74.7 92 L74.7 74 L14 39 Z" fill="#cdd7ef" stroke="#2b2721" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M118 67 L74.7 92 L74.7 74 L118 49 Z" fill="#aebde2" stroke="#2b2721" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M57.3 14 L118 49 L74.7 74 L14 39 Z" fill="#e6ecf8" stroke="#2b2721" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M14 51 L74.7 86" fill="#000000" stroke="#8fa2d0" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M14 45 L74.7 80" fill="#000000" stroke="#8fa2d0" stroke-width="1.6" stroke-linecap="round"/>
+  </g>
+</svg>

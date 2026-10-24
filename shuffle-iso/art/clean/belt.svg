@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="348" height="227" viewBox="0 0 348 227">
+  <title>belt.svg</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <path d="M14 63.1 L273.5 212.9 L273.5 198.9 L14 49.1 Z" fill="#ddd5c2" stroke="#2b2721" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M334 177.9 L273.5 212.9 L273.5 198.9 L334 163.9 Z" fill="#bdb39b" stroke="#2b2721" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M74.5 14.1 L334 163.9 L273.5 198.9 L14 49.1 Z" fill="#cfc6b0" stroke="#2b2721" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M88.4 26.1 L34.7 57.1" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+    <path d="M105.7 36.1 L52 67.1" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+    <path d="M123 46.1 L69.3 77" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+    <path d="M140.3 56.1 L86.6 87" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+    <path d="M157.6 66.1 L103.9 97" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+    <path d="M174.9 76 L121.2 107" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+    <path d="M192.2 86 L138.5 117" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+    <path d="M209.5 96 L155.8 127" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+    <path d="M226.8 106 L173.1 137" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+    <path d="M244.1 116 L190.4 147" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+    <path d="M261.4 126 L207.7 156.9" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+    <path d="M278.7 136 L225 166.9" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+    <path d="M296 146 L242.3 176.9" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+    <path d="M313.3 155.9 L259.6 186.9" fill="#000000" stroke="#a89e86" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

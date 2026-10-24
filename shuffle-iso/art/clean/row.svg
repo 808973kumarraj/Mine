@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="91" height="63" viewBox="0 0 91 63">
+  <title>row.svg</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <path d="M5 26 L60.1 57.9 L60.1 51.9 L5 20.1 Z" fill="#e9e3d5" stroke="#2b2721" stroke-width="1.4" stroke-linejoin="round"/>
+    <path d="M86 42.9 L60.1 57.9 L60.1 51.9 L86 37 Z" fill="#d2c9b4" stroke="#2b2721" stroke-width="1.4" stroke-linejoin="round"/>
+    <path d="M30.8 5.1 L86 37 L60.1 51.9 L5 20.1 Z" fill="#fbf9f4" stroke="#2b2721" stroke-width="1.4" stroke-linejoin="round"/>
+    <path d="M26.5 17.6 L61 37.5" fill="#000000" stroke="#c2b9a3" stroke-width="3" stroke-linecap="round"/>
+  </g>
+</svg>

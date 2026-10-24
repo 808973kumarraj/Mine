@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="55" height="58" viewBox="0 0 55 58">
+  <title>cube-red.svg</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <path d="M5 40 L27.5 53 L27.5 31 L5 18 Z" fill="#b8432f" stroke="#2b2721" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M50 40 L27.5 53 L27.5 31 L50 18 Z" fill="#8d2d1e" stroke="#2b2721" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M27.5 5 L50 18 L27.5 31 L5 18 Z" fill="#d9634e" stroke="#2b2721" stroke-width="1.6" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="210" height="229" viewBox="0 0 210 229">
+  <title>server-hot.svg</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <path d="M14.1 155 L118 215 L118 119 L14.1 59 Z" fill="#efe9dc" stroke="#2b2721" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M195.9 170 L118 215 L118 119 L195.9 74 Z" fill="#d8d0bd" stroke="#2b2721" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M92 14 L195.9 74 L118 119 L14.1 59 Z" fill="#fbf8f1" stroke="#2b2721" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M26.2 136 L74.7 164" fill="#000000" stroke="#9a917c" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M26.2 124 L74.7 152" fill="#000000" stroke="#9a917c" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M26.2 112 L74.7 140" fill="#000000" stroke="#9a917c" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M26.2 100 L74.7 128" fill="#000000" stroke="#9a917c" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M83.3 177 L107.6 191 L107.6 179 L83.3 165 Z" fill="#3a352c" stroke="#2b2721" stroke-width="1.4" stroke-linejoin="round"/>
+    <path d="M105.7 131 C105.7 133.2 103.4 135 100.7 135 C97.9 135 95.7 133.2 95.7 131 C95.7 128.8 97.9 127 100.7 127 C103.4 127 105.7 128.8 105.7 131 Z" fill="#d0442f" stroke="#2b2721" stroke-width="1.4"/>
+    <path d="M185.5 154 L128.4 187" fill="#000000" stroke="#b3a991" stroke-width="2" stroke-linecap="round"/>
+    <path d="M185.5 130 L128.4 163" fill="#000000" stroke="#b3a991" stroke-width="2" stroke-linecap="round"/>
+    <path d="M185.5 106 L128.4 139" fill="#000000" stroke="#b3a991" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>
