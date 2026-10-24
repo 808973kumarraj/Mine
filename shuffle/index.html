@@ -1,0 +1,1209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spark Shuffle</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400&family=Silkscreen&family=Space+Mono:wght@400;700&family=Archivo:wdth,wght@75,800;100,800&display=block" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; background: #E4E1D4; overflow: hidden }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block }
+  .hdr { font-family: 'Silkscreen', monospace; }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+  .space { font-family: 'Space Mono', monospace; font-weight: 700; }
+  .sans { font-family: 'IBM Plex Sans', sans-serif; }
+  .display { font-family: 'Archivo', sans-serif; font-weight: 800; font-stretch: 75%; }
+</style>
+</head>
+<body>
+<!--
+  Motion2Code rebuild of "Spark Performance, Episode 3: Shuffling" (1080x1920, 80.47 s).
+  Contract: window.anim = { tl, duration, seek(t), play(from), pause() }; ?t= freezes, ?external=1 does not autoplay;
+  <html data-ready="1"> once fonts are loaded and frame 0 is drawn.
+  The presenter footage cannot be redrawn as vector shapes: #cam is a flat placeholder card that moves and resizes
+  exactly like the webcam card in the source, so the footage can be composited on top of it in an editor.
+  Everything visible is a pure function of t: render(t) resets each scene and draws the shots active at t.
+-->
+<svg id="stage" viewBox="0 0 1080 1920" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="frame"><rect width="1080" height="1920"/></clipPath>
+    <radialGradient id="bgGrad" cx="540" cy="700" r="1250" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F2EFE2"/><stop offset="0.55" stop-color="#E6E3D6"/><stop offset="1" stop-color="#CFCCBF"/>
+    </radialGradient>
+    <pattern id="gridPat" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M12.5 0V24M0 12.5H24" stroke="#5A5440" stroke-opacity="0.075" stroke-width="1" fill="none"/>
+    </pattern>
+    <pattern id="stripes" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+      <rect width="16" height="16" fill="#3E7A68"/><rect width="7" height="16" fill="#5E9585"/>
+    </pattern>
+    <pattern id="hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+      <rect width="12" height="12" fill="#E2DED0"/><rect width="5" height="12" fill="#D2CDBD"/>
+    </pattern>
+    <linearGradient id="funnelGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EEEBE0"/><stop offset="0.5" stop-color="#E3DFD2"/><stop offset="1" stop-color="#CDC8B8"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="10"/></filter>
+    <filter id="soft24" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="24"/></filter>
+    <filter id="soft4" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="soft2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.6"/></filter>
+  </defs>
+  <g clip-path="url(#frame)">
+    <rect id="bg" width="1080" height="1920" fill="url(#bgGrad)"/>
+    <rect id="grid" width="1080" height="1920" fill="url(#gridPat)"/>
+    <g id="scenes"></g>
+    <g id="header"></g>
+    <g id="cam"></g>
+  </g>
+</svg>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+(() => {
+const DUR = 2414 / 30;               // 80.467 s, the source length
+const NS = 'http://www.w3.org/2000/svg';
+const C = {
+  ink: '#1E1A14', inkSoft: '#3A342C', gray: '#6E685B', grayLight: '#9C9585', line: '#CBC7B8',
+  paper: '#EFECE0', paperDark: '#E3DFD1', side: '#DCD8C9', sideDark: '#D2CDBC',
+  green: '#3D7A62', greenDim: '#B9C4B2', red: '#A23B2C', redDim: '#E3B9AC',
+  blue: '#24428A', blueLight: '#C9D4EA', orange: '#C98A4B', term: '#1F1B15', termText: '#E9E4D6',
+  cam: '#8E7662', bezel: '#EEEADB'
+};
+
+// ---------- helpers ----------
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, p) => a + (b - a) * p;
+const EC = {}; const ease = n => EC[n] || (EC[n] = gsap.parseEase(n));
+const prog = (t, a, b, e = 'none') => ease(e)(clamp((t - a) / (b - a)));
+function kf(t, K) {
+  if (t <= K[0][0]) return K[0][1];
+  for (let i = 1; i < K.length; i++) if (t <= K[i][0]) {
+    const [t0, v0] = K[i - 1], [t1, v1, e] = K[i];
+    const p = ease(e || 'power1.inOut')((t - t0) / (t1 - t0));
+    return Array.isArray(v0) ? v0.map((x, j) => lerp(x, v1[j], p)) : lerp(v0, v1, p);
+  }
+  return K[K.length - 1][1];
+}
+const f1 = v => (Math.round(v * 10) / 10).toString();
+const rnd = (s => () => (s = (s * 16807) % 2147483647) / 2147483647)(20240315);
+function E(tag, attrs = {}, parent = null) {
+  const el = document.createElementNS(NS, tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(el);
+  return el;
+}
+function T(parent, str, attrs) { const el = E('text', attrs, parent); el.textContent = str; return el; }
+const S = (el, attrs) => { for (const k in attrs) el.setAttribute(k, attrs[k]); };
+const show = (el, on) => { el.style.display = on ? '' : 'none'; };
+const op = (el, v) => { el.setAttribute('opacity', f1(clamp(v) * 100) / 100); show(el, v > 0.001); };
+const pts = P => P.map(p => f1(p[0]) + ',' + f1(p[1])).join(' ');
+const poly = (P) => 'M' + P.map(p => f1(p[0]) + ' ' + f1(p[1])).join('L') + 'Z';
+const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
+const mix = (a, b, p) => [lerp(a[0], b[0], p), lerp(a[1], b[1], p)];
+const hex = c => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+const mixColor = (a, b, p) => { const A = hex(a), B = hex(b); return 'rgb(' + A.map((x, i) => Math.round(lerp(x, B[i], clamp(p)))).join(',') + ')'; };
+const fmt = n => Math.round(n).toLocaleString('en-US');
+// affine matrix that maps a local w x h rectangle onto a face given by its top-left, top-right and bottom-left corners
+const faceMatrix = (TL, TR, BL, w, h) =>
+  `matrix(${[(TR[0] - TL[0]) / w, (TR[1] - TL[1]) / w, (BL[0] - TL[0]) / h, (BL[1] - TL[1]) / h, TL[0], TL[1]].map(v => +v.toFixed(4)).join(' ')})`;
+
+// plane homography from four correspondences (solved once, 8x8 Gauss-Jordan)
+function homography(src, dst) {
+  const A = [], b = [];
+  src.forEach(([u, v], i) => {
+    const [x, y] = dst[i];
+    A.push([u, v, 1, 0, 0, 0, -x * u, -x * v]); b.push(x);
+    A.push([0, 0, 0, u, v, 1, -y * u, -y * v]); b.push(y);
+  });
+  const n = 8, M = A.map((r, i) => [...r, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    for (let r = 0; r < n; r++) if (r !== c) { const f = M[r][c] / M[c][c]; for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+  }
+  const h = M.map((r, i) => r[n] / r[i]);
+  return (u, v) => { const w = h[6] * u + h[7] * v + 1; return [(h[0] * u + h[1] * v + h[2]) / w, (h[3] * u + h[4] * v + h[5]) / w]; };
+}
+
+// A hand-placed perspective box: front face is a w x h rectangle rotated by rot around its bottom centre,
+// the top face is the front-top edge pushed back by (sx, -d), sx growing away from the vanishing x.
+function boxGeom(g) {
+  const r = (g.rot || 0) * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+  const P = (x, y) => [g.cx + x * c - y * s, g.by + x * s + y * c];
+  const FBL = P(-g.w / 2, 0), FBR = P(g.w / 2, 0), FTR = P(g.w / 2, -g.h), FTL = P(-g.w / 2, -g.h);
+  const sx = -(g.k ?? 0.04) * (g.cx - (g.vx ?? 530));
+  const BTL = add(FTL, [sx, -g.d]), BTR = add(FTR, [sx, -g.d]);
+  return { FTL, FTR, FBR, FBL, BTL, BTR, sx, g };
+}
+const lerpGeom = (a, b, p) => { const o = {}; for (const k in a) o[k] = typeof a[k] === 'number' ? lerp(a[k], b[k] ?? a[k], p) : a[k]; return o; };
+
+// ---------- layers ----------
+const svg = document.getElementById('stage');
+const L = { scenes: document.getElementById('scenes'), header: document.getElementById('header'), cam: document.getElementById('cam') };
+const scenes = [];
+function scene(id, build, draw) { const g = E('g', { id }, L.scenes); const s = { g, draw }; build(g, s); scenes.push(s); return s; }
+
+// ---------- header: typed breadcrumb, blinking cursor, progress rule ----------
+const HDR = '> BINARY HABIT / SPARK PERF / 03';
+const header = {};
+function buildHeader() {
+  const g = L.header;
+  header.rule = E('rect', { x: 66, y: 233.5, width: 948, height: 1.5, fill: '#C9C5B6' }, g);
+  header.prog = E('rect', { x: 66, y: 232, width: 0, height: 4, fill: '#2E4A86' }, g);
+  header.text = T(g, '', { class: 'hdr', x: 66, y: 220, 'font-size': 24.5, 'letter-spacing': 5.25, fill: '#4F493E' });
+  header.cursor = E('rect', { x: 757, y: 196, width: 14, height: 26, fill: C.orange }, g);
+  header.widths = [];
+}
+function measureHeader() {
+  for (let n = 0; n <= HDR.length; n++) {
+    header.text.textContent = HDR.slice(0, n);
+    header.widths[n] = n ? header.text.getComputedTextLength() : 0;
+  }
+}
+function drawHeader(t) {
+  // types in over the first 0.7 s, rubs out in the return to the opening frame
+  let n = Math.round(clamp(t * 46, 0, HDR.length));
+  if (t > DUR - 0.75) n = Math.round(HDR.length * (1 - prog(t, DUR - 0.75, DUR - 0.3)));
+  header.text.textContent = HDR.slice(0, n);
+  const typing = (t < 0.72) || (t > DUR - 0.8);
+  const blinkOn = t > 1.07 && t < 77.3 && ((t - 1.07) % 1.0625) < 0.533;
+  show(header.cursor, typing || blinkOn);
+  S(header.cursor, { x: f1(66 + header.widths[n] + (n ? 2 : -30 + 30)) });
+  const w = t < DUR - 0.75 ? 948 * clamp(t / 80.2) : 948 * clamp(t / 80.2) * (1 - prog(t, DUR - 0.75, DUR - 0.3, 'power2.inOut'));
+  S(header.prog, { width: f1(w) });
+}
+
+// ---------- webcam placeholder card ----------
+const CAM = { x: 65, w: 949, small: 1140, big: 256, bottom: 1785 };
+const CAM_MOVES = [ // [start, end, toBig]
+  [6.465, 6.77, 1], [7.745, 8.05, 0], [28.995, 29.3, 1], [31.44, 31.745, 0],
+  [54.335, 54.64, 1], [57.14, 57.445, 0], [75.2, 75.505, 1], [77.335, 77.64, 0]];
+const cam = {};
+function buildCam() {
+  const g = L.cam;
+  cam.shadow = E('rect', { x: CAM.x + 10, width: CAM.w - 20, rx: 24, fill: '#3B3528', opacity: 0.32, filter: 'url(#soft)' }, g);
+  cam.bezel = E('rect', { x: CAM.x, width: CAM.w, rx: 18, fill: C.bezel, stroke: '#A9A493', 'stroke-width': 1.2 }, g);
+  cam.video = E('rect', { x: CAM.x + 7, width: CAM.w - 14, rx: 12, fill: C.cam }, g);
+  cam.label = T(g, 'CAMERA', { class: 'mono', x: 540, 'font-size': 22, 'letter-spacing': 6, 'text-anchor': 'middle', fill: '#A8937F' });
+}
+function camTop(t) {
+  let big = 0;
+  for (const [a, b, to] of CAM_MOVES) {
+    if (t >= b) big = to;
+    else if (t > a) { const p = prog(t, a, b, 'power2.inOut'); big = to ? p : 1 - p; break; }
+    else break;
+  }
+  return lerp(CAM.small, CAM.big, big);
+}
+function drawCam(t) {
+  const top = camTop(t), h = CAM.bottom - top;
+  S(cam.shadow, { y: f1(top + 30), height: f1(h - 10) });
+  S(cam.bezel, { y: f1(top), height: f1(h) });
+  S(cam.video, { y: f1(top + 7), height: f1(h - 14) });
+  S(cam.label, { y: f1(top + h / 2 + 8) });
+}
+const camIsBig = t => camTop(t) < 300;
+
+// =====================================================================================
+// SCENE 1 (0 - 6.8 s): 100 executors land as an isometric grid, run green, groupBy turns them red,
+// the job card takes over and its timer runs while progress stalls at 62 %.
+// =====================================================================================
+const GRID = homography([[0, 0], [9, 0], [0, 9], [9, 9]], [[566.9, 520.6], [1023.5, 764.5], [66.3, 728.2], [499.2, 1071.5]]);
+const s1 = scene('s1-executors', (g, s) => {
+  E('clipPath', { id: 'colClip' }, E('defs', {}, g)).appendChild(E('rect', { x: 66, y: 0, width: 948, height: 1920 }));
+  s.world = E('g', { 'clip-path': 'url(#colClip)' }, g);
+  s.ripple = E('ellipse', { cx: 545, cy: 850, fill: 'none', stroke: '#8E8878', 'stroke-width': 2 }, g);
+  s.cubes = [];
+  const cells = [];
+  for (let i = 0; i < 10; i++) for (let j = 0; j < 10; j++) cells.push([i, j]);
+  const a = 0.37;
+  for (const [i, j] of cells) {
+    const top = [[i - a, j - a], [i + a, j - a], [i + a, j + a], [i - a, j + a]].map(([u, v]) => GRID(u, v));
+    const c = GRID(i, j);
+    const px = Math.hypot(...[0, 1].map(k => GRID(i + 0.5, j)[k] - GRID(i - 0.5, j)[k]));
+    const py = Math.hypot(...[0, 1].map(k => GRID(i, j + 0.5)[k] - GRID(i, j - 0.5)[k]));
+    const h = 0.43 * Math.sqrt(px * py);
+    const cg = E('g', {}, s.world);
+    const sides = [];
+    for (let e = 0; e < 4; e++) {
+      const A = top[e], B = top[(e + 1) % 4], mid = mix(A, B, 0.5);
+      if (mid[1] <= c[1]) continue;                      // only the two faces turned towards the viewer
+      sides.push({ d: poly([A, B, add(B, [0, h]), add(A, [0, h])]), shade: mid[0] < c[0] ? C.paperDark : C.side });
+    }
+    for (const sd of sides) E('path', { d: sd.d, fill: sd.shade, stroke: C.inkSoft, 'stroke-width': 1.3, 'stroke-linejoin': 'round' }, cg);
+    E('path', { d: poly(top), fill: C.paper, stroke: C.inkSoft, 'stroke-width': 1.3, 'stroke-linejoin': 'round' }, cg);
+    const dotOuter = E('path', { d: poly([[i - 0.15, j - 0.15], [i + 0.15, j - 0.15], [i + 0.15, j + 0.15], [i - 0.15, j + 0.15]].map(([u, v]) => GRID(u, v))), opacity: 0.45 }, cg);
+    const dot = E('path', { d: poly([[i - 0.1, j - 0.1], [i + 0.1, j - 0.1], [i + 0.1, j + 0.1], [i - 0.1, j + 0.1]].map(([u, v]) => GRID(u, v))) }, cg);
+    s.cubes.push({ g: cg, dot, dotOuter, x: c[0], y: c[1], phase: rnd(), freq: 0.6 + rnd() * 0.9, tRed: 4.58 + rnd() * 0.42, jitter: rnd() });
+  }
+  // paint order: back to front
+  s.cubes.slice().sort((p, q) => p.y - q.y).forEach(c => s.world.appendChild(c.g));
+  // landing order: left to right with some noise; F(t) is the visible share measured on the source frames
+  const order = s.cubes.slice().sort((p, q) => (p.x + p.jitter * 140) - (q.x + q.jitter * 140));
+  const F = [[0.26, 0], [0.32, 0.03], [0.4, 0.13], [0.5, 0.35], [0.6, 0.6], [0.7, 0.8], [0.8, 0.92], [0.9, 0.97], [1.0, 1]];
+  order.forEach((c, k) => {
+    const q = (k + 0.5) / order.length;
+    let t0 = 1;
+    for (let m = 1; m < F.length; m++) if (q <= F[m][1]) { t0 = lerp(F[m - 1][0], F[m][0], (q - F[m - 1][1]) / (F[m][1] - F[m - 1][1])); break; }
+    c.t0 = t0 - 0.12;
+  });
+  s.count = T(g, '0', { class: 'space', x: 540, y: 390, 'font-size': 130, 'text-anchor': 'middle', fill: C.ink });
+  s.countLabel = T(g, 'SPARK EXECUTORS', { class: 'mono', x: 540, y: 437, 'font-size': 24, 'letter-spacing': 3.2, 'text-anchor': 'middle', fill: C.gray });
+  // status pill
+  s.pill = E('g', { transform: 'translate(540 1078)' }, g);
+  s.pillBox = E('rect', { x: -121, y: -23, width: 242, height: 46, rx: 23, 'stroke-width': 2 }, s.pill);
+  s.pillText = T(s.pill, '', { class: 'mono', x: 0, y: 7.5, 'font-size': 22, 'font-weight': 500, 'letter-spacing': 1.5, 'text-anchor': 'middle' });
+  // job card
+  s.card = E('g', {}, g);
+  E('rect', { x: 174, y: 345, width: 746, height: 287, rx: 10, fill: '#2D281F', opacity: 0.18, filter: 'url(#soft)' }, s.card);
+  E('rect', { x: 164, y: 333, width: 756, height: 287, rx: 9, fill: '#F1EEE3', stroke: C.inkSoft, 'stroke-width': 2 }, s.card);
+  T(s.card, 'SPARK JOB · STAGE 2 OF 3', { class: 'mono', x: 203, y: 387, 'font-size': 19, 'letter-spacing': 3, fill: '#8A8476' });
+  T(s.card, 'groupBy · count', { class: 'space', x: 203, y: 476, 'font-size': 45, fill: C.ink });
+  s.timer = T(s.card, '00:00', { class: 'space', x: 878, y: 476, 'font-size': 54, 'text-anchor': 'end', fill: C.green });
+  E('rect', { x: 202, y: 524, width: 676, height: 41, rx: 3, fill: '#F6F3EA', stroke: C.ink, 'stroke-width': 2.5 }, s.card);
+  s.bar = E('rect', { x: 204, y: 526, width: 0, height: 37, fill: 'url(#stripes)' }, s.card);
+  T(s.card, 'running…', { class: 'mono', x: 202, y: 604, 'font-size': 20, fill: C.green });
+  s.pct = T(s.card, '0%', { class: 'mono', x: 879, y: 604, 'font-size': 20, 'text-anchor': 'end', fill: '#8A8476' });
+  // code chip that drops in, then becomes the progress bar
+  s.chip = E('g', {}, g);
+  E('rect', { x: -342, y: -38, width: 704, height: 95, fill: '#000', opacity: 0.22, filter: 'url(#soft4)' }, s.chip);
+  E('rect', { x: -352, y: -47.5, width: 704, height: 95, fill: C.term }, s.chip);
+  const ct = T(s.chip, '', { class: 'mono', x: -320, y: 12, 'font-size': 37, fill: C.termText });
+  ct.innerHTML = 'df.<tspan fill="#9AA6DA">groupBy</tspan>("country")';
+}, (t, s) => {
+  const on = t < 6.8;
+  show(s.g, on); if (!on) return;
+  const shift = 112 * prog(t, 5.05, 5.45, 'power2.inOut');
+  S(s.world, { transform: `translate(0 ${f1(shift)})` });
+  for (const c of s.cubes) {
+    const p = prog(t, c.t0, c.t0 + 0.2, 'power2.out');
+    op(c.g, p);
+    if (p <= 0) continue;
+    if (p < 1) S(c.g, { transform: `translate(0 ${f1(-70 * (1 - p))})` }); else c.g.removeAttribute('transform');
+    // dot: dim, then flickering green, then red after groupBy
+    const live = prog(t, 1.15 + c.jitter * 0.4, 1.6 + c.jitter * 0.4);
+    const wave = 0.5 + 0.5 * Math.sin(2 * Math.PI * (c.freq * t + c.phase));
+    let col;
+    if (t < c.tRed) col = mixColor(C.greenDim, C.green, live * Math.pow(wave, 2.2));
+    else { const r = prog(t, c.tRed, c.tRed + 0.18); col = mixColor(C.redDim, C.red, r * (0.35 + 0.65 * Math.pow(wave, 1.4))); }
+    S(c.dot, { fill: col }); S(c.dotOuter, { fill: col });
+  }
+  // counter
+  const n = Math.round(kf(t, [[0.15, 0], [0.2, 15], [0.3, 40], [0.4, 60], [0.5, 75], [0.6, 85], [0.7, 93], [0.8, 97], [0.9, 99], [1.0, 100]]));
+  s.count.textContent = String(n);
+  const head = (1 - prog(t, 5.0, 5.3)) * prog(t, 0.15, 0.25);
+  op(s.count, head * (0.35 + 0.65 * prog(t, 0.2, 0.45)));
+  op(s.countLabel, head * prog(t, 0.15, 0.4));
+  // pill: ALL RUNNING pops, then SLOWING DOWN
+  const pop = prog(t, 2.6, 2.82, 'back.out(2.2)');
+  op(s.pill, pop);
+  const slow = t >= 4.72;
+  const pw = slow ? 286 : 242;
+  S(s.pill, { transform: `translate(540 1078) scale(${f1(pop * 100) / 100})` });
+  S(s.pillBox, { x: -pw / 2, width: pw, fill: slow ? '#F2E3DA' : '#E8EBDE', stroke: slow ? '#B0584A' : '#5D8F77' });
+  S(s.pillText, { fill: slow ? '#A23B2C' : '#3D7A62' });
+  s.pillText.textContent = slow ? '● SLOWING DOWN' : '● ALL RUNNING';
+  // ripple when the work turns red
+  const rp = prog(t, 4.88, 5.35);
+  op(s.ripple, rp > 0 && rp < 1 ? 0.25 * (1 - rp) : 0);
+  S(s.ripple, { rx: f1(lerp(330, 500, rp)), ry: f1(lerp(170, 250, rp)) });
+  // code chip: falls from above the frame, settles, then shrinks into the job card's progress bar
+  const fall = prog(t, 3.95, 4.6);
+  const into = prog(t, 5.25, 5.45, 'power2.inOut');
+  const cy = lerp(kf(t, [[3.85, -70], [4.0, 95, 'none'], [4.2, 202, 'none'], [4.45, 525, 'power1.in'], [4.62, 580, 'power2.out']]), 545, into);
+  const cx = 540;
+  const rot = lerp(-2, 0, prog(t, 4.2, 4.65, 'power2.out'));
+  const sx = lerp(lerp(1.04, 1, fall), 676 / 704, into), sy = lerp(1, 41 / 95, into);
+  op(s.chip, (t > 3.85 ? 1 : 0) * (1 - prog(t, 5.35, 5.47)));
+  S(s.chip, { transform: `translate(${f1(cx)} ${f1(cy)}) rotate(${f1(rot)}) scale(${sx.toFixed(3)} ${sy.toFixed(3)})` });
+  // job card
+  const cardIn = prog(t, 5.08, 5.45);
+  op(s.card, cardIn);
+  S(s.card, { transform: `translate(540 476) scale(${(0.96 + 0.04 * cardIn).toFixed(3)}) translate(-540 -476)` });
+  s.timer.textContent = '00:' + String(Math.max(0, Math.round((t - 5.17) * 33))).padStart(2, '0');
+  const pct = kf(t, [[5.15, 0], [5.5, 36], [5.8, 54], [6.1, 61], [6.4, 62]]);
+  s.pct.textContent = Math.round(pct) + '%';
+  S(s.bar, { width: f1(672 * pct / 100) });
+});
+
+// =====================================================================================
+// SCENE 2 (7.7 - 29.3 s): one billion orders, four executors fill up in parallel, groupBy("country") types in,
+// every order gets a key, partitions appear and the keys travel: the shuffle.
+// =====================================================================================
+const EXEC_A = [ // where the four executors stand after landing (9.9 - 13.9 s)
+  { cx: 207, by: 794, w: 196, h: 92, d: 78, rot: -1.5 }, { cx: 425, by: 786, w: 186, h: 92, d: 76, rot: -1.5 },
+  { cx: 643, by: 776, w: 188, h: 93, d: 74, rot: -2 }, { cx: 858, by: 766, w: 186, h: 92, d: 74, rot: -2 }];
+const EXEC_B = EXEC_A.map(g => ({ ...g, cx: 530 + (g.cx - 530) * 0.95, by: 710 + (g.by - 710) * 0.95 + 55, w: g.w * 0.95, h: g.h * 0.95, d: g.d * 0.95 }));
+const EXEC_C = [
+  { cx: 236, by: 736, w: 172, h: 92, d: 60, rot: -3.5, k: 0.07 }, { cx: 435, by: 725, w: 170, h: 90, d: 60, rot: -2, k: 0.07 },
+  { cx: 632, by: 714, w: 168, h: 90, d: 60, rot: -2.5, k: 0.07 }, { cx: 826, by: 701, w: 166, h: 90, d: 60, rot: -3, k: 0.07 }];
+const PARTS = [
+  { key: 'IN', cx: 236, by: 926, w: 190, h: 28, d: 60, rot: -3, k: 0.015 }, { key: 'US', cx: 457, by: 908, w: 192, h: 28, d: 60, rot: -3.5, k: 0.015 },
+  { key: 'BR', cx: 673, by: 891, w: 196, h: 28, d: 60, rot: -4, k: 0.015 }, { key: 'DE', cx: 886, by: 871, w: 202, h: 28, d: 58, rot: -6, k: 0.015 }];
+const KEYS = [['IN', 'US', 'BR', 'IN', 'DE', 'US'], ['US', 'IN', 'DE', 'BR', 'IN', 'US'], ['BR', 'DE', 'IN', 'US', 'BR', 'DE'], ['IN', 'BR', 'US', 'DE', 'BR', 'DE']];
+const s2 = scene('s2-orders', (g, s) => {
+  s.count = T(g, '', { class: 'space', x: 540, y: 352, 'font-size': 82, 'text-anchor': 'middle', fill: C.ink });
+  s.countLabel = T(g, 'ORDERS', { class: 'mono', x: 540, y: 387, 'font-size': 19, 'letter-spacing': 2.5, 'text-anchor': 'middle', fill: '#8A8476' });
+  s.more = T(g, '+ 96 more executors', { class: 'mono', x: 940, y: 512, 'font-size': 23, 'text-anchor': 'end', fill: '#8A8476' });
+  s.title1 = T(g, 'same key → same partition', { class: 'space', x: 540, y: 335, 'font-size': 45, 'text-anchor': 'middle', fill: C.ink });
+  s.title2 = T(g, 'data moves between executors', { class: 'space', x: 540, y: 335, 'font-size': 45, 'text-anchor': 'middle', fill: C.ink });
+  s.shuffle = E('g', {}, g);
+  T(s.shuffle, 'SHUFFLE', { class: 'display', x: 540, y: 366, 'font-size': 138, 'text-anchor': 'middle', fill: C.ink });
+  s.shuffleRule = E('rect', { x: 280, y: 382, width: 520, height: 7, fill: C.blue }, s.shuffle);
+  // terminal
+  s.term = E('g', {}, g);
+  E('rect', { x: 135, y: 300, width: 817, height: 104, fill: '#000', opacity: 0.25, filter: 'url(#soft)' }, s.term);
+  s.termBox = E('rect', { x: 125, y: 281, width: 827, height: 104, fill: C.term }, s.term);
+  T(s.term, '>>>', { class: 'mono', x: 160, y: 346, 'font-size': 33, fill: '#8E887A' });
+  s.termText = T(s.term, '', { class: 'mono', x: 242, y: 346, 'font-size': 33, fill: C.termText });
+  s.termCursor = E('rect', { x: 242, y: 318, width: 15, height: 34, fill: C.orange }, s.term);
+  s.sub = T(g, '', { class: 'mono', x: 540, y: 440, 'font-size': 22, 'text-anchor': 'middle', fill: '#8A8476' });
+  s.sub.innerHTML = 'every order now has a <tspan fill="#24428A" font-weight="600">key</tspan>: its country';
+  // partitions (drawn first: they sit in front-bottom, the executors and flying tiles go over them)
+  s.partLayer = E('g', {}, g);
+  s.parts = PARTS.map(p => {
+    const pg = E('g', {}, s.partLayer), b = boxGeom(p);
+    const top = E('path', { d: poly([b.BTL, b.BTR, b.FTR, b.FTL]), fill: '#DCD5C3', stroke: C.inkSoft, 'stroke-width': 1.8, 'stroke-linejoin': 'round' }, pg);
+    E('path', { d: poly([b.BTL, b.BTR, b.FTR, b.FTL].map(q => mix(q, mix(b.BTL, b.FTR, 0.5), 0.12))), fill: 'none', stroke: '#9C9585', 'stroke-width': 1, 'stroke-dasharray': '4 3' }, pg);
+    E('path', { d: poly([b.FTL, b.FTR, b.FBR, b.FBL]), fill: C.paper, stroke: C.inkSoft, 'stroke-width': 1.8, 'stroke-linejoin': 'round' }, pg);
+    const lab = E('g', { transform: faceMatrix(b.FTL, b.FTR, b.FBL, 190, 28) }, pg);
+    T(lab, 'PARTITION · ' + p.key, { class: 'space', x: 12, y: 21, 'font-size': 15, 'letter-spacing': 2, fill: C.inkSoft });
+    return { g: pg, top, b, key: p.key };
+  });
+  // executors
+  s.execLayer = E('g', {}, g);
+  s.execs = EXEC_A.map((geo, i) => {
+    const eg = E('g', {}, s.execLayer);
+    const o = { g: eg, i };
+    o.shadow = E('ellipse', { rx: 105, ry: 14, fill: '#3B3528', opacity: 0.2, filter: 'url(#soft)' }, eg);
+    o.body = E('g', {}, eg);
+    o.dash = E('path', { fill: 'none', stroke: C.inkSoft, 'stroke-width': 1.2, 'stroke-dasharray': '3 3' }, o.body);
+    o.top = E('path', { fill: C.paper, stroke: C.inkSoft, 'stroke-width': 1.8, 'stroke-linejoin': 'round' }, o.body);
+    o.lid = E('path', { fill: 'none', stroke: '#B5AF9F', 'stroke-width': 1 }, o.body);
+    o.front = E('path', { fill: '#E9E5D8', stroke: C.inkSoft, 'stroke-width': 1.8, 'stroke-linejoin': 'round' }, o.body);
+    o.face = E('g', {}, o.body);
+    T(o.face, 'EXECUTOR ' + (i + 1), { class: 'space', x: 16, y: 26, 'font-size': 14.5, 'letter-spacing': 1.8, fill: C.inkSoft });
+    o.led = E('circle', { cx: 172, cy: 18, r: 5.5, fill: '#5E8F78', filter: 'url(#soft2)' }, o.face);
+    for (const y of [43, 55, 67]) E('line', { x1: 18, x2: 168, y1: y, y2: y - 1, stroke: '#C2BDAD', 'stroke-width': 1.4 }, o.face);
+    o.barBox = E('rect', { x: 18, y: 72, width: 156, height: 11, rx: 2, fill: '#F7F4EA', stroke: C.ink, 'stroke-width': 1.6 }, o.face);
+    o.bar = E('rect', { x: 19, y: 73, width: 0, height: 9, fill: C.green }, o.face);
+    // order tiles: 2 columns x 3 rows on the lid
+    o.tiles = KEYS[i].map((key, k) => {
+      const tg = E('g', {}, eg);
+      const t = { g: tg, key, col: k % 2, row: Math.floor(k / 2), seed: rnd() };
+      t.front = E('path', { fill: '#DAD5C6', stroke: C.inkSoft, 'stroke-width': 1.1 }, tg);
+      t.top = E('path', { fill: C.paper, stroke: C.inkSoft, 'stroke-width': 1.1, 'stroke-linejoin': 'round' }, tg);
+      t.labG = E('g', {}, tg);
+      t.lab = T(t.labG, key, { class: 'space', x: 0, y: 4.5, 'font-size': 13, 'letter-spacing': 1.5, 'text-anchor': 'middle', fill: key === 'IN' ? '#fff' : C.inkSoft });
+      return t;
+    });
+    return o;
+  });
+  s.arcLayer = E('g', {}, g);
+  s.flyLayer = E('g', {}, g);
+  s.pill = E('g', {}, g);
+  E('rect', { x: -207, y: -28, width: 414, height: 56, rx: 28, fill: '#E7EBDD', stroke: '#6D9883', 'stroke-width': 2 }, s.pill);
+  T(s.pill, '√ PARALLEL · NO PROBLEM', { class: 'mono', x: 0, y: 8, 'font-size': 25, 'font-weight': 500, 'letter-spacing': 1, 'text-anchor': 'middle', fill: C.green });
+}, (t, s) => {
+  const on = t > 7.6 && t < 29.4;
+  show(s.g, on); if (!on) return;
+  // one billion orders
+  const v = 1e9 * prog(t, 7.7, 8.5, 'power3.out');
+  s.count.textContent = fmt(v);
+  const headOut = prog(t, 13.85, 14.15);
+  op(s.count, (0.45 + 0.55 * prog(t, 7.95, 8.25)) * (1 - headOut));
+  S(s.count, { transform: `translate(0 ${f1(-18 * headOut)})` });
+  op(s.countLabel, 1 - headOut);
+  op(s.more, prog(t, 10.6, 11.0) * (1 - headOut));
+  // executor geometry for this moment: land (A), step back for the terminal (B), make room for partitions (C)
+  const toB = prog(t, 13.9, 14.3, 'power2.inOut'), toC = prog(t, 18.95, 19.35, 'power2.inOut');
+  s.execs.forEach((o, i) => {
+    let geo = lerpGeom(lerpGeom(EXEC_A[i], EXEC_B[i], toB), EXEC_C[i], toC);
+    const land = 9.1 + 0.2 * i;
+    const fall = prog(t, land - 0.26, land, 'power2.in');
+    op(o.g, prog(t, land - 0.26, land - 0.16));
+    const lift = 105 * (1 - fall) + (t > land ? -6 * Math.sin(Math.PI * prog(t, land, land + 0.18)) : 0);
+    const b = boxGeom(geo);
+    const lifted = add(mix(b.FBL, b.FBR, 0.5), [0, 6]);
+    S(o.shadow, { cx: f1(lifted[0] + 16), cy: f1(lifted[1] - 2), rx: f1(geo.w * 0.55 * (0.7 + 0.3 * fall)), opacity: f1(0.22 * (0.4 + 0.6 * fall) * 100) / 100 });
+    S(o.body, { transform: `translate(0 ${f1(-lift)})` });
+    S(o.top, { d: poly([b.BTL, b.BTR, b.FTR, b.FTL]) });
+    S(o.lid, { d: poly([b.BTL, b.BTR, b.FTR, b.FTL].map(q => mix(q, mix(b.BTL, b.FTR, 0.5), 0.1))) });
+    S(o.front, { d: poly([b.FTL, b.FTR, b.FBR, b.FBL]) });
+    S(o.dash, { d: b.sx < -4 ? `M${f1(b.BTL[0])} ${f1(b.BTL[1])}V${f1(b.BTL[1] + geo.h)}` : '' });
+    S(o.face, { transform: faceMatrix(b.FTL, b.FTR, b.FBL, 190, 92) });
+    const fill = clamp(prog(t, 11.3 + 0.05 * i, 12.55 - 0.08 * (i % 2), 'power1.out'));
+    const bars = (t > 11.25 ? 1 : 0) * (1 - prog(t, 18.95, 19.2));
+    op(o.barBox, bars); op(o.bar, bars);
+    S(o.bar, { width: f1(154 * fill) });
+    // tiles on the lid
+    const TOPW = 190, TOPD = 78;
+    const tm = faceMatrix(b.BTL, b.BTR, b.FTL, TOPW, TOPD);
+    o.tiles.forEach((tile, k) => {
+      const drop = 10.6 + ((i * 6 + k) * 0.618) % 1 * 1.75;
+      const p = prog(t, drop, drop + 0.3, 'power2.in');
+      // the shuffle: keys fly to their partition
+      const pi = PARTS.findIndex(q => q.key === tile.key);
+      const fly0 = 25.35 + ((i * 6 + k) * 0.382) % 1 * 1.9;
+      const fp = prog(t, fly0, fly0 + 0.55, 'power2.inOut');
+      op(tile.g, prog(t, drop, drop + 0.08));
+      if (t < drop) return;
+      const x0 = 14 + tile.col * 84, y0 = 4 + tile.row * 24.5, tw = 78, td = 22;
+      const loc = (x, y) => { const m = tm.slice(7, -1).split(' ').map(Number); return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]; };
+      let P = [loc(x0, y0), loc(x0 + tw, y0), loc(x0 + tw, y0 + td), loc(x0, y0 + td)];
+      const th = 11;
+      // landing position in the partition tray
+      if (fp > 0) {
+        const pb = s.parts[pi].b;
+        const slot = s.slotOf(tile, i);
+        const pm = faceMatrix(pb.BTL, pb.BTR, pb.FTL, 190, 78).slice(7, -1).split(' ').map(Number);
+        const pl = (x, y) => [pm[0] * x + pm[2] * y + pm[4], pm[1] * x + pm[3] * y + pm[5]];
+        const sx0 = 16 + (slot % 2) * 82, sy0 = 6 + Math.floor(slot / 2) * 23;
+        const Q = [pl(sx0, sy0), pl(sx0 + tw, sy0), pl(sx0 + tw, sy0 + td), pl(sx0, sy0 + td)];
+        const arc = -140 * Math.sin(Math.PI * fp);
+        P = P.map((q, n) => add(mix(q, Q[n], fp), [0, arc]));
+      }
+      const up = -(th + 2) - 110 * (1 - p);
+      P = P.map(q => add(q, [0, up]));
+      const F = [P[3], P[2], add(P[2], [0, th]), add(P[3], [0, th])];
+      S(tile.top, { d: poly(P) });
+      S(tile.front, { d: poly(F) });
+      // key labels flip in executor by executor
+      const flip = prog(t, 18.28 + 0.18 * i + 0.03 * k, 18.5 + 0.18 * i + 0.03 * k);
+      const keyed = flip > 0.5;
+      const sc = Math.abs(Math.cos(Math.PI * flip));
+      S(tile.top, { fill: keyed && tile.key === 'IN' ? C.blue : C.paper });
+      S(tile.front, { fill: keyed && tile.key === 'IN' ? '#1B3370' : '#DAD5C6' });
+      const c = mix(P[0], P[2], 0.5);
+      op(tile.labG, keyed ? 1 : 0);
+      S(tile.labG, { transform: `translate(${f1(c[0])} ${f1(c[1])}) scale(1 ${sc.toFixed(2)}) rotate(${f1(geo.rot)})` });
+      // IN tiles lift while the arcs point at their partition
+      if (tile.key === 'IN') {
+        const l = prog(t, 21.4, 21.7) * (1 - fp);
+        S(tile.g, { transform: `translate(0 ${f1(-6 * l)})` });
+      }
+    });
+  });
+  // terminal: groupBy("country").count() types in, greys out and leaves
+  const CODE = 'df.groupBy("country").count()';
+  const tin = prog(t, 14.12, 14.5), tout = prog(t, 18.85, 19.2);
+  op(s.term, tin * (1 - tout));
+  S(s.termBox, { fill: mixColor('#5E594C', C.term, prog(t, 14.12, 14.3)) });
+  S(s.term, { transform: `translate(0 ${f1(-14 * tout)})` });
+  if (tout > 0) S(s.termBox, { fill: mixColor(C.term, '#6B675C', tout * 2) });
+  const nch = Math.round(kf(t, [[14.8, 0], [15.2, 4], [15.5, 8], [16.0, 14], [16.5, 20], [17.0, 26], [17.25, 29]]));
+  s.termText.textContent = CODE.slice(0, nch);
+  const cw = nch * 19.8;
+  S(s.termCursor, { x: f1(242 + cw + 2) });
+  show(s.termCursor, tin > 0.9 && (t < 17.3 || (t > 18.2 && t < 18.55) || ((t - 17.3) % 1.06) < 0.53));
+  op(s.sub, prog(t, 18.75, 18.9) * (1 - prog(t, 19.05, 19.2)));
+  // partitions pop in one after another
+  s.parts.forEach((p, i) => {
+    const a = 19.36 + [0, 0.16, 0.3, 0.45][i];
+    const pp = prog(t, a, a + 0.25, 'back.out(1.6)');
+    op(p.g, prog(t, a, a + 0.08));
+    const c = mix(p.b.FBL, p.b.FBR, 0.5);
+    S(p.g, { transform: `translate(${f1(c[0])} ${f1(c[1] + 30 * (1 - pp))}) scale(${(0.9 + 0.1 * pp).toFixed(3)}) translate(${f1(-c[0])} ${f1(-c[1])})` });
+    if (p.key === 'IN') S(p.top, { fill: mixColor('#DCD5C3', C.blueLight, prog(t, 22.35, 22.75) * (1 - prog(t, 27.8, 28.2) * 0)) });
+  });
+  // titles
+  op(s.title1, prog(t, 19.65, 20.0) * (1 - prog(t, 24.95, 25.2)));
+  S(s.title1, { fill: mixColor('#8A8476', C.ink, prog(t, 19.75, 20.1)) });
+  op(s.title2, prog(t, 25.0, 25.3) * (1 - prog(t, 28.75, 28.9)));
+  const sh = prog(t, 28.8, 29.0, 'back.out(2)');
+  op(s.shuffle, prog(t, 28.8, 28.88));
+  S(s.shuffle, { transform: `translate(540 340) rotate(-1.5) scale(${(0.85 + 0.15 * sh).toFixed(3)}) translate(-540 -340)` });
+  S(s.shuffleRule, { width: f1(520 * prog(t, 28.85, 29.05, 'power2.out')) });
+  // dotted arcs from every IN order to partition IN
+  s.drawArcs(t);
+  // pill
+  const pp = prog(t, 13.55, 13.72, 'back.out(2)');
+  op(s.pill, pp * (1 - prog(t, 13.95, 14.12)));
+  S(s.pill, { transform: `translate(540 1078) rotate(-2) scale(${(0.8 + 0.2 * pp).toFixed(3)})` });
+});
+s2.slotOf = (tile, i) => {
+  // stacking order inside each partition: count earlier tiles with the same key
+  let n = 0;
+  for (let e = 0; e < 4; e++) for (let k = 0; k < 6; k++) {
+    if (e === i && KEYS[e][k] === tile.key && s2.execs[e].tiles[k] === tile) return n % 6;
+    if (KEYS[e][k] === tile.key) n++;
+  }
+  return n % 6;
+};
+s2.arcs = [];
+s2.drawArcs = (t) => {
+  if (!s2.arcs.length) {
+    for (let e = 0; e < 4; e++) for (let k = 0; k < 6; k++) if (KEYS[e][k] === 'IN')
+      s2.arcs.push({ e, k, el: E('path', { fill: 'none', stroke: '#2E4A86', 'stroke-width': 2.4, 'stroke-dasharray': '2 5', 'stroke-linecap': 'round' }, s2.arcLayer) });
+  }
+  const vis = prog(t, 21.45, 21.95) * (1 - prog(t, 25.2, 25.45));
+  const pb = s2.parts[0].b, target = mix(mix(pb.BTL, pb.FTR, 0.5), pb.FTL, 0.2);
+  for (const a of s2.arcs) {
+    const tile = s2.execs[a.e].tiles[a.k];
+    const d = tile.top.getAttribute('d');
+    if (vis <= 0 || !d) { show(a.el, false); continue; }
+    const nums = d.slice(1, -1).split('L').map(q => q.split(' ').map(Number));
+    const from = mix(nums[0], nums[2], 0.5);
+    const c1 = [lerp(from[0], target[0], 0.1), from[1] - 70 - 6 * a.e], c2 = [target[0] + 25 + 8 * a.e, from[1] - 70 - 6 * a.e];
+    show(a.el, true);
+    S(a.el, { d: `M${f1(from[0])} ${f1(from[1])}C${f1(c1[0])} ${f1(c1[1])} ${f1(c2[0])} ${f1(c2[1])} ${f1(target[0])} ${f1(target[1])}`, opacity: f1(vis * 100) / 100 });
+  }
+};
+
+// A labelled machine box (executor / stage): top, front with label, led and ruled lines, optional dashed hidden edge.
+function makeBox(parent, label, opts = {}) {
+  const o = { g: E('g', {}, parent) };
+  o.shadow = E('ellipse', { fill: '#3B3528', opacity: 0.2, filter: 'url(#soft)' }, o.g);
+  o.dash = E('path', { fill: 'none', stroke: C.inkSoft, 'stroke-width': 1.2, 'stroke-dasharray': '3 3' }, o.g);
+  o.top = E('path', { fill: opts.top || C.paper, stroke: C.inkSoft, 'stroke-width': 1.8, 'stroke-linejoin': 'round' }, o.g);
+  o.lid = E('path', { fill: 'none', stroke: '#B5AF9F', 'stroke-width': 1 }, o.g);
+  o.front = E('path', { fill: opts.front || '#E9E5D8', stroke: C.inkSoft, 'stroke-width': 1.8, 'stroke-linejoin': 'round' }, o.g);
+  o.face = E('g', {}, o.g);
+  o.label = T(o.face, label, { class: 'space', x: 16, y: 30, 'font-size': 15, 'letter-spacing': 1.8, fill: C.inkSoft });
+  o.led = E('circle', { cx: 172, cy: 20, r: 5.5, fill: '#5E8F78', filter: 'url(#soft2)' }, o.face);
+  for (const y of [47, 59, 71]) E('line', { x1: 18, x2: 168, y1: y, y2: y - 1, stroke: '#C2BDAD', 'stroke-width': 1.4 }, o.face);
+  o.set = (geo) => {
+    const b = boxGeom(geo);
+    S(o.top, { d: poly([b.BTL, b.BTR, b.FTR, b.FTL]) });
+    S(o.lid, { d: poly([b.BTL, b.BTR, b.FTR, b.FTL].map(q => mix(q, mix(b.BTL, b.FTR, 0.5), 0.08))) });
+    S(o.front, { d: poly([b.FTL, b.FTR, b.FBR, b.FBL]) });
+    S(o.dash, { d: b.sx < -4 ? `M${f1(b.BTL[0])} ${f1(b.BTL[1])}L${f1(b.BTL[0] + 4)} ${f1(b.BTL[1] + geo.h)}` : '' });
+    S(o.face, { transform: faceMatrix(b.FTL, b.FTR, b.FBL, 190, 92) });
+    const c = mix(b.FBL, b.FBR, 0.5);
+    S(o.shadow, { cx: f1(c[0] + 18), cy: f1(c[1] - 4), rx: f1(geo.w * 0.56), ry: 14 });
+    return b;
+  };
+  return o;
+}
+// the binary chip: a dark strip of bits that stands for one serialized record
+function makeChip(parent) {
+  const o = { g: E('g', {}, parent) };
+  o.clip = E('clipPath', { id: 'chipClip' + (makeChip.n = (makeChip.n || 0) + 1) }, E('defs', {}, o.g));
+  o.clipRect = E('rect', {}, o.clip);
+  o.rect = E('rect', { fill: C.term }, o.g);
+  o.textG = E('g', { 'clip-path': `url(#${o.clip.id})` }, o.g);
+  o.text = T(o.textG, '01001001 01001110 00110100 00111000', { class: 'mono', 'font-size': 17, fill: C.termText });
+  o.set = (cx, cy, w, h, alpha = 1, fill = C.term) => {
+    const x = cx - w / 2, y = cy - h / 2;
+    S(o.rect, { x: f1(x), y: f1(y), width: f1(w), height: f1(h), fill });
+    S(o.clipRect, { x: f1(x), y: f1(y), width: f1(w), height: f1(h) });
+    const fs = clamp(h * 0.4, 8, 17);
+    S(o.text, { x: f1(x + 10), y: f1(cy + fs * 0.35), 'font-size': f1(fs) });
+    op(o.g, alpha);
+  };
+  return o;
+}
+// an order record card
+function makeRecord(parent, compact) {
+  const o = { g: E('g', {}, parent) };
+  E('rect', { x: 8, y: 10, width: 596, height: 199, rx: 8, fill: '#2D281F', opacity: 0.14, filter: 'url(#soft)' }, o.g);
+  E('rect', { x: 0, y: 0, width: 596, height: 199, rx: 8, fill: '#F1EEE3', stroke: C.inkSoft, 'stroke-width': 2.2 }, o.g);
+  T(o.g, 'ORDER RECORD', { class: 'mono', x: 27, y: 40, 'font-size': 17, 'letter-spacing': 2, fill: '#8A8476' });
+  [['order_id', '48213907'], ['country', 'IN'], ['amount', '₹1,240']].forEach(([k, v], i) => {
+    T(o.g, k, { class: 'mono', x: 27, y: 82 + i * 40, 'font-size': 24, fill: '#8A8476' });
+    T(o.g, v, { class: 'mono', x: 176, y: 82 + i * 40, 'font-size': 24, fill: k === 'country' ? C.blue : C.ink, 'font-weight': k === 'country' ? 600 : 400 });
+  });
+  // place the 596 x 199 card into a box (cx, cy, w, h) with rotation
+  o.set = (cx, cy, w, h, rot = 0, alpha = 1) => {
+    S(o.g, { transform: `translate(${f1(cx)} ${f1(cy)}) rotate(${f1(rot)}) scale(${(w / 596).toFixed(4)} ${(h / 199).toFixed(4)}) translate(-298 -99.5)` });
+    op(o.g, alpha);
+  };
+  return o;
+}
+function makePill(parent, label, red) {
+  const g = E('g', {}, parent);
+  const w = label.length * 13.4 + 44;
+  E('rect', { x: -w / 2, y: -25, width: w, height: 50, rx: 25, fill: red ? '#F3E4DC' : '#E8EBDE', stroke: red ? '#B0584A' : '#5D8F77', 'stroke-width': 2 }, g);
+  T(g, label, { class: 'mono', x: 0, y: 8, 'font-size': 23, 'font-weight': 500, 'text-anchor': 'middle', fill: red ? C.red : C.green });
+  return g;
+}
+const popIn = (g, t, a, b, x, y, rot = 0) => {
+  const p = prog(t, a, b, 'back.out(2)');
+  op(g, prog(t, a, a + 0.06));
+  S(g, { transform: `translate(${x} ${y}) rotate(${rot}) scale(${(0.6 + 0.4 * p).toFixed(3)})` });
+  return p;
+};
+
+// =====================================================================================
+// SCENE 3 (31.4 - 47.1 s): one order record goes through the six steps of a shuffle while the cost panel fills.
+// =====================================================================================
+const STEPS = [[32.4, 'serialize'], [33.85, 'write to disk'], [36.55, 'send over network'], [41.95, 'fetch'], [44.3, 'deserialize'], [45.15, 'aggregate']];
+const s3 = scene('s3-steps', (g, s) => {
+  s.stepLabel = T(g, '', { class: 'mono', x: 128, y: 288, 'font-size': 22, 'letter-spacing': 3, fill: '#8A8476' });
+  s.stepTitle = T(g, '', { class: 'space', x: 129, y: 350, 'font-size': 50, fill: C.ink });
+  // disk: a stack of platters
+  s.disk = E('g', {}, g);
+  E('ellipse', { cx: 585, cy: 945, rx: 120, ry: 40, fill: '#3B3528', opacity: 0.22, filter: 'url(#soft)' }, s.disk);
+  for (let k = 6; k >= 1; k--) E('ellipse', { cx: 567, cy: 880 + 7 * k, rx: 112, ry: 68, fill: k % 2 ? '#D9D3C3' : '#CFC9B8', stroke: C.inkSoft, 'stroke-width': 1.4 }, s.disk);
+  E('ellipse', { cx: 567, cy: 880, rx: 112, ry: 68, fill: '#E6E1D3', stroke: C.inkSoft, 'stroke-width': 1.6 }, s.disk);
+  E('ellipse', { cx: 567, cy: 880, rx: 70, ry: 42, fill: 'none', stroke: '#F3F0E6', 'stroke-width': 14, opacity: 0.6 }, s.disk);
+  E('ellipse', { cx: 567, cy: 880, rx: 24, ry: 15, fill: C.ink }, s.disk);
+  T(s.disk, 'DISK', { class: 'mono', x: 575, y: 1031, 'font-size': 22, 'letter-spacing': 3, 'text-anchor': 'middle', fill: '#8A8476' });
+  s.diskBand = E('rect', { x: 432, y: 810, width: 270, height: 30, fill: '#8E897C', opacity: 0.3 }, g);
+  // network arc: black rail with white ties
+  s.arc = E('g', {}, g);
+  const D = 'M270 700Q571 409 788 662';
+  s.arcA = E('path', { d: D, fill: 'none', stroke: C.ink, 'stroke-width': 5, 'stroke-linecap': 'round' }, s.arc);
+  s.arcB = E('path', { d: D, fill: 'none', stroke: '#F4F1E8', 'stroke-width': 2, 'stroke-dasharray': '7 7' }, s.arc);
+  s.netLabel = T(g, 'NETWORK', { class: 'mono', x: 540, y: 520, 'font-size': 22, 'letter-spacing': 3, 'text-anchor': 'middle', fill: '#8A8476' });
+  s.e2 = makeBox(g, 'EXECUTOR 2');
+  s.e4 = makeBox(g, 'EXECUTOR 4');
+  s.e2.set({ cx: 225, by: 872, w: 216, h: 110, d: 82, rot: -4.3, k: 0 });
+  s.e4.set({ cx: 854, by: 815, w: 204, h: 100, d: 82, rot: -5, k: 0.093 });
+  s.diskPill = makePill(g, '+ disk I/O', true);
+  s.netPill = makePill(g, '+ network I/O', true);
+  // count card and its connectors
+  s.links = E('path', { d: 'M345 632L272 702M735 632L788 664', stroke: C.inkSoft, 'stroke-width': 2.2, fill: 'none' }, g);
+  s.count = E('g', {}, g);
+  s.countBox = E('rect', { y: 469, height: 168, rx: 6, fill: '#F1EEE3', stroke: C.inkSoft, 'stroke-width': 2.2 }, s.count);
+  T(s.count, '', { class: 'mono', x: 540, y: 515, 'font-size': 19, 'letter-spacing': 2, 'text-anchor': 'middle', fill: '#8A8476' }).innerHTML = 'COUNT · COUNTRY = <tspan fill="#24428A">IN</tspan>';
+  s.countText = T(s.count, '1', { class: 'space', x: 540, y: 600, 'font-size': 62, 'text-anchor': 'middle', fill: C.ink });
+  s.record = makeRecord(g);
+  s.chip = makeChip(g);
+  // cost panel (drawn last: the deserialized record slides out from under it)
+  s.panel = E('g', {}, g);
+  E('rect', { x: 711, y: 270, width: 262, height: 224, rx: 10, fill: '#2D281F', opacity: 0.16, filter: 'url(#soft)' }, s.panel);
+  E('rect', { x: 703, y: 260, width: 262, height: 224, rx: 10, fill: '#F1EEE3', stroke: C.ink, 'stroke-width': 2 }, s.panel);
+  T(s.panel, 'SHUFFLE COST', { class: 'mono', x: 723, y: 296, 'font-size': 18, 'letter-spacing': 2, fill: '#8A8476' });
+  E('rect', { x: 723, y: 309, width: 222, height: 17, rx: 2, fill: '#F6F3EA', stroke: C.ink, 'stroke-width': 1.6 }, s.panel);
+  s.costBar = E('rect', { x: 724, y: 310, width: 0, height: 15, fill: '#A93A2B' }, s.panel);
+  s.items = ['serialize', 'disk I/O', 'network I/O', 'deserialize'].map((name, i) => {
+    const box = E('rect', { x: 724, y: 337 + 35 * i, width: 22, height: 22, rx: 2, 'stroke-width': 1.6 }, s.panel);
+    const txt = T(s.panel, name, { class: 'mono', x: 757, y: 356 + 35 * i, 'font-size': 21 });
+    return { box, txt };
+  });
+}, (t, s) => {
+  const on = t > 31.3 && t < 47.1;
+  show(s.g, on); if (!on) return;
+  const fade = 1 - prog(t, 46.5, 47.0);
+  op(s.g, fade);
+  // step label and title
+  let k = -1; for (let i = 0; i < STEPS.length; i++) if (t >= STEPS[i][0]) k = i;
+  if (k >= 0) {
+    s.stepLabel.textContent = `STEP ${k + 1} / 6`;
+    s.stepTitle.textContent = STEPS[k][1];
+    const a = STEPS[k][0];
+    S(s.stepTitle, { fill: mixColor('#C9C4B5', C.ink, prog(t, a + 0.05, a + 0.35)) });
+  }
+  op(s.stepLabel, k >= 0 ? 1 : 0); op(s.stepTitle, k >= 0 ? 1 : 0);
+  // cost panel slides in, items tick, bar grows
+  const pin = prog(t, 32.55, 32.95, 'power3.out');
+  op(s.panel, pin > 0 ? 1 : 0);
+  S(s.panel, { transform: `translate(${f1(320 * (1 - pin))} 0)` });
+  const ticks = [33.05, 35.6, 39.4, 44.85];
+  s.items.forEach((it, i) => {
+    const p = prog(t, ticks[i], ticks[i] + 0.2);
+    S(it.box, { fill: mixColor('#F1EEE3', '#A93A2B', p), stroke: mixColor('#CFCABB', '#5A2018', p) });
+    S(it.txt, { fill: mixColor('#CFCABB', C.ink, p) });
+  });
+  const bar = kf(t, [[32.95, 0], [33.3, 0.22], [35.55, 0.22], [35.9, 0.47], [39.3, 0.48], [39.7, 0.74], [44.7, 0.74], [45.1, 1]]);
+  S(s.costBar, { width: f1(220 * bar) });
+  // disk, arc, labels, pills
+  const dp = prog(t, 33.4, 33.65, 'back.out(1.8)');
+  op(s.disk, dp);
+  S(s.disk, { transform: `translate(567 900) scale(${(0.7 + 0.3 * dp).toFixed(3)}) translate(-567 -900)` });
+  op(s.diskBand, t > 34.45 && t < 36.65 ? 1 : 0);
+  const draw = prog(t, 35.95, 36.6, 'power1.inOut');
+  const len = 660;
+  op(s.arc, draw > 0 ? 1 : 0);
+  S(s.arcA, { 'stroke-dasharray': `${f1(len * draw)} ${len}` });
+  S(s.arcB, { opacity: draw > 0.99 ? 1 : 0 });
+  op(s.netLabel, prog(t, 37.7, 37.9));
+  op(s.diskPill, 0); op(s.netPill, 0);
+  if (t > 35.5 && t < 38.0) { popIn(s.diskPill, t, 35.5, 35.75, 590, 1074); op(s.diskPill, prog(t, 35.5, 35.56) * (1 - prog(t, 37.75, 38.0))); }
+  if (t > 38.8 && t < 41.5) { popIn(s.netPill, t, 38.85, 39.15, 540, 565); op(s.netPill, prog(t, 38.85, 38.92) * (1 - prog(t, 41.25, 41.45))); }
+  // executor 4 becomes stage 2's reader
+  s.e4.label.textContent = t > 41.45 ? 'STAGE 2 · EXEC 4' : 'EXECUTOR 4';
+  S(s.e4.led, { fill: t > 41.45 ? '#5A6FA8' : '#5E8F78' });
+  // the record: card -> chip -> disk -> network -> fetch -> card -> aggregate
+  const rec = s.record;
+  if (t < 32.75) {
+    const p = prog(t, 32.45, 32.75, 'power2.in');
+    rec.set(lerp(540, 600, p), lerp(455, 460, p), lerp(596, 470, p), lerp(199, 140, p), lerp(0, -2.5, p), 1 - prog(t, 32.65, 32.75));
+  } else if (t > 44.45 && t < 47.1) {
+    const grow = prog(t, 44.45, 44.8, 'power2.out'), shrink = prog(t, 45.3, 45.6, 'power2.inOut');
+    rec.set(lerp(lerp(840, 845, grow), 540, shrink), lerp(536, lerp(513, 385, shrink), grow), lerp(lerp(370, 341, grow), 268, shrink), lerp(lerp(43, 118, grow), 93, shrink), 0, 1);
+  } else op(rec.g, 0);
+  const CH = [ // [t, cx, cy, w, h]
+    [32.7, 600, 460, 470, 140], [32.85, 540, 472, 444, 58], [33.3, 412, 530, 493, 58], [33.6, 268, 616, 406, 56], [34.2, 364, 627, 404, 49],
+    [34.5, 567, 821, 270, 30]];
+  if (t >= 32.7 && t < 34.5) s.chip.set(...kf(t, CH.map(([a, ...v]) => [a, v, 'power2.inOut'])), 1);
+  else if (t >= 36.6 && t < 42.75) {
+    const v = kf(t, [[36.6, [567, 800, 300, 30]], [36.75, [570, 718, 345, 32]], [37.0, [281, 659, 346, 34]], [37.3, [421, 548, 346, 35], 'none'],
+      [37.6, [698, 556, 346, 37], 'none'], [37.9, [782, 623, 346, 37], 'power2.out'], [38.2, [784, 626, 346, 42]], [42.3, [784, 626, 346, 42]], [42.7, [860, 690, 170, 20], 'power2.in']]);
+    s.chip.set(...v, prog(t, 36.6, 36.75) * (1 - prog(t, 42.55, 42.72)) * (t < 36.75 ? 0.6 : 1));
+  } else if (t >= 43.85 && t < 44.8) {
+    const v = kf(t, [[43.85, [860, 680, 200, 24]], [44.15, [832, 536, 367, 43], 'power2.out'], [44.45, [832, 536, 367, 43]], [44.8, [845, 513, 341, 118], 'power2.out']]);
+    s.chip.set(...v, prog(t, 43.85, 43.95) * (1 - prog(t, 44.5, 44.75)));
+  } else op(s.chip.g, 0);
+  // aggregate: count card with connectors
+  const cin = prog(t, 45.4, 45.7);
+  op(s.count, cin); op(s.links, cin);
+  const n = t < 46.15 ? 1 : Math.round(kf(t, [[46.15, 1], [46.4, 1701488], [46.7, 2406709], [47.0, 2950000]]));
+  s.countText.textContent = fmt(n);
+  const cw = lerp(419, 445, prog(t, 46.15, 46.3));
+  S(s.countBox, { x: f1(540 - cw / 2), width: f1(cw) });
+});
+
+// =====================================================================================
+// SCENE 4 (46.9 - 54.7 s): shuffle overhead as a conveyor between stage 1 and stage 2; stage 2's tasks wait for data.
+// =====================================================================================
+const OVER_CUBES = [
+  { name: 'serialize', land: 47.34, F: [[360, 658], [445, 652], [447, 705], [362, 710]], B: [[353, 615], [437, 608]], fill: '#B34B3D' },
+  { name: 'disk I/O', land: 47.71, F: [[455, 632], [540, 626], [541, 695], [457, 700]], B: [[447, 590], [528, 583]], fill: '#AE4537' },
+  { name: 'network', land: 48.09, F: [[550, 615], [632, 610], [633, 690], [551, 694]], B: [[540, 573], [628, 567]], fill: '#B04A3C' },
+  { name: 'deserialize', land: 48.37, F: [[643, 630], [725, 625], [727, 680], [645, 684]], B: [[633, 585], [710, 580]], fill: '#B9594B' }];
+const TASK_FILL = [ // waiting share per task over time, then the short green "work"
+  [[51.3, 0], [51.4, 0.13], [51.7, 0.37], [52.0, 0.53], [52.4, 0.65], [52.8, 0.69], [53.2, 0.70]],
+  [[51.6, 0], [51.7, 0.29], [52.0, 0.51], [52.4, 0.69], [52.8, 0.76], [53.2, 0.78]],
+  [[51.6, 0], [51.7, 0.12], [52.0, 0.33], [52.4, 0.5], [52.8, 0.59], [53.2, 0.62]],
+  [[51.8, 0], [52.0, 0.28], [52.4, 0.54], [52.8, 0.67], [53.2, 0.73], [53.6, 0.74]]];
+const s4 = scene('s4-overhead', (g, s) => {
+  s.title = T(g, '', { class: 'space', x: 540, y: 330, 'font-size': 48, 'text-anchor': 'middle', fill: C.ink });
+  s.title.innerHTML = 'shuffle <tspan fill="#A23B2C">overhead</tspan>';
+  s.diagram = E('g', {}, g);
+  s.stage1 = makeBox(s.diagram, 'STAGE 1');
+  s.stage1.set({ cx: 241, by: 745, w: 186, h: 95, d: 75, rot: -4.5, k: 0.01 });
+  s.stage2 = makeBox(s.diagram, 'STAGE 2');
+  s.stage2.set({ cx: 852, by: 695, w: 176, h: 92, d: 72, rot: -5, k: 0.11 });
+  // belt
+  const belt = E('g', {}, s.diagram);
+  E('path', { d: 'M350 675L741 660L741 668L350 683Z', fill: '#CFC9B9', stroke: C.inkSoft, 'stroke-width': 1.4 }, belt);
+  E('path', { d: 'M345 663L735 648L741 660L350 675Z', fill: '#E1DCCD', stroke: C.inkSoft, 'stroke-width': 1.4 }, belt);
+  for (let x = 370; x < 730; x += 22) E('line', { x1: x, y1: 662 - (x - 345) * 0.038, x2: x + 4, y2: 674 - (x - 345) * 0.038, stroke: '#B8B2A2', 'stroke-width': 1.2 }, belt);
+  s.cubes = OVER_CUBES.map(c => {
+    const cg = E('g', {}, s.diagram);
+    const [TL, TR, BR, BL] = c.F;
+    E('path', { d: poly([c.B[0], c.B[1], TR, TL]), fill: mixColor(c.fill, '#FFFFFF', 0.15), stroke: '#3A1E18', 'stroke-width': 1.4, 'stroke-linejoin': 'round' }, cg);
+    E('path', { d: poly([TL, TR, BR, BL]), fill: c.fill, stroke: '#3A1E18', 'stroke-width': 1.4, 'stroke-linejoin': 'round' }, cg);
+    const fw = Math.hypot(TR[0] - TL[0], TR[1] - TL[1]);
+    const lab = E('g', { transform: faceMatrix(TL, TR, BL, 85, 52) }, cg);
+    T(lab, c.name, { class: 'space', x: 42.5, y: 32, 'font-size': c.name.length > 9 ? 12 : 13, 'text-anchor': 'middle', fill: '#F6E6E0' });
+    return { g: cg, c, fw };
+  });
+  s.bracket = E('g', {}, g);
+  E('path', { d: 'M298 775V792H810V775', fill: 'none', stroke: '#8A3A30', 'stroke-width': 2 }, s.bracket);
+  s.bracketText = T(s.bracket, 'stage 2 waits for all of this', { class: 'mono', x: 554, y: 832, 'font-size': 26, 'text-anchor': 'middle', fill: '#A0463A' });
+  // stage 2 tasks
+  s.tasks = [0, 1, 2, 3].map(i => {
+    const tg = E('g', {}, g), y = 590 + 132 * i;
+    const o = { g: tg };
+    T(tg, `STAGE 2 · TASK ${i + 1}`, { class: 'mono', x: 145, y: y - 13, 'font-size': 18, 'letter-spacing': 2, fill: '#8A8476' });
+    E('rect', { x: 145, y, width: 790, height: 58, rx: 4, fill: '#F2EFE5', stroke: C.inkSoft, 'stroke-width': 2.2 }, tg);
+    o.wait = E('rect', { x: 147, y: y + 2, width: 0, height: 54, fill: 'url(#hatch)' }, tg);
+    o.waitText = T(tg, 'waiting for data…', { class: 'mono', x: 158, y: y + 36, 'font-size': 19, fill: '#8A8476' });
+    o.work = E('rect', { y: y + 2, width: 0, height: 54, fill: C.green }, tg);
+    o.workText = T(tg, 'work', { class: 'mono', y: y + 36, 'font-size': 17, fill: '#DDEBE3' });
+    o.workClip = E('clipPath', { id: 'work' + i }, E('defs', {}, tg));
+    o.workClipRect = E('rect', { y: y + 2, height: 54 }, o.workClip);
+    o.workText.setAttribute('clip-path', `url(#work${i})`);
+    return o;
+  });
+  s.hour = E('g', {}, g);
+  E('path', { d: 'M-17 -22H17M-17 22H17M-13 -22C-13 -6 13 6 13 22M13 -22C13 -6 -13 6 -13 22', fill: 'none', stroke: C.ink, 'stroke-width': 3.2, 'stroke-linecap': 'round' }, s.hour);
+  s.sand = E('path', { d: 'M-8 16H8L0 9Z', fill: C.ink }, s.hour);
+}, (t, s) => {
+  const on = t > 46.85 && t < 54.7;
+  show(s.g, on); if (!on) return;
+  const tin = prog(t, 46.9, 47.25);
+  op(s.title, tin);
+  op(s.diagram, prog(t, 46.9, 47.2));
+  // shrink everything to the top for the task rows
+  const sh = prog(t, 49.4, 49.85, 'power2.inOut');
+  const sc = lerp(1, 0.64, sh);
+  S(s.diagram, { transform: `translate(540 ${f1(lerp(642, 383, sh))}) scale(${sc.toFixed(3)}) translate(-540 -642)` });
+  S(s.title, { 'font-size': f1(lerp(48, 36, sh)), y: f1(lerp(330, 302, sh)) });
+  s.cubes.forEach(o => {
+    const land = o.c.land, p = prog(t, land - 0.4, land, 'power2.in');
+    op(o.g, prog(t, land - 0.4, land - 0.3));
+    S(o.g, { transform: `translate(0 ${f1(-600 * (1 - p))})` });
+  });
+  op(s.bracket, prog(t, 48.45, 48.75) * (1 - prog(t, 49.4, 49.65)));
+  S(s.bracketText, { fill: mixColor('#C9C4B5', '#A0463A', prog(t, 48.5, 48.95)) });
+  // tasks appear one by one, then waiting fills, then work
+  s.tasks.forEach((o, i) => {
+    const a = 50.35 + 0.2 * i;
+    op(o.g, prog(t, a, a + 0.3));
+    S(o.g, { transform: `translate(0 ${f1(16 * (1 - prog(t, a, a + 0.3, 'power2.out')))})` });
+    const K = TASK_FILL[i];
+    const w = t < K[0][0] ? 0 : kf(t, K.map(([tt, v]) => [tt, v, 'power1.out']));
+    S(o.wait, { width: f1(786 * w) });
+    op(o.waitText, w > 0.05 ? prog(t, K[0][0] + 0.2, K[0][0] + 0.45) : 0);
+    const work = kf(t, [[53.75 + 0.05 * i, 0], [54.0, 0.1], [54.4, 0.13]]) * (t > 53.75 ? 1 : 0);
+    const x0 = 147 + 786 * w;
+    S(o.work, { x: f1(x0), width: f1(786 * work) });
+    S(o.workClipRect, { x: f1(x0), width: f1(786 * work) });
+    S(o.workText, { x: f1(x0 + 8) });
+  });
+  const hp = prog(t, 52.2, 52.55, 'back.out(1.6)');
+  op(s.hour, prog(t, 52.2, 52.3));
+  S(s.hour, { transform: `translate(907 518) rotate(${f1(lerp(35, 0, hp))}) scale(${(0.6 + 0.4 * hp).toFixed(3)})` });
+  op(s.sand, prog(t, 53.6, 53.9));
+});
+
+// shared title block: small caps label + big title (the step scenes, filter, broadcast)
+function makeTitle(parent) {
+  const o = { g: E('g', {}, parent) };
+  o.label = T(o.g, '', { class: 'mono', x: 128, y: 288, 'font-size': 20, 'letter-spacing': 2.5, fill: '#8A8476' });
+  o.title = T(o.g, '', { class: 'space', x: 129, y: 350, 'font-size': 48, fill: C.ink });
+  return o;
+}
+// the shuffle icon: two crossing arrows, drawn around (0,0), about 100 px wide
+function shuffleIcon(parent, stroke, sw = 9) {
+  const g = E('g', { fill: 'none', stroke, 'stroke-width': sw, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, parent);
+  E('path', { d: 'M-50 -22H-24C-4 -22 4 22 24 22H44M-50 22H-24C-4 22 4 -22 24 -22H44' }, g);
+  E('path', { d: 'M32 -35L46 -22L32 -9M32 9L46 22L32 35' }, g);
+  return g;
+}
+// iso box: front-bottom-left corner BL, front edge u, depth v (towards the back left), height h
+function makeIsoBox(parent, label, opts = {}) {
+  const o = { g: E('g', {}, parent) };
+  o.shadow = E('ellipse', { fill: '#3B3528', opacity: 0.22, filter: 'url(#soft)' }, o.g);
+  o.body = E('g', {}, o.g);
+  o.side = E('path', { fill: opts.side || '#DCD7C7', stroke: C.ink, 'stroke-width': 2, 'stroke-linejoin': 'round' }, o.body);
+  o.top = E('path', { fill: opts.top || '#EFECE1', stroke: C.ink, 'stroke-width': 2, 'stroke-linejoin': 'round' }, o.body);
+  o.front = E('path', { fill: opts.front || '#E8E4D7', stroke: C.ink, 'stroke-width': 2, 'stroke-linejoin': 'round' }, o.body);
+  o.face = E('g', {}, o.body);
+  if (label) {
+    T(o.face, label, { class: 'space', x: 14, y: 34, 'font-size': 15, 'letter-spacing': 1.5, fill: C.inkSoft });
+    E('circle', { cx: 150, cy: 22, r: 5, fill: '#4F8A6E', filter: 'url(#soft2)' }, o.face);
+    for (const y of [50, 62, 74]) E('line', { x1: 16, x2: 146, y1: y, y2: y - 6, stroke: '#BDB8A8', 'stroke-width': 1.4 }, o.face);
+  }
+  o.set = (BL, u, v, h) => {
+    const BR = add(BL, u), FTL = [BL[0], BL[1] - h], FTR = [BR[0], BR[1] - h];
+    const BTL = add(FTL, v), BTR = add(FTR, v), BBL = add(BL, v);
+    S(o.front, { d: poly([FTL, FTR, BR, BL]) });
+    S(o.top, { d: poly([FTL, FTR, BTR, BTL]) });
+    S(o.side, { d: poly([BTL, FTL, BL, BBL]) });
+    S(o.face, { transform: faceMatrix(FTL, FTR, BL, 170, 92) });
+    return { FTL, FTR, BTL, BTR, BL, BR };
+  };
+  return o;
+}
+
+// =====================================================================================
+// SCENE 5 (57.1 - 63.5 s): the bottleneck. Less data flows through; more executors stay stuck.
+// =====================================================================================
+const funnelPath = top => `M126 ${top}C330 ${top} 420 ${top + 63} 495 ${top + 63}H585C660 ${top + 63} 750 ${top} 954 ${top}V${top + 177}C750 ${top + 177} 660 ${top + 114} 585 ${top + 114}H495C420 ${top + 114} 330 ${top + 177} 126 ${top + 177}Z`;
+function makeFunnel(parent, tilesPerRow) {
+  const o = { g: E('g', {}, parent) };
+  o.shadow = E('path', { fill: '#3B3528', opacity: 0.18, filter: 'url(#soft)' }, o.g);
+  o.body = E('path', { fill: 'url(#funnelGrad)', stroke: C.ink, 'stroke-width': 3.2, 'stroke-linejoin': 'round' }, o.g);
+  o.shine = E('path', { fill: 'none', stroke: '#FBFAF4', 'stroke-width': 3, opacity: 0.8 }, o.g);
+  o.tiles = [];
+  const r = (s => () => (s = (s * 16807) % 2147483647) / 2147483647)(tilesPerRow * 7919);
+  for (let row = 0; row < 4; row++) for (let c = 0; c < 7; c++) {
+    const el = E('rect', { width: 34, height: 23, rx: 2, 'stroke-width': 1.8, stroke: C.ink }, o.g);
+    const blue = r() < 0.27;
+    S(el, { fill: blue ? '#2C4A8E' : '#F4F1E6' });
+    o.tiles.push({ el, row, c, dx: 30 + 39 * c + (row % 2) * 8 + (r() - 0.5) * 8, dy: 22 + 33 * row + (r() - 0.5) * 4, blue, k: row * 7 + c });
+  }
+  o.glow = E('ellipse', { cx: 540, rx: 58, ry: 24, fill: '#D07A68', opacity: 0, filter: 'url(#soft4)' }, o.g);
+  o.g.insertBefore(o.glow, o.shine);
+  o.set = top => {
+    const d = funnelPath(top);
+    S(o.body, { d }); S(o.shadow, { d, transform: 'translate(10 14)' });
+    S(o.shine, { d: `M140 ${top + 8}C330 ${top + 8} 420 ${top + 70} 495 ${top + 70}H585` });
+    S(o.glow, { cy: top + 88 });
+  };
+  return o;
+}
+const s5 = scene('s5-bottleneck', (g, s) => {
+  s.f1 = makeFunnel(g, 1);
+  s.f2 = makeFunnel(g, 2);
+  s.lessLabel = T(g, '- less data', { class: 'space', x: 128, 'font-size': 40, fill: C.green });
+  s.moreLabel = T(g, '+ more executors', { class: 'space', x: 128, 'font-size': 40, fill: C.red });
+  s.bottle = makePill(g, 'bottleneck', true);
+  S(s.bottle.lastChild, { 'font-size': 20 });
+  s.flows = makePill(g, '√ flows', false);
+  s.stuck = makePill(g, '× still stuck', true);
+  s.minis = [0, 1, 2, 3].map(i => {
+    const mg = E('g', {}, g);
+    E('rect', { x: -25, y: -19, width: 50, height: 38, rx: 3, fill: '#F2EFE5', stroke: C.ink, 'stroke-width': 2 }, mg);
+    E('circle', { cx: -14, cy: -8, r: 3.5, fill: C.ink }, mg);
+    return mg;
+  });
+  // kept tiles (rows 0-1) and where they pile up on the right after the neck
+  s.kept = s.f1.tiles.filter(t => t.row < 2 && t.k < 12);
+  s.kept.forEach((t, i) => {
+    const row = i < 5 ? 0 : i < 10 ? 1 : 2, col = i < 10 ? i % 5 : 3 + (i - 10);
+    t.px = 774 + 32 * col; t.py = 45 + 22 * row;
+  });
+}, (t, s) => {
+  const on = t > 57.1 && t < 63.5;
+  show(s.g, on); if (!on) return;
+  op(s.g, prog(t, 57.12, 57.3) * (1 - prog(t, 63.15, 63.45)));
+  const top1 = kf(t, [[58.95, 557], [59.6, 425, 'power2.inOut']]);
+  s.f1.set(top1);
+  s.f1.tiles.forEach(tile => {
+    let x = 126 + tile.dx, y = top1 + tile.dy, a = 1;
+    const keep = s.kept.includes(tile);
+    if (!keep) a = 1 - prog(t, 59.6 + 0.01 * tile.k, 59.85 + 0.01 * tile.k);
+    else {
+      const i = s.kept.indexOf(tile), a0 = 60.3 + 0.055 * (11 - i), p = prog(t, a0, a0 + 0.62, 'power1.inOut');
+      if (p > 0) {
+        const neck = [528, top1 + 78];
+        const P = p < 0.5 ? mix([x, y], neck, ease('power1.in')(p * 2)) : mix(neck, [tile.px, top1 + tile.py], ease('power1.out')((p - 0.5) * 2));
+        x = P[0]; y = P[1];
+      }
+    }
+    S(tile.el, { x: f1(x), y: f1(y) });
+    op(tile.el, a);
+  });
+  const glow = prog(t, 58.3, 58.6) * (1 - prog(t, 59.7, 60.0));
+  S(s.f1.glow, { opacity: f1(glow * (0.45 + 0.15 * Math.sin(t * 9)) * 100) / 100 });
+  S(s.lessLabel, { y: f1(top1 - 2) });
+  op(s.lessLabel, prog(t, 59.1, 59.5));
+  // the bottleneck pill rides above the neck
+  if (t < 60.1) { popIn(s.bottle, t, 58.3, 58.55, 540, f1(top1 - 35)); op(s.bottle, prog(t, 58.3, 58.4) * (1 - prog(t, 59.85, 60.05))); } else op(s.bottle, 0);
+  if (t > 60.85) { popIn(s.flows, t, 60.85, 61.1, 856, 408); } else op(s.flows, 0);
+  // second funnel: more executors, still stuck
+  const f2a = prog(t, 61.4, 61.75);
+  op(s.f2.g, f2a); s.f2.set(803);
+  s.f2.tiles.forEach(tile => { S(tile.el, { x: f1(126 + tile.dx), y: f1(803 + tile.dy) }); });
+  S(s.f2.glow, { opacity: 0 });
+  op(s.moreLabel, f2a); S(s.moreLabel, { y: 801 });
+  s.minis.forEach((m, i) => popIn(m, t, 62.0 + 0.15 * i, 62.2 + 0.15 * i, 707 + 62.5 * i, 1009));
+  if (t > 62.55) popIn(s.stuck, t, 62.55, 62.8, 856, 786); else op(s.stuck, 0);
+});
+
+// =====================================================================================
+// SCENE 6 (63.1 - 70.4 s): filter rows and columns before the shuffle; the shuffle gets light; avoid extra shuffles.
+// =====================================================================================
+const TABLE = homography([[0, 0], [6, 0], [0, 8], [6, 8]], [[180, 627], [795, 552], [232, 942], [937, 837]]);
+const COLS = ['order_id', 'country', 'amount', 'notes', 'browser', 'ts'];
+const KEEP_ROWS = [3, 7];
+const s6 = scene('s6-filter', (g, s) => {
+  s.head = makeTitle(g);
+  s.shade = E('path', { d: poly([[150, 610], [830, 520], [990, 850], [230, 990]]), fill: '#8C8676', opacity: 0, filter: 'url(#soft24)' }, g);
+  s.table = E('g', {}, g);
+  s.cells = [];
+  for (let v = 0; v < 8; v++) for (let u = 0; u < 6; u++) {
+    const cg = E('g', {}, s.table);
+    const c = { g: cg, u, v, front: E('path', { fill: '#CFCABA', stroke: C.inkSoft, 'stroke-width': 1.2 }, cg), top: E('path', { fill: v ? '#F1EEE4' : '#DFE4F1', stroke: C.inkSoft, 'stroke-width': 1.3, 'stroke-linejoin': 'round' }, cg) };
+    c.content = E('g', {}, cg);
+    if (v === 0) T(c.content, COLS[u], { class: 'space', x: 50, y: 21, 'font-size': 13, 'text-anchor': 'middle', fill: '#3C548F' });
+    else E('line', { x1: 12, x2: 12 + 30 + ((u * 7 + v * 5) % 9) * 6, y1: 18, y2: 18, stroke: '#A8A293', 'stroke-width': 2.4 }, c.content);
+    s.cells.push(c);
+  }
+  // shuffle card (light) and the big "extra shuffle" card
+  s.small = E('g', {}, g);
+  E('rect', { x: -96, y: -87, width: 192, height: 174, rx: 9, fill: '#2D281F', opacity: 0.18, filter: 'url(#soft4)', transform: 'translate(6 8)' }, s.small);
+  E('rect', { x: -96, y: -87, width: 192, height: 174, rx: 9, fill: '#F1EEE3', stroke: C.ink, 'stroke-width': 2 }, s.small);
+  S(shuffleIcon(s.small, C.ink, 6.5), { transform: 'translate(0 -26) scale(0.62)' });
+  T(s.small, 'SHUFFLE', { class: 'mono', x: 0, y: 34, 'font-size': 16, 'letter-spacing': 2, 'text-anchor': 'middle', fill: '#8A8476' });
+  s.light = T(s.small, 'light √', { class: 'mono', x: 0, y: 58, 'font-size': 16, 'text-anchor': 'middle', fill: '#6E685B' });
+  s.big = E('g', {}, g);
+  E('rect', { x: -262, y: -175, width: 525, height: 350, rx: 10, fill: '#2D281F', opacity: 0.2, filter: 'url(#soft)', transform: 'translate(8 14)' }, s.big);
+  E('rect', { x: -262, y: -175, width: 525, height: 350, rx: 10, fill: '#F1EEE3', stroke: C.ink, 'stroke-width': 2.2 }, s.big);
+  s.bigIcon = shuffleIcon(s.big, C.ink, 10);
+  S(s.bigIcon, { transform: 'translate(0 -42) scale(1.42)' });
+  T(s.big, 'extra shuffle', { class: 'space', x: 0, y: 92, 'font-size': 34, 'text-anchor': 'middle', fill: C.ink });
+  s.strike = E('path', { d: 'M-214 126L220 -124', stroke: '#B5402F', 'stroke-width': 10, 'stroke-linecap': 'round', fill: 'none' }, s.big);
+  s.pill = makePill(g, '√ less data moved · faster job', false);
+}, (t, s) => {
+  const on = t > 63.1 && t < 70.4;
+  show(s.g, on); if (!on) return;
+  const out = 1 - prog(t, 70.05, 70.35);
+  // titles
+  const h = s.head;
+  if (t < 67.15) {
+    h.label.textContent = 'BEFORE THE SHUFFLE';
+    h.title.innerHTML = 'filter<tspan fill="#3D7A62"> rows</tspan><tspan fill="#1E1A14"> +</tspan><tspan fill="#3D7A62"> columns</tspan>';
+    const tin = prog(t, 64.0, 64.4);
+    op(h.g, tin * (1 - prog(t, 67.0, 67.15)));
+    S(h.title, { fill: mixColor('#C9C4B5', C.ink, prog(t, 64.1, 64.45)) });
+    const sp = h.title.children;
+    op(sp[0], prog(t, 65.15, 65.4)); op(sp[1], prog(t, 65.5, 65.75)); op(sp[2], prog(t, 65.5, 65.85));
+  } else {
+    h.label.textContent = 'AND';
+    h.title.textContent = 'avoid unnecessary shuffles';
+    op(h.g, prog(t, 67.2, 67.35) * out);
+    S(h.title, { fill: mixColor('#D9B3AA', '#A63F30', prog(t, 67.25, 67.6)) });
+  }
+  // table: rise, drop rows, drop columns, compact, slide into the shuffle card
+  const rise = prog(t, 63.15, 63.6, 'power2.out');
+  const into = prog(t, 66.05, 66.4, 'power2.in');
+  op(s.table, rise * (1 - prog(t, 66.25, 66.4)));
+  const comp = prog(t, 65.45, 65.75, 'power2.inOut');
+  const shift = [48 * comp, 65 * comp];
+  const cardC = [kf(t, [[65.6, 1240], [66.0, 867, 'power3.out'], [66.95, 867], [67.2, 1030, 'power2.inOut']]), 662];
+  S(s.table, { transform: `translate(${f1(lerp(shift[0], cardC[0] - 330, into))} ${f1(lerp(30 * (1 - rise) + shift[1], cardC[1] - 760, into))})` });
+  op(s.shade, 0.55 * prog(t, 64.35, 64.6) * (1 - prog(t, 66.1, 66.45)));
+  for (const c of s.cells) {
+    let a = 1, v = c.v, u = c.u, dy = 0, dx = 0;
+    if (c.v > 0 && !KEEP_ROWS.includes(c.v)) { const p = prog(t, 64.45 + 0.02 * c.v, 64.85 + 0.02 * c.v, 'power2.in'); a = 1 - p; dy = 60 * p; }
+    if (c.v > 0 && KEEP_ROWS.includes(c.v)) v = lerp(c.v, KEEP_ROWS.indexOf(c.v) + 1, comp);
+    if (c.u === 3) a *= 1 - prog(t, 65.45, 65.6);
+    if (c.u > 3) { const p = prog(t, 65.5, 65.95); dx = 70 * p; a *= 1 - prog(t, 65.75, 65.95); }
+    if (a <= 0.001) { op(c.g, 0); continue; }
+    op(c.g, a);
+    const i = 0.045;
+    const P = [[u + i, v + i], [u + 1 - i, v + i], [u + 1 - i, v + 1 - i], [u + i, v + 1 - i]].map(([x, y]) => add(TABLE(x, y), [dx, dy]));
+    const th = 7;
+    S(c.top, { d: poly(P) });
+    S(c.front, { d: poly([P[3], P[2], add(P[2], [0, th]), add(P[3], [0, th])]) });
+    S(c.content, { transform: faceMatrix(P[0], P[1], P[3], 100, 32) });
+  }
+  // the light shuffle card
+  op(s.small, prog(t, 65.6, 65.7) * (1 - prog(t, 67.3, 67.45)));
+  S(s.small, { transform: `translate(${f1(cardC[0])} ${cardC[1]})` });
+  op(s.light, prog(t, 66.75, 66.9));
+  // extra shuffle card: in, struck through, tips over, fades
+  const bin = prog(t, 66.95, 67.2, 'power2.out');
+  const tip = prog(t, 69.25, 69.6, 'power2.in'), tip2 = prog(t, 69.6, 70.0, 'power2.out');
+  op(s.big, bin * out);
+  const sy = lerp(1, lerp(0.3, 0.25, tip2), tip), sx = lerp(1, 0.86, tip), cy = lerp(610, lerp(738, 743, tip2), tip);
+  S(s.big, { transform: `translate(540 ${f1(cy)}) scale(${(sx * (0.92 + 0.08 * bin)).toFixed(3)} ${(sy * (0.92 + 0.08 * bin)).toFixed(3)})` });
+  const sp = prog(t, 67.28, 67.8, 'power1.inOut');
+  S(s.strike, { 'stroke-dasharray': `${f1(502 * sp)} 600`, opacity: sp > 0 ? 1 : 0 });
+  if (t > 69.5) { popIn(s.pill, t, 69.5, 69.85, 540, 940); op(s.pill, prog(t, 69.5, 69.85) * out); } else op(s.pill, 0);
+});
+
+// =====================================================================================
+// SCENE 7 (70.1 - 75.6 s): four executors land, a small countries table appears and is broadcast to every one.
+// =====================================================================================
+const ISO = [ // [land time, BL, u, v, h]
+  [70.35, [155, 850], [152, -45], [-62, -52], 86], [70.5, [655, 688], [120, -33], [-67, -45], 83],
+  [70.62, [333, 1047], [165, -57], [-70, -67], 98], [70.82, [867, 842], [135, -48], [-80, -56], 80]];
+const s7 = scene('s7-broadcast', (g, s) => {
+  s.head = makeTitle(g);
+  s.execs = ISO.map((_, i) => makeIsoBox(g, 'EXEC ' + (i + 1)));
+  s.order = [1, 0, 3, 2];          // paint back to front
+  s.order.forEach(i => g.appendChild(s.execs[i].g));
+  s.card = makeIsoBox(g, '', { top: '#F1EEE4', front: '#DDD8C9', side: '#E6E1D3' });
+  g.insertBefore(s.card.g, s.execs[2].g);
+  s.cardTop = E('g', {}, s.card.g);
+  T(s.cardTop, 'countries', { class: 'space', x: 14, y: 30, 'font-size': 15, fill: C.ink });
+  T(s.cardTop, '200 rows', { class: 'mono', x: 14, y: 50, 'font-size': 13, fill: '#8A8476' });
+  s.rim = E('path', { fill: '#D6D0C0', stroke: C.inkSoft, 'stroke-width': 1.3 }, s.card.g);
+  s.copies = [0, 1, 2, 3].map(() => {
+    const cg = E('g', {}, g);
+    return { g: cg, side: E('path', { fill: '#B9C6E2', stroke: '#5E74AA', 'stroke-width': 1.3 }, cg), top: E('path', { fill: '#DCE4F3', stroke: '#5E74AA', 'stroke-width': 1.5 }, cg) };
+  });
+}, (t, s) => {
+  const on = t > 70.1 && t < 75.6;
+  show(s.g, on); if (!on) return;
+  const h = s.head;
+  if (t < 74.58) {
+    h.label.textContent = 'LESS DATA MOVEMENT';
+    h.title.textContent = 'a powerful trick…';
+    op(h.g, prog(t, 70.45, 70.75) * (1 - prog(t, 74.45, 74.58)));
+    S(h.title, { fill: mixColor('#BDB8A9', C.ink, prog(t, 70.55, 70.95)), 'font-size': 48 });
+  } else {
+    h.label.textContent = 'NEXT EPISODE →';
+    const word = 'BROADCAST JOIN', n = Math.round(clamp((t - 74.62) * 22, 0, word.length));
+    h.title.textContent = word.slice(0, n);
+    S(h.title, { fill: '#2E4A86', 'font-size': 52 });
+    op(h.g, 1);
+  }
+  s.execs.forEach((o, i) => {
+    const [land, BL, u, v, hh] = ISO[i];
+    const p = prog(t, land - 0.3, land, 'power2.in');
+    op(o.g, prog(t, land - 0.3, land - 0.18));
+    const lift = 70 * (1 - p);
+    const b = o.set(add(BL, [0, -lift]), u, v, hh);
+    const c = mix(add(BL, [u[0] / 2, u[1] / 2]), add(BL, [v[0] / 2, v[1] / 2]), 0.5);
+    S(o.shadow, { cx: f1(c[0] + 20), cy: f1(c[1] + 4), rx: f1(Math.abs(u[0]) * 0.62), ry: f1(Math.abs(v[1]) * 0.7), opacity: f1((0.12 + 0.12 * p) * 100) / 100 });
+  });
+  // countries table
+  const cp = prog(t, 71.25, 71.5, 'back.out(1.6)');
+  op(s.card.g, prog(t, 71.25, 71.35));
+  const cb = s.card.set([498, 774 - 18 * (1 - cp)], [147, -45], [-63, -50], 18);
+  S(s.cardTop, { transform: faceMatrix(cb.BTL, cb.BTR, cb.FTL, 150, 60) });
+  S(s.card.face, { opacity: 0 });
+  S(s.card.shadow, { cx: 520, cy: 760, rx: 110, ry: 30 });
+  const hollow = prog(t, 73.8, 74.0);
+  op(s.cardTop, 1 - hollow);
+  const inset = q => mix(q, mix(cb.FTL, cb.BTR, 0.5), 0.12);
+  S(s.rim, { d: poly([cb.FTL, cb.FTR, cb.BTR, cb.BTL].map(inset)), opacity: hollow });
+  // copies rise from the table, stack, then fly to every executor
+  s.copies.forEach((c, i) => {
+    const rise = prog(t, 73.85 + 0.15 * i, 74.35 + 0.15 * i, 'power2.out');
+    const fly = prog(t, 74.85 + 0.08 * i, 75.35 + 0.08 * i, 'power2.inOut');
+    op(c.g, prog(t, 73.85 + 0.15 * i, 73.95 + 0.15 * i) * 0.92);
+    const [, BL, u, v, hh] = ISO[i];
+    const stack = [0, -26 - 30 * i];
+    const dest = add(add(BL, [0, -hh - 12]), [u[0] * 0.1 + v[0] * 0.3, u[1] * 0.1 + v[1] * 0.3]);
+    const base = add([498, 774], [0, -6]);
+    const pos = add(mix(add(base, [stack[0], stack[1] * rise]), dest, fly), [0, -90 * Math.sin(Math.PI * fly)]);
+    const sc = lerp(1, 0.8, fly);
+    const U = [147 * sc, -45 * sc], Vv = [-63 * sc, -50 * sc], th = 10;
+    const FTL = pos, FTR = add(pos, U), BTR = add(FTR, Vv), BTL = add(pos, Vv);
+    S(c.top, { d: poly([FTL, FTR, BTR, BTL]) });
+    S(c.side, { d: poly([FTL, FTR, add(FTR, [0, th]), add(FTL, [0, th])]) });
+  });
+});
+
+// =====================================================================================
+// SCENE 8 (77.3 s - end): end card. The last 0.7 s returns to the opening frame.
+// =====================================================================================
+const s8 = scene('s8-end', (g, s) => {
+  T(g, 'DATA / 03', { class: 'hdr', x: 540, y: 410, 'font-size': 24, 'letter-spacing': 6, 'text-anchor': 'middle', fill: '#6E685B' });
+  T(g, 'Spark Performance', { class: 'space', x: 540, y: 514, 'font-size': 66, 'text-anchor': 'middle', fill: C.ink });
+  T(g, 'Episode 3 · Shuffling', { class: 'sans', x: 540, y: 584, 'font-size': 32, 'text-anchor': 'middle', fill: '#8A8476' });
+  s.chips = ['IN', 'US', 'BR', 'DE'].map((k, i) => {
+    const cg = E('g', {}, g);
+    E('rect', { x: -52, y: -27, width: 105, height: 54, rx: 6, fill: '#2D281F', opacity: 0.16, filter: 'url(#soft4)', transform: 'translate(3 6)' }, cg);
+    E('rect', { x: -52, y: -27, width: 105, height: 54, rx: 6, fill: i ? '#F2EFE5' : '#2C4A8E', stroke: C.ink, 'stroke-width': 2 }, cg);
+    T(cg, k, { class: 'mono', x: 0, y: 9, 'font-size': 24, 'font-weight': 500, 'text-anchor': 'middle', fill: i ? C.ink : '#FFFFFF' });
+    return cg;
+  });
+  s.brand = T(g, '', { class: 'space', x: 540, y: 942, 'font-size': 47, 'text-anchor': 'middle', fill: '#2B2620' });
+  s.brand.innerHTML = 'BinaryHabit<tspan fill="#C98A4B">.</tspan>';
+}, (t, s) => {
+  const on = t > 77.3;
+  show(s.g, on); if (!on) return;
+  op(s.g, 1 - prog(t, DUR - 0.72, DUR - 0.4));
+  s.chips.forEach((c, i) => {
+    const a = 77.72 + 0.16 * i, p = prog(t, a, a + 0.3, 'back.out(1.8)');
+    op(c, prog(t, a, a + 0.15));
+    S(c, { transform: `translate(${328 + 141.5 * i} ${f1(708 + 14 * (1 - p))})` });
+  });
+  op(s.brand, prog(t, 78.2, 78.6));
+});
+
+// =====================================================================================
+// render: one pure function of t
+// =====================================================================================
+let built = false;            // compare.html may call seek() before the fonts are in
+function render(t) {
+  if (!built) return;
+  for (const s of scenes) s.draw(t, s);
+  drawHeader(t);
+  drawCam(t);
+}
+
+const clock = { t: 0 };
+const tl = gsap.timeline({ paused: true, repeat: -1 });
+tl.fromTo(clock, { t: 0 }, { t: DUR, duration: DUR, ease: 'none', immediateRender: false, onUpdate: () => render(clock.t) });
+window.anim = {
+  tl, duration: DUR,
+  seek(t) { t = clamp(t, 0, DUR); tl.pause(); tl.time(t, true); render(t); },
+  play(from = 0) { tl.restart(); tl.time(from); tl.play(); },
+  pause() { tl.pause(); }
+};
+
+const qs = new URLSearchParams(location.search);
+const fontsReady = Promise.race([
+  Promise.all([
+    document.fonts.load('700 100px "Space Mono"', '0123456789'), document.fonts.load('24px "Silkscreen"', 'BINARY'),
+    document.fonts.load('400 24px "IBM Plex Mono"', 'SPARK'), document.fonts.load('500 24px "IBM Plex Mono"', 'ALL'),
+    document.fonts.load('600 24px "IBM Plex Mono"', 'key'), document.fonts.load('400 24px "IBM Plex Sans"', 'Episode'),
+    document.fonts.load('800 100px "Archivo"', 'SHUFFLE'), document.fonts.ready]),
+  new Promise(r => setTimeout(r, 6000))
+]);
+fontsReady.then(() => {
+  buildHeader(); buildCam(); measureHeader();
+  built = true;
+  anim.seek(0);
+  if (qs.has('t')) anim.seek(parseFloat(qs.get('t')));
+  else if (!qs.has('external')) tl.play(0);
+  document.documentElement.dataset.ready = '1';
+});
+})();
+</script>
+</body>
+</html>
