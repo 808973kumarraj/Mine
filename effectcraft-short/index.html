@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EffectCraft Short</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  /* EffectCraft-style parametric short: each scene = slow zoom + label + headline + fade */
+  :root { --bg:#111; --fg:#fff; --accent:#ff6a3d; --chip:#7c5cff; --ui:#1c1c1f; --muted:#aaa; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--fg); font-family:Inter,sans-serif;
+         min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:16px; }
+  .stage { position:relative; width:min(360px, 100%); aspect-ratio:9/16; overflow:hidden; border-radius:18px; background:#000;
+           box-shadow:0 20px 60px #0008; }
+  .stage.wide { width:min(720px, 100%); aspect-ratio:16/9; }
+  .scene { position:absolute; inset:0; opacity:0; }
+  .bg { position:absolute; inset:-5%; background-size:cover; background-position:center; }
+  .shade { position:absolute; inset:0; background:linear-gradient(180deg,#0000 35%,#000c 100%); }
+  .label { position:absolute; top:6%; left:7%; font:600 11px Inter; letter-spacing:.15em; text-transform:uppercase;
+           background:#0008; padding:6px 10px; border-radius:99px; display:flex; gap:6px; align-items:center; }
+  .label::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--accent); }
+  .text { position:absolute; left:7%; right:7%; bottom:9%; }
+  .head { font:700 clamp(40px, 13cqw, 72px)/0.95 Oswald; text-transform:uppercase; }
+  .sub  { font:500 clamp(14px, 4.5cqw, 22px) Oswald; text-transform:uppercase; letter-spacing:.04em; color:#ddd; margin-top:6px; }
+  .stage { container-type:inline-size; }
+  .bar { position:absolute; left:0; bottom:0; height:4px; background:var(--accent); width:0; }
+  .controls { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  button { background:var(--ui); color:var(--fg); border:1px solid #333; padding:8px 14px; border-radius:99px; font:600 13px Inter; cursor:pointer; }
+  button:hover { border-color:var(--chip); }
+  .hint { color:var(--muted); font-size:12px; text-align:center; max-width:420px; }
+</style>
+</head>
+<body>
+  <div class="stage" id="stage"><div class="bar" id="bar"></div></div>
+  <div class="controls">
+    <button id="play">Pause</button>
+    <button id="restart">Restart</button>
+    <button id="ratio">Switch to 16:9</button>
+  </div>
+  <p class="hint">Edit the <code>SCENES</code> array to change text, images (any URL) and timing — one script, every scene.</p>
+
+<script>
+// ---- The parametric script (like EffectCraft's one-script-five-scenes) ----
+const SCENE_SECONDS = 6, FADE = 0.8, ZOOM = 0.12;
+const SCENES = [
+  { label:"Morning series", head:"3 Habits",   sub:"Better mornings",    bg:"linear-gradient(160deg,#3a2414,#c9813c 60%,#f2c27b)" },
+  { label:"Habit 01",       head:"01",         sub:"Same wake time",     bg:"linear-gradient(160deg,#1d2b3a,#e0874a 70%,#ffd59a)" },
+  { label:"Habit 02",       head:"02",         sub:"Plan before phone",  bg:"linear-gradient(160deg,#2b1d14,#8a5a34 55%,#e8b77c)" },
+  { label:"Habit 03",       head:"03",         sub:"Move, then hydrate", bg:"linear-gradient(160deg,#16252b,#4f7d8a 55%,#e6d3a8)" },
+  { label:"Your turn",      head:"Try one",    sub:"This week",          bg:"linear-gradient(160deg,#2a1530,#b9506a 60%,#ffb38a)" },
+];
+// To use photos: bg:"url('photo1.jpg')"
+
+const stage = document.getElementById('stage'), bar = document.getElementById('bar');
+const els = SCENES.map(s => {
+  const d = document.createElement('div'); d.className = 'scene';
+  d.innerHTML = `<div class="bg" style="background:${s.bg};background-size:cover;background-position:center"></div>
+    <div class="shade"></div><div class="label">${s.label}</div>
+    <div class="text"><div class="head">${s.head}</div><div class="sub">${s.sub}</div></div>`;
+  stage.insertBefore(d, bar); return d;
+});
+const TOTAL = SCENES.length * SCENE_SECONDS;
+const ease = t => 1 - Math.pow(1 - Math.min(Math.max(t,0),1), 3);
+
+let t = 0, last = performance.now(), playing = true;
+function render() {
+  els.forEach((el, i) => {
+    const lt = t - i * SCENE_SECONDS;                 // local time in scene
+    const on = lt > -FADE && lt < SCENE_SECONDS + FADE;
+    if (!on) { el.style.opacity = 0; return; }
+    const fadeIn = i === 0 ? 1 : ease(lt / FADE);
+    const fadeOut = i === els.length - 1 ? 1 : 1 - ease((lt - SCENE_SECONDS + FADE) / FADE);
+    el.style.opacity = Math.min(fadeIn, fadeOut);
+    el.querySelector('.bg').style.transform = `scale(${1 + ZOOM * (lt / SCENE_SECONDS)})`;
+    const k = ease((lt - 0.3) / 0.7), k2 = ease((lt - 0.6) / 0.7);
+    el.querySelector('.head').style.cssText = `opacity:${k};transform:translateY(${(1-k)*30}px)`;
+    el.querySelector('.sub').style.cssText  = `opacity:${k2};transform:translateY(${(1-k2)*20}px)`;
+    el.querySelector('.label').style.opacity = ease(lt / 0.5);
+  });
+  bar.style.width = (t / TOTAL * 100) + '%';
+}
+function loop(now) {
+  if (playing) { t += (now - last) / 1000; if (t >= TOTAL) t = 0; }
+  last = now; render(); requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+document.getElementById('play').onclick = e => { playing = !playing; e.target.textContent = playing ? 'Pause' : 'Play'; };
+document.getElementById('restart').onclick = () => { t = 0; };
+document.getElementById('ratio').onclick = e => {
+  const wide = stage.classList.toggle('wide');
+  e.target.textContent = wide ? 'Switch to 9:16' : 'Switch to 16:9';
+};
+</script>
+</body>
+</html>
