@@ -1,55 +1,55 @@
 {
- "duration": 92.823,
+ "duration": 97.183,
  "scenes": [
   {
    "name": "title",
    "start": 0.0,
-   "duration": 3.227
+   "duration": 3.071
   },
   {
    "name": "problem",
-   "start": 3.227,
-   "duration": 11.321
+   "start": 3.071,
+   "duration": 10.976
   },
   {
    "name": "log",
-   "start": 14.548,
-   "duration": 12.78
+   "start": 14.047,
+   "duration": 13.301
   },
   {
    "name": "write",
-   "start": 27.328,
-   "duration": 10.909
+   "start": 27.348,
+   "duration": 12.791
   },
   {
    "name": "read",
-   "start": 38.237,
-   "duration": 8.692
+   "start": 40.138,
+   "duration": 8.592
   },
   {
    "name": "update",
-   "start": 46.929,
-   "duration": 9.651
+   "start": 48.73,
+   "duration": 9.193
   },
   {
    "name": "concurrent",
-   "start": 56.58,
-   "duration": 11.054
+   "start": 57.923,
+   "duration": 11.565
   },
   {
    "name": "timetravel",
-   "start": 67.634,
-   "duration": 10.453
+   "start": 69.488,
+   "duration": 10.062
   },
   {
    "name": "checkpoint",
-   "start": 78.086,
-   "duration": 9.455
+   "start": 79.55,
+   "duration": 10.558
   },
   {
    "name": "outro",
-   "start": 87.541,
-   "duration": 5.282
+   "start": 90.108,
+   "duration": 7.075
   }
  ]
 }
