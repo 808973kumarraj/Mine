@@ -11,7 +11,7 @@ printed on the box fronts, keyframed motion, Freestyle outlines and flat illustr
 
 Render options: `--frames A-B` renders part of the range (run several Blender processes in
 parallel on different ranges); `--still 12,23.5` renders single frames at those seconds.
-The soundtrack is the FilmCraft mix from `../shuffle-iso/audio/mix.m4a`.
+The soundtrack is music only, composed for this version: `audio/score.py` writes the score as MIDI, SoundCraft plays and renders it (`audio/score.scraft`), FilmCraft encodes it to `audio/music.m4a` at −16 LUFS. It has a chime on every scene change.
 
 Not rendered yet: a full render takes about 2 hours on a 4-core CPU without a GPU (about 3.4 s per
 frame with four parallel processes). The finished animation is `../shuffle-iso-standalone.html`.
