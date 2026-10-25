@@ -1,13 +1,14 @@
-"""Narration for "How Delta Lake works", one block per scene, spoken by Kokoro (open source, Apache-2.0).
+"""Narration for "How Delta Lake works", one block per scene, spoken by Chatterbox (Resemble AI, open source, MIT).
 
-usage: KOKORO_DIR=<dir with kokoro-v1.0.onnx + voices-v1.0.bin> python script.py OUTDIR
+usage: python script.py OUTDIR      (runs on CPU; the model downloads from Hugging Face on first use)
 Writes OUTDIR/narration.wav, OUTDIR/scenes.json (each scene's start and length, set by its narration)
 and the subtitles as OUTDIR/narration.srt, .vtt and .subtitles.json.
 """
-import json, os, sys, numpy as np, soundfile as sf
-from kokoro_onnx import Kokoro
+import json, os, sys, numpy as np, soundfile as sf, torch
+from chatterbox.tts import ChatterboxTTS
 
-VOICE, SR, GAP, PAD = 'af_heart', 24000, 0.35, 0.9      # pause between lines, breathing room at the end of a scene
+GAP, PAD = 0.35, 0.9
+EXAGGERATION, CFG = 0.55, 0.45                         # a little more expressive than neutral, unhurried pacing      # pause between lines, breathing room at the end of a scene
 SCENES = [
     ('title',      ["How does Delta Lake work?"]),
     ('problem',    ["A data lake is just files. Parquet files, sitting in cloud storage.",
@@ -37,12 +38,20 @@ SHOW = {"Next to the data files sits a folder called underscore delta log, holdi
         "VERSION AS OF 1 gives you the table exactly as it looked back then."}
 
 out = sys.argv[1]; os.makedirs(out, exist_ok=True)
-k = Kokoro(os.path.join(os.environ['KOKORO_DIR'], 'kokoro-v1.0.onnx'), os.path.join(os.environ['KOKORO_DIR'], 'voices-v1.0.bin'))
+torch.manual_seed(7)                                     # same seed, same performance on every run
+model = ChatterboxTTS.from_pretrained(device='cpu')
+SR = model.sr
+
+def speak(text):
+    wav = model.generate(text, exaggeration=EXAGGERATION, cfg_weight=CFG)
+    a = wav.squeeze(0).numpy().astype(np.float32)
+    nz = np.nonzero(np.abs(a) > 0.01)[0]                 # trim leading/trailing silence so the subtitle timing is tight
+    return a[max(0, nz[0] - int(.03 * SR)): nz[-1] + int(.08 * SR)] if len(nz) else a
 chunks, cues, scenes, t = [], [], [], 0.0
 for name, lines in SCENES:
     s0 = t; t += 0.4                                         # a beat before each scene's first line
     for line in lines:
-        audio, _ = k.create(line, voice=VOICE, speed=1.0, lang='en-us')
+        audio = speak(line)
         chunks.append((t, audio)); cues.append((round(t, 2), round(t + len(audio) / SR + 0.2, 2), SHOW.get(line, line)))
         t += len(audio) / SR + GAP
     t += PAD; scenes.append({'name': name, 'start': round(s0, 3), 'duration': round(t - s0, 3)})
