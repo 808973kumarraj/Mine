@@ -1,0 +1,176 @@
+{
+ "geneva": "1.1",
+ "output": {
+  "width": 1920,
+  "height": 1080,
+  "fps": 30
+ },
+ "assets": {
+  "mix": {
+   "src": "audio/mix.m4a"
+  },
+  "subs": {
+   "src": "voice/narration.srt",
+   "kind": "captions"
+  },
+  "subtrack": {
+   "src": "voice/narration.srt",
+   "kind": "subtitle"
+  },
+  "title": {
+   "src": "scenes/title.html"
+  },
+  "problem": {
+   "src": "scenes/problem.html"
+  },
+  "log": {
+   "src": "scenes/log.html"
+  },
+  "write": {
+   "src": "scenes/write.html"
+  },
+  "read": {
+   "src": "scenes/read.html"
+  },
+  "update": {
+   "src": "scenes/update.html"
+  },
+  "concurrent": {
+   "src": "scenes/concurrent.html"
+  },
+  "timetravel": {
+   "src": "scenes/timetravel.html"
+  },
+  "checkpoint": {
+   "src": "scenes/checkpoint.html"
+  },
+  "outro": {
+   "src": "scenes/outro.html"
+  }
+ },
+ "layers": [
+  {
+   "id": "scenes",
+   "clips": [
+    {
+     "source": {
+      "kind": "html",
+      "asset": "title"
+     },
+     "start": "0.0s",
+     "duration": "3.229s"
+    },
+    {
+     "source": {
+      "kind": "html",
+      "asset": "problem"
+     },
+     "start": "3.229s",
+     "duration": "12.837s"
+    },
+    {
+     "source": {
+      "kind": "html",
+      "asset": "log"
+     },
+     "start": "16.066s",
+     "duration": "14.851s"
+    },
+    {
+     "source": {
+      "kind": "html",
+      "asset": "write"
+     },
+     "start": "30.917s",
+     "duration": "12.547s"
+    },
+    {
+     "source": {
+      "kind": "html",
+      "asset": "read"
+     },
+     "start": "43.465s",
+     "duration": "9.787s"
+    },
+    {
+     "source": {
+      "kind": "html",
+      "asset": "update"
+     },
+     "start": "53.251s",
+     "duration": "11.408s"
+    },
+    {
+     "source": {
+      "kind": "html",
+      "asset": "concurrent"
+     },
+     "start": "64.659s",
+     "duration": "11.438s"
+    },
+    {
+     "source": {
+      "kind": "html",
+      "asset": "timetravel"
+     },
+     "start": "76.097s",
+     "duration": "11.301s"
+    },
+    {
+     "source": {
+      "kind": "html",
+      "asset": "checkpoint"
+     },
+     "start": "87.399s",
+     "duration": "11.301s"
+    },
+    {
+     "source": {
+      "kind": "html",
+      "asset": "outro"
+     },
+     "start": "98.7s",
+     "duration": "4.167s"
+    }
+   ]
+  },
+  {
+   "id": "captions",
+   "clips": [
+    {
+     "source": {
+      "kind": "captions",
+      "asset": "subs",
+      "margin": "5%",
+      "style": {
+       "font": "600 38px/1.35 JetBrains Mono",
+       "color": "#ffffff",
+       "background": "#1e1b17d9",
+       "padding": "14px",
+       "radius": "10px",
+       "max_width": "78%"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "soundtrack",
+   "clips": [
+    {
+     "source": {
+      "kind": "audio",
+      "asset": "mix"
+     }
+    }
+   ]
+  }
+ ],
+ "subtitles": [
+  {
+   "asset": "subtrack",
+   "language": "en",
+   "title": "English"
+  }
+ ]
+}

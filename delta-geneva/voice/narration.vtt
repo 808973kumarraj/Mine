@@ -1,0 +1,65 @@
+WEBVTT
+
+00:00:00.400 --> 00:00:02.180
+How does Delta Lake work?
+
+00:00:03.630 --> 00:00:08.050
+A data lake is just files. Parquet files, sitting in cloud storage.
+
+00:00:08.200 --> 00:00:15.020
+But if a job fails halfway through a write, it leaves half the files behind, and every reader sees broken data.
+
+00:00:16.470 --> 00:00:19.550
+Delta Lake adds one thing: a transaction log.
+
+00:00:19.700 --> 00:00:25.740
+Next to the data files sits a folder called _delta_log, holding numbered commit files.
+
+00:00:25.890 --> 00:00:29.870
+The log is the single source of truth for what the table contains.
+
+00:00:31.320 --> 00:00:34.400
+When you write, Delta first writes the new Parquet files.
+
+00:00:34.550 --> 00:00:38.160
+Then it adds the next commit to the log, in one atomic step.
+
+00:00:38.310 --> 00:00:42.410
+If the job fails before the commit, the new files are simply ignored.
+
+00:00:43.860 --> 00:00:49.400
+To read, Spark opens the log first, and replays the commits to get the list of current files.
+
+00:00:49.550 --> 00:00:52.200
+Only those files are read. Nothing else.
+
+00:00:53.650 --> 00:00:56.370
+Parquet files are never edited in place.
+
+00:00:56.520 --> 00:01:03.610
+An update or delete writes a new file, and one commit marks the old file as removed and the new file as added.
+
+00:01:05.060 --> 00:01:07.440
+What if two writers commit at the same time?
+
+00:01:07.590 --> 00:01:11.130
+Both try to create commit number three. Only one can win.
+
+00:01:11.280 --> 00:01:15.050
+The other checks for conflicts, and retries as commit number four.
+
+00:01:16.500 --> 00:01:22.030
+Because old files are kept, and every commit is recorded, you can read the table as it was.
+
+00:01:22.180 --> 00:01:26.350
+VERSION AS OF 1 gives you the table exactly as it looked back then.
+
+00:01:27.800 --> 00:01:34.010
+Every ten commits, Delta writes a checkpoint: one Parquet file that summarizes the log so far.
+
+00:01:34.160 --> 00:01:37.650
+Readers start from the latest checkpoint, so they stay fast.
+
+00:01:39.100 --> 00:01:41.820
+Files, plus a log. That is Delta Lake.
+
