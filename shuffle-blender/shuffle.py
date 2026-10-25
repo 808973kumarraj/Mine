@@ -205,7 +205,7 @@ def cube(name, x, y, z, key_name, parent, size=0.82, label=True):
     r = empty(name, (x, y, z), parent)
     c = solid(name + '_c', cube_mesh, (0, 0, size / 2), (size, size, size), KEYC[key_name], r)
     if label:   # the key printed on the cube's top face; recoloured cubes get theirs when the colour lands
-        text(key_name.upper(), (0, -0.11, size + 0.004), (0, 0, 0), 0.3, rgb('#ffffff') if key_name == 'in' else INK, 'ExtraBold', r, 'CENTER', name + '_k')
+        text(key_name.upper(), (0, -0.17, size + 0.004), (0, 0, 0), 0.46, rgb('#ffffff') if key_name == 'in' else INK, 'ExtraBold', r, 'CENTER', name + '_k')
     return r
 
 def tray(name, x, y, label, parent):
@@ -347,7 +347,7 @@ for i in range(4):
         c = cube(f'c2_{i}{k}', row4(i) - 1 + (k % 3) * 1.0, -0.6 + (k // 3) * 1.2, 3.2, 'us', r, label=False)
         tint(c.children[0], 18 + i * 0.1 + k * 0.05, KEYC[keyof(i, k)])
         kk = keyof(i, k)
-        lab = text(kk.upper(), (0, -0.11, 0.824), (0, 0, 0), 0.3, rgb('#ffffff') if kk == 'in' else INK, 'ExtraBold', c, 'CENTER', f'c2_{i}{k}_k')
+        lab = text(kk.upper(), (0, -0.17, 0.824), (0, 0, 0), 0.46, rgb('#ffffff') if kk == 'in' else INK, 'ExtraBold', c, 'CENTER', f'c2_{i}{k}_k')
         alpha(lab, 18 + i * 0.1 + k * 0.05, 0, 1, .25)
 SCN2_HUD = [term, tx]
 
@@ -567,6 +567,8 @@ def export_gltf(path):
         if o.type not in ('FONT', 'CURVE'): continue
         if o.type == 'CURVE': o.data.bevel_factor_end = 1.0; dg.update()
         me = bpy.data.meshes.new_from_object(o.evaluated_get(dg))
+        import bmesh                                  # triangulate here: text n-gons triangulate badly on export
+        bm = bmesh.new(); bm.from_mesh(me); bmesh.ops.triangulate(bm, faces=bm.faces[:]); bm.to_mesh(me); bm.free()
         m = bpy.data.objects.new(o.name + '_m', me); (C_LINE if o.name in C_LINE.objects else C_FLAT).objects.link(m)
         m.parent = o.parent; m.matrix_parent_inverse = o.matrix_parent_inverse.copy()
         m.location, m.rotation_euler, m.scale = o.location, o.rotation_euler, o.scale
