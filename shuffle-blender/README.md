@@ -23,3 +23,11 @@ frame with four parallel processes). The finished animation is `../shuffle-iso-s
 (`web/shuffle.glb`) plus its keyframes (`web/shuffle.anim.json`), and `web/src.html` plays them with
 three.js r147 (MIT) using the same isometric camera, flat shading and outlines. Pack it into one file with
 `python3 web/build.py LIBDIR fonts.css ../shuffle-blender-standalone.html` (see `web/build.py`).
+
+## Narration
+
+`voice/script.py` holds the narration, one line per scene, and speaks it with **Kokoro** (open source,
+Apache-2.0; the same voice FilmCraft lists as "Heart", run through kokoro-onnx because this FilmCraft
+build leaves its natural voices out) into `voice/narration.wav`. FilmCraft (`audio/narrated.fcproj`)
+mixes it over the SoundCraft score with the music ducked 12 dB under the voice, and exports
+`audio/narrated.m4a` at −16 LUFS, which is what the HTML plays.
