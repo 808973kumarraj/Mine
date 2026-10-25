@@ -198,7 +198,7 @@ for sc_meta in scenes:
         files(sc, None, [(x - 40, y) for x, y in FILES6])
         sc.box(300, 120, 260, 220, 24, LOG, label='_delta_log/', label_size=20, anim=A('pop', .6, L[0] + .5))
         log_stack(sc, 300, 120, 3, t=L[1] + .8, step=.35)
-        sc.flat('<div class="card mono" style="font-size:24px">000.json<br>001.json<br>002.json</div>', 'left:1360px;top:300px', A('up', .6, L[1] + 2.4))
+        sc.flat('<div class="card mono" style="font-size:21px;line-height:1.5"><b>orders/</b><br>&nbsp;part-00000-4f2a….snappy.parquet<br>&nbsp;part-00001-9c1e….snappy.parquet<br>&nbsp;…<br>&nbsp;<b>_delta_log/</b><br>&nbsp;&nbsp;<span style="color:#a06a1f">00000000000000000000.json</span><br>&nbsp;&nbsp;<span style="color:#a06a1f">00000000000000000001.json</span><br>&nbsp;&nbsp;<span style="color:#a06a1f">00000000000000000002.json</span></div>', 'left:1180px;top:270px', A('up', .6, L[1] + 2.4))
         sc.flat('<span class="chip" style="color:#2f55b0">THE LOG = SOURCE OF TRUTH</span>', 'left:1180px;top:740px', A('pop', .5, L[2] + .3))
         html = sc.html('Delta Lake = files + a log', 'THE IDEA')
 
@@ -214,7 +214,7 @@ for sc_meta in scenes:
         log_stack(sc, 300, 120, 3)
         sc.box(300, 120, 120, 80, 16, ('#d9ead9', '#b9d6bd', '#93bb9b'), z=3 * 18, top_label='003.json', top_size=14, anim=A('drop', .7, L[1] + .8))
         sc.flat('<span class="chip" style="color:#2f6b55">✓ COMMIT 003 — ATOMIC</span>', 'left:1240px;top:730px', A('pop', .5, L[1] + 1.6))
-        sc.flat(f'<div class="card mono" style="font-size:22px">{{"add": "part-5"}}<br>{{"add": "part-6"}}</div>', 'left:1320px;top:300px', A('up', .5, L[1] + 1.2))
+        sc.flat('<div class="card mono" style="font-size:19px;line-height:1.5;background:#24211c;color:#e8e2d0;border-color:#24211c"><span style="color:#ffcf8a">…003.json</span><br>{"add": {"path": "part-00005-….parquet",<br>&nbsp; "stats": {"numRecords": 3}}}<br>{"add": {"path": "part-00006-….parquet",<br>&nbsp; "stats": {"numRecords": 2}}}<br>{"commitInfo": {"operation": "WRITE"}}</div>', 'left:1130px;top:260px', A('up', .5, L[1] + 1.2))
         for i in range(2):
             sc.box(-330 + i * 100, 250, 90, 90, 60, GHOST, label=f'tmp-{i + 1}', label_size=15, anim=f"{A('drop', .6, L[2] + .3 + i * .2)},{A('fadeout', .5, L[2] + 2.2)}", dashed=True)
         sc.flat('<span class="chip" style="color:#c0462f">✗ no commit → ignored</span>', 'left:180px;top:810px', A('pop', .5, L[2] + 1.8))
@@ -231,7 +231,8 @@ for sc_meta in scenes:
             sc.box(300, 120, 120, 80, 16, LOG, z=i * 18, top_label=f'{i:03d}.json', top_size=14, anim=A('pulse', .4, L[0] + 1.2 + i * .4))
         sc.box(560, -260, 150, 120, 120, BOX, label='SPARK', label_size=17, anim=A('drop', .7, L[0]))
         sc.line((560, -200, 60), (330, 100, 80), PAL['blue'], 5, True, A('fadein', .4, L[0] + .8))
-        sc.flat('<div class="card mono" style="font-size:22px">current files:<br>part-1, part-3,<br>part-5, part-6</div>', 'left:1350px;top:290px', A('up', .5, L[0] + 2.8))
+        sc.flat('<div class="card mono" style="font-size:20px;line-height:1.5">replay 000 → 003<br><span style="color:#2f6b55">+ add</span> part-1, 2, 3, 4, 5, 6<br><span style="color:#c0462f">− remove</span> part-2, part-4<br><b>= read part-1, 3, 5, 6</b></div>', 'left:1200px;top:270px', A('up', .5, L[0] + 2.8))
+        sc.flat('<div class="card mono" style="font-size:19px;line-height:1.45">id &nbsp; country amount<br>1001 IN &nbsp; &nbsp; 1549<br>1003 DE &nbsp; &nbsp; &nbsp;180<br>1007 US &nbsp; &nbsp; 1982<br>…</div>', 'left:150px;top:560px', A('up', .5, L[1] + .4))
         html = sc.html('Reading: the log decides', 'READ')
 
     elif nm == 'update':
@@ -241,7 +242,7 @@ for sc_meta in scenes:
             sc.box(x, y, 90, 90, 60, FILE, label=f'part-{i + 1}', label_size=15, anim=a, z=24)
         sc.box(80 + 120, 150, 90, 90, 60, ('#d9ead9', '#b9d6bd', '#93bb9b'), label='part-7', label_size=15, z=24, anim=A('drop', .7, L[1] + .6))
         sc.flat('<span class="chip" style="color:#c0462f">✗ never edited in place</span>', 'left:150px;top:300px', A('pop', .5, L[0] + .4))
-        sc.flat('<div class="card mono" style="font-size:22px">004.json<br><span style="color:#c0462f">{"remove": "part-2"}</span><br><span style="color:#2f6b55">{"add": "part-7"}</span></div>', 'left:1300px;top:300px', A('up', .5, L[1] + 2.6))
+        sc.flat('<div class="card mono" style="font-size:19px;line-height:1.5;background:#24211c;color:#e8e2d0;border-color:#24211c"><span style="color:#ffcf8a">UPDATE orders SET amount = 198 WHERE id = 1003</span><br><br><span style="color:#ffcf8a">…004.json</span><br><span style="color:#f2a08e">{"remove": {"path": "part-00002-….parquet"}}</span><br><span style="color:#8fd19e">{"add": {"path": "part-00007-….parquet"}}</span><br>{"commitInfo": {"operation": "UPDATE"}}</div>', 'left:1060px;top:250px', A('up', .5, L[1] + 2.6))
         html = sc.html('Updates and deletes', 'COPY ON WRITE')
 
     elif nm == 'concurrent':
@@ -269,7 +270,7 @@ for sc_meta in scenes:
             sc.box(300, 120, 120, 80, 16, ('#d9ead9', '#b9d6bd', '#93bb9b') if i == 1 else LOG, z=i * 18, top_label=f'{i:03d}.json', top_size=14,
                    anim=A('fadeout', .6, L[1] + 1.2) if i > 1 else None)
         sc.flat('<div class="card mono" style="font-size:24px;background:#2a2722;color:#e8e2d0;border-color:#2a2722">SELECT * FROM orders<br><span style="color:#b9c6ff">VERSION AS OF 1</span></div>', 'left:1240px;top:300px', A('up', .6, L[1] + .3))
-        sc.flat('<span class="chip" style="color:#2f55b0">⟲ the table at version 1</span>', 'left:1240px;top:740px', A('pop', .5, L[1] + 2.0))
+        sc.flat('<div class="card mono" style="font-size:19px;line-height:1.45">version 1 → 3 rows<br>1001 IN 1549<br>1002 US &nbsp;712<br>1003 DE &nbsp;180</div>', 'left:1290px;top:500px', A('up', .5, L[1] + 2.0))
         html = sc.html('Time travel', 'HISTORY')
 
     elif nm == 'checkpoint':

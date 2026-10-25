@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delta Lake Simulator</title>
+<!--FONTS-->
+<style>
+/* A working model of a Delta Lake table. Every button runs a real Delta operation on an in-memory
+   table: data files are written first, then one commit (NNN.json) is added to _delta_log/ with the
+   same actions Delta writes (protocol, metaData, add, remove, commitInfo). Reads replay the log. */
+:root{
+  --paper:#ece6d6; --ink:#2b2721; --muted:#8a8270; --rule:#cfc6b0; --card:#f8f5ee;
+  --blue:#2f55b0; --red:#c0462f; --green:#2f6b55; --amber:#c8782f; --dark:#24211c;
+  --file:#dfe7f7; --file-edge:#a9badf; --log:#f6e7c8; --log-edge:#d6b67c; --new:#d9ead9; --gone:#e7e1d3;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--paper:#1e1c19;--ink:#ece6d6;--muted:#a49c89;--rule:#3a362f;--card:#27241f;--dark:#14120f;--file:#26334f;--file-edge:#4a5f94;--log:#3d3424;--log-edge:#8a7046;--new:#22392b;--gone:#2b2823}}
+:root[data-theme="dark"]{--paper:#1e1c19;--ink:#ece6d6;--muted:#a49c89;--rule:#3a362f;--card:#27241f;--dark:#14120f;--file:#26334f;--file-edge:#4a5f94;--log:#3d3424;--log-edge:#8a7046;--new:#22392b;--gone:#2b2823}
+*{box-sizing:border-box;margin:0}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 "JetBrains Mono",ui-monospace,monospace;padding:16px;min-height:100vh}
+header{max-width:1400px;margin:0 auto 14px;border-bottom:3px solid var(--rule);padding-bottom:10px}
+header .crumb{font-weight:700;letter-spacing:.22em;font-size:12px;color:var(--muted)}
+header h1{font-size:clamp(22px,4vw,34px);font-weight:800}
+header p{color:var(--muted);font-size:13px;max-width:900px}
+.ops{max-width:1400px;margin:0 auto 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ops button{font:700 13px "JetBrains Mono",monospace;padding:9px 14px;border-radius:999px;border:2.5px solid var(--ink);background:var(--card);color:var(--ink);cursor:pointer}
+.ops button:hover{background:var(--ink);color:var(--paper)}
+.ops button.warn{border-color:var(--red);color:var(--red)}
+.ops button.warn:hover{background:var(--red);color:#fff}
+.ops .sep{width:1px;height:28px;background:var(--rule);margin:0 4px}
+.grid{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(0,1fr);gap:14px}
+@media (max-width:960px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--card);border:2.5px solid var(--ink);border-radius:12px;padding:14px;min-height:260px;box-shadow:6px 8px 0 rgba(43,39,33,.12)}
+.panel h2{font-size:12px;letter-spacing:.2em;color:var(--muted);font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between;gap:8px}
+.tree{font-size:13px}
+.tree .dir{font-weight:800}
+.tree .f{display:flex;align-items:center;gap:8px;padding:3px 6px;border-radius:6px;margin:2px 0 2px 18px;transition:background .4s,opacity .4s}
+.tree .f i{width:14px;height:14px;border-radius:3px;border:2px solid var(--file-edge);background:var(--file);flex:none}
+.tree .f.json i{border-color:var(--log-edge);background:var(--log)}
+.tree .f.ckpt i{border-color:var(--blue);background:var(--file)}
+.tree .f.dead{opacity:.45;text-decoration:line-through}
+.tree .f.dead::after{content:"not in table";font-size:11px;color:var(--red);margin-left:auto;text-decoration:none}
+.tree .f.tmp{opacity:.55;font-style:italic}
+.tree .f.tmp::after{content:"no commit, ignored";font-size:11px;color:var(--red);margin-left:auto}
+.tree .f.flash{background:var(--new)}
+.tree .f.read{outline:2px solid var(--blue)}
+.tree .size{margin-left:auto;color:var(--muted);font-size:11px}
+.log .commit{border:2px solid var(--log-edge);background:var(--log);border-radius:8px;margin-bottom:8px;overflow:hidden}
+.log .commit.ckpt{border-color:var(--blue);background:var(--file)}
+.log .commit > div:first-child{display:flex;justify-content:space-between;gap:8px;padding:6px 10px;font-weight:800;cursor:pointer}
+.log .commit pre{margin:0;padding:8px 10px;background:var(--dark);color:#e8e2d0;font-size:12px;line-height:1.45;white-space:pre-wrap;word-break:break-all;display:none}
+.log .commit.open pre{display:block}
+.log .commit .op{color:var(--muted);font-weight:700}
+.log .commit.flash{animation:flash 1.2s}
+@keyframes flash{0%{transform:scale(1.03);box-shadow:0 0 0 4px var(--green)}100%{transform:none;box-shadow:none}}
+pre .k{color:#b9c6ff} pre .add{color:#8fd19e} pre .rm{color:#f2a08e}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:5px 6px;border-bottom:1px solid var(--rule)}
+th{font-size:11px;letter-spacing:.12em;color:var(--muted)}
+td.src{color:var(--muted);font-size:11px}
+tr.flash td{background:var(--new)}
+.ver{display:flex;align-items:center;gap:10px;font-size:13px;margin-bottom:8px;flex-wrap:wrap}
+.ver input{flex:1;min-width:120px}
+.narr{max-width:1400px;margin:14px auto 0;background:var(--dark);color:#e8e2d0;border-radius:12px;padding:14px 16px;font-size:14px;min-height:76px}
+.narr b{color:#ffcf8a}
+.steps{margin-top:6px;color:#bdb6a3;font-size:13px}
+.steps span{display:inline-block;margin-right:10px;opacity:.35;transition:opacity .3s}
+.steps span.on{opacity:1;color:#8fd19e}
+.empty{color:var(--muted);font-size:13px}
+footer{max-width:1400px;margin:14px auto 0;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <div class="crumb">&gt; BINARY HABIT / DATA ENG / DELTA LAKE</div>
+  <h1>Delta Lake, live</h1>
+  <p>Press a button. Each one writes data files first, then adds one commit to <b>_delta_log/</b>. The table you read is whatever the log says. Click any commit to see its real JSON.</p>
+</header>
+<div class="ops" id="ops">
+  <button data-op="create">CREATE TABLE</button>
+  <button data-op="insert">INSERT rows</button>
+  <button data-op="update">UPDATE a row</button>
+  <button data-op="delete">DELETE rows</button>
+  <span class="sep"></span>
+  <button data-op="read">READ (replay log)</button>
+  <button data-op="race">Two writers at once</button>
+  <button class="warn" data-op="fail">Write that fails</button>
+  <button data-op="checkpoint">Checkpoint</button>
+  <button data-op="vacuum">VACUUM</button>
+  <span class="sep"></span>
+  <button data-op="reset">Reset</button>
+</div>
+<div class="grid">
+  <section class="panel"><h2><span>STORAGE · orders/</span><span id="nfiles"></span></h2><div class="tree" id="tree"></div></section>
+  <section class="panel log"><h2><span>TRANSACTION LOG · _delta_log/</span><span id="nver"></span></h2><div id="log"><div class="empty">No commits yet. Press CREATE TABLE.</div></div></section>
+  <section class="panel"><h2><span>TABLE · SELECT * FROM orders</span><span id="nrows"></span></h2>
+    <div class="ver"><span>VERSION AS OF</span><input type="range" id="ver" min="0" max="0" value="0" disabled><b id="verlbl">latest</b></div>
+    <div id="table"><div class="empty">The table does not exist yet.</div></div></section>
+</div>
+<div class="narr" id="narr">Start with <b>CREATE TABLE</b>.<div class="steps" id="steps"></div></div>
+<footer>A teaching model: real Delta action names and file layout, simplified sizes and stats. Parquet contents are shown as rows.</footer>
+
+<script>
+// ---------------- the table model ----------------
+const COUNTRIES = ['IN', 'US', 'BR', 'DE'];
+let S;                                   // storage: files on disk, the log, version counter
+function reset() {
+  S = { files: new Map(), log: [], seq: 0, checkpoint: null, nextId: 1001, viewVersion: null };
+  render(); narrate('Start with <b>CREATE TABLE</b>.');
+}
+const uuid = () => Math.random().toString(16).slice(2, 10) + '-' + Math.random().toString(16).slice(2, 6);
+const pad = n => String(n).padStart(20, '0');
+function newFile(rows) {                 // step 1 of every write: a new immutable Parquet file
+  const path = `part-${String(S.seq++).padStart(5, '0')}-${uuid()}.snappy.parquet`;
+  S.files.set(path, { rows: rows.map(r => ({ ...r })), size: 600 + rows.length * 37, kind: 'data' });
+  return path;
+}
+function stats(rows) {
+  const ids = rows.map(r => r.id), amt = rows.map(r => r.amount);
+  return JSON.stringify({ numRecords: rows.length, minValues: { id: Math.min(...ids), amount: Math.min(...amt) }, maxValues: { id: Math.max(...ids), amount: Math.max(...amt) } });
+}
+const addAction = p => ({ add: { path: p, size: S.files.get(p).size, partitionValues: {}, modificationTime: Date.now(), dataChange: true, stats: stats(S.files.get(p).rows) } });
+const removeAction = p => ({ remove: { path: p, deletionTimestamp: Date.now(), dataChange: true } });
+function commit(actions, op, params = {}) {     // step 2: one atomic commit — the only thing that changes the table
+  const version = S.log.length;
+  actions.push({ commitInfo: { timestamp: Date.now(), operation: op, operationParameters: params, readVersion: version - 1, isBlindAppend: op === 'WRITE' } });
+  S.log.push({ version, name: pad(version) + '.json', actions, op });
+  return version;
+}
+function snapshot(upTo = S.log.length - 1) {    // a read: replay the log (from the checkpoint if there is one) to get the live files
+  const live = new Map(); let start = 0;
+  if (S.checkpoint && S.checkpoint.version <= upTo) { S.checkpoint.live.forEach(p => live.set(p, true)); start = S.checkpoint.version + 1; }
+  for (let v = start; v <= upTo; v++) for (const a of S.log[v].actions) {
+    if (a.add) live.set(a.add.path, true);
+    if (a.remove) live.delete(a.remove.path);
+  }
+  return [...live.keys()];
+}
+const rowsOf = files => files.flatMap(p => S.files.get(p).rows.map(r => ({ ...r, _file: p })));
+function sampleRows(n) {
+  return Array.from({ length: n }, () => ({ id: S.nextId++, country: COUNTRIES[Math.floor(Math.random() * 4)], amount: 100 + Math.floor(Math.random() * 1900) }));
+}
+
+// ---------------- operations ----------------
+const OPS = {
+  create() {
+    if (S.log.length) return narrate('The table already exists. Try <b>INSERT</b>.');
+    const p = newFile(sampleRows(3));
+    const v = commit([{ protocol: { minReaderVersion: 1, minWriterVersion: 2 } },
+      { metaData: { id: uuid(), format: { provider: 'parquet' }, schemaString: '{"type":"struct","fields":[id:long, country:string, amount:long]}', partitionColumns: [] } },
+      addAction(p)], 'CREATE TABLE AS SELECT');
+    done(v, [p], `Commit <b>${pad(v)}.json</b> creates the table: <b>protocol</b>, <b>metaData</b> (the schema) and one <b>add</b> for the first file.`, ['write 1 file', 'commit 0']);
+  },
+  insert() {
+    if (!need()) return;
+    const p = newFile(sampleRows(2 + Math.floor(Math.random() * 3)));
+    const v = commit([addAction(p)], 'WRITE', { mode: 'Append' });
+    done(v, [p], `INSERT wrote a <b>new file</b>, then commit <b>${pad(v)}.json</b> with one <b>add</b>. Old files were not touched.`, ['write new file', `commit ${v}`]);
+  },
+  update() {
+    if (!need()) return;
+    const live = snapshot(); const target = live[Math.floor(Math.random() * live.length)];
+    const rows = S.files.get(target).rows.map(r => ({ ...r })); const r = rows[0]; const before = r.amount;
+    r.amount = Math.round(r.amount * 1.1);
+    const p = newFile(rows);
+    const v = commit([removeAction(target), addAction(p)], 'UPDATE', { predicate: `id = ${r.id}` });
+    done(v, [p], `UPDATE id ${r.id}: amount ${before} → ${r.amount}. Parquet is never edited, so the whole file was <b>rewritten</b>: commit ${v} has <b>remove</b> (old file) + <b>add</b> (new file).`, ['copy file + change row', 'write new file', `commit ${v}: remove + add`], [target]);
+  },
+  delete() {
+    if (!need()) return;
+    const c = COUNTRIES[Math.floor(Math.random() * 4)], live = snapshot();
+    const touched = live.filter(p => S.files.get(p).rows.some(r => r.country === c));
+    if (!touched.length) return narrate(`No rows with country = '${c}'. Nothing to delete, so <b>no commit</b>.`);
+    const actions = [], added = [];
+    for (const t of touched) {
+      actions.push(removeAction(t));
+      const keep = S.files.get(t).rows.filter(r => r.country !== c);
+      if (keep.length) { const p = newFile(keep); actions.push(addAction(p)); added.push(p); }
+    }
+    const v = commit(actions, 'DELETE', { predicate: `country = '${c}'` });
+    done(v, added, `DELETE WHERE country = '${c}': ${touched.length} file(s) had matching rows. Each was <b>removed</b>, the rows to keep went into new files (<b>add</b>). Files without '${c}' were skipped thanks to their stats.`, ['find files with matches', 'rewrite without them', `commit ${v}`], touched);
+  },
+  read() {
+    if (!need()) return;
+    const live = snapshot();
+    const from = S.checkpoint ? `the checkpoint at version ${S.checkpoint.version}, then the commits after it` : `commits 0 to ${S.log.length - 1}`;
+    S.viewVersion = null; render();
+    document.querySelectorAll('.tree .f').forEach(e => { if (live.includes(e.dataset.p)) e.classList.add('read'); });
+    setTimeout(() => document.querySelectorAll('.tree .read').forEach(e => e.classList.remove('read')), 2200);
+    narrate(`READ replays ${from}: adds minus removes = <b>${live.length} live files</b>. Only those are opened; ${[...S.files.values()].filter(f => f.kind === 'data').length - live.length} old or failed file(s) are skipped.`, ['list _delta_log/', 'replay actions', `read ${live.length} files`]);
+  },
+  race() {
+    if (!need()) return;
+    const v = S.log.length;
+    const pa = newFile(sampleRows(2)), pb = newFile(sampleRows(2));
+    commit([addAction(pa)], 'WRITE', { mode: 'Append', writer: 'A' });
+    // B also tried to create v; it lost, re-checked what A changed (only appends, no conflict), and retried as v + 1
+    const v2 = commit([addAction(pb)], 'WRITE', { mode: 'Append', writer: 'B (retried)' });
+    done(v2, [pa, pb], `Writers A and B both tried to create <b>${pad(v)}.json</b>. Creating that file is atomic, so only <b>A</b> won. B saw the conflict, checked that A's change didn't touch what B read, and <b>retried as ${pad(v2)}.json</b>.`, [`A creates ${v}`, `B fails on ${v}`, 'B re-checks', `B commits ${v2}`]);
+  },
+  fail() {
+    if (!need()) return;
+    const p = newFile(sampleRows(3)); S.files.get(p).kind = 'tmp';
+    render(); flashFiles([p]);
+    narrate(`The job wrote <b>${p.slice(0, 16)}…</b> and then crashed <b>before</b> its commit. No new JSON in the log, so readers never see this file. The table is unchanged.`, ['write file', '✗ crash', 'no commit → ignored']);
+  },
+  checkpoint() {
+    if (!need()) return;
+    const v = S.log.length - 1, live = snapshot(v);
+    const name = pad(v) + '.checkpoint.parquet';
+    S.checkpoint = { version: v, live, name };
+    S.files.set('_delta_log/' + name, { rows: [], size: 400 + live.length * 120, kind: 'ckpt' });
+    render(); flashFiles(['_delta_log/' + name]);
+    narrate(`Checkpoint at version ${v}: one Parquet file that holds the whole table state (${live.length} live files). Readers start here instead of replaying every JSON. Delta writes one every 10 commits by default.`, ['replay log', 'write checkpoint', 'readers start here']);
+  },
+  vacuum() {
+    if (!need()) return;
+    const live = new Set(snapshot()); let n = 0;
+    for (const [p, f] of [...S.files]) if (f.kind !== 'ckpt' && !live.has(p)) { S.files.delete(p); n++; }
+    render();
+    narrate(`VACUUM deleted <b>${n}</b> file(s) that no current version uses (removed or failed). Time travel to versions that needed them no longer works (real Delta keeps 7 days by default).`, ['find unused files', `delete ${n}`]);
+  },
+  reset,
+};
+function need() { if (!S.log.length) { narrate('Press <b>CREATE TABLE</b> first.'); return false; } return true; }
+function done(v, added, msg, steps, removed = []) {
+  S.viewVersion = null; render();
+  flashFiles(added); flashCommit(v);
+  document.querySelectorAll('#table tr').forEach(tr => { if (added.includes(tr.dataset.p)) tr.classList.add('flash'); });
+  narrate(msg, steps);
+}
+
+// ---------------- rendering ----------------
+const $ = id => document.getElementById(id);
+function render() {
+  const latest = S.log.length - 1, view = S.viewVersion == null ? latest : S.viewVersion;
+  const live = new Set(S.log.length ? snapshot(latest) : []);
+  // storage tree
+  let h = '<div class="dir">orders/</div>';
+  for (const [p, f] of S.files) if (f.kind !== 'ckpt') {
+    const cls = f.kind === 'tmp' ? 'tmp' : live.has(p) ? '' : 'dead';
+    h += `<div class="f ${cls}" data-p="${p}"><i></i>${p.slice(0, 22)}…<span class="size">${f.size} B</span></div>`;
+  }
+  h += '<div class="dir" style="margin-left:18px">_delta_log/</div>';
+  for (const c of S.log) h += `<div class="f json" style="margin-left:36px" data-p="${c.name}"><i></i>${c.name}</div>`;
+  for (const [p, f] of S.files) if (f.kind === 'ckpt') h += `<div class="f ckpt" style="margin-left:36px" data-p="${p}"><i></i>${p.replace('_delta_log/', '')}</div>`;
+  $('tree').innerHTML = h;
+  $('nfiles').textContent = `${[...S.files.values()].filter(f => f.kind === 'data').length} data files · ${live.size} live`;
+  // log
+  if (!S.log.length) $('log').innerHTML = '<div class="empty">No commits yet. Press CREATE TABLE.</div>';
+  else $('log').innerHTML = S.log.slice().reverse().map(c => `<div class="commit" data-v="${c.version}"><div><span>${c.name.replace(/^0+(?=\d{3}\.)/, '…')}</span><span class="op">${c.op}</span></div><pre>${fmt(c.actions)}</pre></div>`).join('')
+    + (S.checkpoint ? `<div class="commit ckpt"><div><span>…${S.checkpoint.name.slice(17)}</span><span class="op">CHECKPOINT</span></div></div>` : '');
+  document.querySelectorAll('.log .commit > div:first-child').forEach(e => e.onclick = () => e.parentNode.classList.toggle('open'));
+  $('nver').textContent = S.log.length ? `version ${latest}` : '';
+  // table at the chosen version
+  const vr = $('ver'); vr.max = Math.max(0, latest); vr.disabled = !S.log.length; vr.value = view;
+  $('verlbl').textContent = S.viewVersion == null ? 'latest' : `v${view}`;
+  if (!S.log.length) { $('table').innerHTML = '<div class="empty">The table does not exist yet.</div>'; $('nrows').textContent = ''; return; }
+  const rows = rowsOf(snapshot(view)).sort((a, b) => a.id - b.id);
+  $('table').innerHTML = `<table><tr><th>ID</th><th>COUNTRY</th><th>AMOUNT</th><th>FILE</th></tr>${rows.map(r => `<tr data-p="${r._file}"><td>${r.id}</td><td>${r.country}</td><td>${r.amount}</td><td class="src">part-${r._file.slice(5, 10)}</td></tr>`).join('')}</table>`;
+  $('nrows').textContent = `${rows.length} rows`;
+}
+function fmt(actions) {
+  return actions.map(a => {
+    const k = Object.keys(a)[0], cls = k === 'add' ? 'add' : k === 'remove' ? 'rm' : 'k';
+    return `{<span class="${cls}">"${k}"</span>: ${JSON.stringify(a[k], (key, val) => key === 'modificationTime' || key === 'timestamp' || key === 'deletionTimestamp' ? '…' : val)}}`;
+  }).join('\n');
+}
+function flashFiles(paths) { document.querySelectorAll('.tree .f').forEach(e => { if (paths.includes(e.dataset.p)) { e.classList.add('flash'); setTimeout(() => e.classList.remove('flash'), 1800); } }); }
+function flashCommit(v) { const e = document.querySelector(`.commit[data-v="${v}"]`); if (e) { e.classList.add('flash', 'open'); } }
+function narrate(html, steps = []) {
+  $('narr').innerHTML = html + '<div class="steps" id="steps">' + steps.map(s => `<span>${s}</span>`).join('→ ') + '</div>';
+  [...document.querySelectorAll('#steps span')].forEach((s, i) => setTimeout(() => s.classList.add('on'), 250 + i * 450));
+}
+$('ops').onclick = e => { const op = e.target.dataset && e.target.dataset.op; if (op && OPS[op]) OPS[op](); };
+$('ver').oninput = e => {
+  const v = +e.target.value, latest = S.log.length - 1; S.viewVersion = v === latest ? null : v; render();
+  narrate(S.viewVersion == null ? 'Back to the latest version.' : `<b>VERSION AS OF ${v}</b>: the log is replayed only up to commit ${v}, so you see the table exactly as it was. Old files were kept, so this just works.`, ['replay 0…' + v]);
+};
+reset();
+</script>
+</body>
+</html>

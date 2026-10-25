@@ -1,4 +1,5 @@
 """Pack the Geneva scenes into one standalone HTML preview, to approve before rendering the MP4.
+The interactive simulator (../delta-lake-simulator.html) is embedded below the player.
 
 usage: python3 make_preview.py ../delta-lake-preview.html
 Each scene's HTML (the same files Geneva renders) plays in its own iframe; the soundtrack is the clock:
@@ -37,9 +38,12 @@ input[type=range]{width:min(1100px,92vw)}
 <audio id="v" src="AUDIO_SRC" preload="auto"></audio>
 <input type="range" id="seek" min="0" max="DUR" step="0.05" value="0">
 <div class="ctrl"><button id="play">▶ Play</button><button id="cc" class="on">CC</button><span id="clock">0.0s</span> · <span id="scene"></span></div>
+<h2 style="margin-top:28px;font:800 22px ui-monospace,monospace;color:#ece6d6">Try it yourself: Delta Lake, live</h2>
+<iframe id="sim" title="Delta Lake simulator" style="width:min(1400px,100%);height:1080px;border:0;border-radius:12px;background:#ece6d6"></iframe>
 <script>
 const SCENES = SCENES_JSON, SUBS = SUBS_JSON, DUR = DUR_NUM;
 const stage = document.getElementById('stage'), v = document.getElementById('v'), subsEl = document.getElementById('subs');
+document.getElementById('sim').srcdoc = SIM_HTML;
 const frames = SCENES.map(s => { const f = document.createElement('iframe'); f.srcdoc = s.html; stage.insertBefore(f, subsEl); return f; });
 let subsOn = true, cur = -1;
 function fit() { const k = stage.clientWidth / 1920; frames.forEach(f => f.style.transform = `scale(${k})`); }
@@ -64,7 +68,8 @@ const pb = document.getElementById('play'); pb.onclick = () => v.paused ? v.play
 v.onplay = () => pb.textContent = '❚❚ Pause'; v.onpause = () => pb.textContent = '▶ Play';
 document.getElementById('cc').onclick = e => { subsOn = !subsOn; e.target.classList.toggle('on', subsOn); };
 </script></body></html>'''
-page = (page.replace('SCENES_JSON', json.dumps(scenes).replace('</', '<\\/')).replace('SUBS_JSON', json.dumps(subs))
+sim = (HERE.parent / 'delta-lake-simulator.html').read_text()   # built from simulator/src.html
+page = (page.replace('SIM_HTML', json.dumps(sim).replace('</', '<\\/')).replace('SCENES_JSON', json.dumps(scenes).replace('</', '<\\/')).replace('SUBS_JSON', json.dumps(subs))
         .replace('DUR_NUM', str(meta['duration'])).replace('max="DUR"', f'max="{meta["duration"]}"')
         .replace('AUDIO_SRC', 'data:audio/mp4;base64,' + b64(HERE / 'audio/mix.m4a')))
 pathlib.Path(sys.argv[1]).write_text(page)
