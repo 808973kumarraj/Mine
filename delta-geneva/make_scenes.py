@@ -190,7 +190,7 @@ for sc_meta in scenes:
         sc.box(400, -260, 150, 120, 120, BOX, label='WRITE JOB', label_size=17, anim=A('drop', .7, L[1]))
         sc.flat('<span class="chip" style="color:#c0462f">✗ JOB FAILED HALFWAY</span>', 'left:1240px;top:330px', A('pop', .5, L[1] + 1.4))
         sc.box(-470, 230, 150, 120, 120, BOX, label='READER', label_size=17, anim=A('drop', .7, L[1] + 3.2))
-        sc.flat('<span class="chip" style="color:#c0462f">⚠ sees broken data</span>', 'left:300px;top:880px', A('pop', .5, L[1] + 4.2))
+        sc.flat('<span class="chip" style="color:#c0462f">⚠ sees broken data</span>', 'left:300px;top:760px', A('pop', .5, L[1] + 4.2))
         html = sc.html('Plain data lake', 'THE PROBLEM')
 
     elif nm == 'log':
@@ -199,7 +199,7 @@ for sc_meta in scenes:
         sc.box(300, 120, 260, 220, 24, LOG, label='_delta_log/', label_size=20, anim=A('pop', .6, L[0] + .5))
         log_stack(sc, 300, 120, 3, t=L[1] + .8, step=.35)
         sc.flat('<div class="card mono" style="font-size:24px">000.json<br>001.json<br>002.json</div>', 'left:1360px;top:300px', A('up', .6, L[1] + 2.4))
-        sc.flat('<span class="chip" style="color:#2f55b0">THE LOG = SOURCE OF TRUTH</span>', 'left:1180px;top:860px', A('pop', .5, L[2] + .3))
+        sc.flat('<span class="chip" style="color:#2f55b0">THE LOG = SOURCE OF TRUTH</span>', 'left:1180px;top:740px', A('pop', .5, L[2] + .3))
         html = sc.html('Delta Lake = files + a log', 'THE IDEA')
 
     elif nm == 'write':
@@ -213,11 +213,11 @@ for sc_meta in scenes:
         sc.box(300, 120, 260, 220, 24, LOG, label='_delta_log/', label_size=20)
         log_stack(sc, 300, 120, 3)
         sc.box(300, 120, 120, 80, 16, ('#d9ead9', '#b9d6bd', '#93bb9b'), z=3 * 18, top_label='003.json', top_size=14, anim=A('drop', .7, L[1] + .8))
-        sc.flat('<span class="chip" style="color:#2f6b55">✓ COMMIT 003 — ATOMIC</span>', 'left:1240px;top:850px', A('pop', .5, L[1] + 1.6))
+        sc.flat('<span class="chip" style="color:#2f6b55">✓ COMMIT 003 — ATOMIC</span>', 'left:1240px;top:730px', A('pop', .5, L[1] + 1.6))
         sc.flat(f'<div class="card mono" style="font-size:22px">{{"add": "part-5"}}<br>{{"add": "part-6"}}</div>', 'left:1320px;top:300px', A('up', .5, L[1] + 1.2))
         for i in range(2):
             sc.box(-330 + i * 100, 250, 90, 90, 60, GHOST, label=f'tmp-{i + 1}', label_size=15, anim=f"{A('drop', .6, L[2] + .3 + i * .2)},{A('fadeout', .5, L[2] + 2.2)}", dashed=True)
-        sc.flat('<span class="chip" style="color:#c0462f">✗ no commit → ignored</span>', 'left:180px;top:930px', A('pop', .5, L[2] + 1.8))
+        sc.flat('<span class="chip" style="color:#c0462f">✗ no commit → ignored</span>', 'left:180px;top:810px', A('pop', .5, L[2] + 1.8))
         html = sc.html('Writing: files first, then one commit', 'WRITE')
 
     elif nm == 'read':
@@ -254,9 +254,9 @@ for sc_meta in scenes:
         sc.box(0, 160, 120, 80, 16, ('#d9ead9', '#b9d6bd', '#93bb9b'), z=3 * 18, top_label='003.json', top_size=14, anim=A('flyA', 1.2, L[1] + .4, 'ease-in-out'))
         sc.box(0, 160, 120, 80, 16, REDF, z=3 * 18 + 40, top_label='003.json', top_size=14, anim=f"{A('flyB', 1.4, L[1] + .5, 'ease-in-out')},{A('gone', .3, L[2] + .2)}")
         sc.box(0, 160, 120, 80, 16, ('#d9ead9', '#b9d6bd', '#93bb9b'), z=4 * 18, top_label='004.json', top_size=14, anim=A('drop', .7, L[2] + 2.0))
-        sc.flat('<span class="chip" style="color:#2f6b55">✓ A wins 003</span>', 'left:300px;top:880px', A('pop', .5, L[1] + 1.8))
+        sc.flat('<span class="chip" style="color:#2f6b55">✓ A wins 003</span>', 'left:300px;top:760px', A('pop', .5, L[1] + 1.8))
         sc.flat('<span class="chip" style="color:#c0462f">✗ B conflicts</span>', 'left:1300px;top:420px', A('pop', .5, L[1] + 2.1))
-        sc.flat('<span class="chip" style="color:#2f55b0">↻ B retries → 004</span>', 'left:1240px;top:880px', A('pop', .5, L[2] + 1.6))
+        sc.flat('<span class="chip" style="color:#2f55b0">↻ B retries → 004</span>', 'left:1240px;top:760px', A('pop', .5, L[2] + 1.6))
         html = sc.html('Two writers at once', 'OPTIMISTIC CONCURRENCY')
 
     elif nm == 'timetravel':
@@ -269,7 +269,7 @@ for sc_meta in scenes:
             sc.box(300, 120, 120, 80, 16, ('#d9ead9', '#b9d6bd', '#93bb9b') if i == 1 else LOG, z=i * 18, top_label=f'{i:03d}.json', top_size=14,
                    anim=A('fadeout', .6, L[1] + 1.2) if i > 1 else None)
         sc.flat('<div class="card mono" style="font-size:24px;background:#2a2722;color:#e8e2d0;border-color:#2a2722">SELECT * FROM orders<br><span style="color:#b9c6ff">VERSION AS OF 1</span></div>', 'left:1240px;top:300px', A('up', .6, L[1] + .3))
-        sc.flat('<span class="chip" style="color:#2f55b0">⟲ the table at version 1</span>', 'left:1240px;top:860px', A('pop', .5, L[1] + 2.0))
+        sc.flat('<span class="chip" style="color:#2f55b0">⟲ the table at version 1</span>', 'left:1240px;top:740px', A('pop', .5, L[1] + 2.0))
         html = sc.html('Time travel', 'HISTORY')
 
     elif nm == 'checkpoint':
@@ -279,16 +279,16 @@ for sc_meta in scenes:
         sc.box(140, 70, 140, 110, 70, ('#dfe6f6', '#c7d2ec', '#a9b8de'), z=24, label='010.checkpoint', label_size=13, anim=A('drop', .8, L[0] + 2.2))
         sc.box(-420, 60, 150, 120, 120, BOX, label='READER', label_size=17, anim=A('drop', .7, L[1]))
         sc.line((-420, 60, 70), (140, 70, 100), PAL['blue'], 5, True, A('fadein', .4, L[1] + .8))
-        sc.flat('<span class="chip" style="color:#2f55b0">start from the checkpoint</span>', 'left:1200px;top:860px', A('pop', .5, L[1] + 1.2))
+        sc.flat('<span class="chip" style="color:#2f55b0">start from the checkpoint</span>', 'left:1200px;top:740px', A('pop', .5, L[1] + 1.2))
         html = sc.html('Checkpoints keep reads fast', 'EVERY 10 COMMITS')
 
     elif nm == 'outro':
-        sc.oy = 720
+        sc.oy = 590
         for i, (x, y) in enumerate([(-120, -40), (0, -40), (-120, 80), (0, 80)]):
             sc.box(x, y, 100, 100, 70, FILE, label='.parquet', label_size=15)
         log_stack(sc, 230, -20, 4)
         sc.flat('Files + Log = Delta Lake', 'left:0;right:0;top:260px;text-align:center;font:800 84px JetBrains Mono', A('up', .7, .2))
-        sc.flat('BinaryHabit<span style="color:#c8782f">.</span>', 'left:0;right:0;top:960px;text-align:center;font:800 52px JetBrains Mono', A('fadein', .6, 1.2))
+        sc.flat('BinaryHabit<span style="color:#c8782f">.</span>', 'left:0;right:0;top:800px;text-align:center;font:800 52px JetBrains Mono', A('fadein', .6, 1.2))
         html = sc.html()
 
     (out / f'{nm}.html').write_text(html)
