@@ -201,9 +201,11 @@ def box(name, x, y, w, d, h, color=BOX, label=None, parent=None, led=True, vents
     if led: solid(name + '_led', lambda: bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=0.12, depth=0.02, rotation=(math.pi / 2, 0, 0)), (w / 2 - 0.45, fy, h - 0.42), (1, 1, 1), rgb('#4fa37b'), r, outlined=False)
     return r
 
-def cube(name, x, y, z, key_name, parent, size=0.82):
+def cube(name, x, y, z, key_name, parent, size=0.82, label=True):
     r = empty(name, (x, y, z), parent)
-    solid(name + '_c', cube_mesh, (0, 0, size / 2), (size, size, size), KEYC[key_name], r)
+    c = solid(name + '_c', cube_mesh, (0, 0, size / 2), (size, size, size), KEYC[key_name], r)
+    if label:   # the key printed on the cube's top face; recoloured cubes get theirs when the colour lands
+        text(key_name.upper(), (0, -0.11, size + 0.004), (0, 0, 0), 0.3, rgb('#ffffff') if key_name == 'in' else INK, 'ExtraBold', r, 'CENTER', name + '_k')
     return r
 
 def tray(name, x, y, label, parent):
@@ -329,7 +331,7 @@ c2 = hud('ORDERS', 540, 240, 18, MUTED, 'Bold', 'CENTER')
 for i in range(4):
     b = box(f'e1_{i}', row4(i), 0, 4, 3, 3.2, BOX, f'EXECUTOR {i + 1}', r); drop(b, 9.2 + i * 0.12)
     for k in range(6):
-        c = cube(f'c1_{i}{k}', row4(i) - 1 + (k % 3) * 1.0, -0.6 + (k // 3) * 1.2, 3.2, 'us', r); drop(c, 10.2 + i * 0.2 + k * 0.08, 4, 0.6)
+        c = cube(f'c1_{i}{k}', row4(i) - 1 + (k % 3) * 1.0, -0.6 + (k // 3) * 1.2, 3.2, 'us', r, label=False); drop(c, 10.2 + i * 0.2 + k * 0.08, 4, 0.6)
 more = text('+ 96 more executors', (-11, 4.2, 0.01), (0, 0, 0), 0.62, MUTED, 'Bold', r); alpha(more, 11.4, 0, 1, .5)
 SCN1_HUD = [n2, c2]
 
@@ -342,8 +344,11 @@ live(tx, lambda t: '>>> ' + CODE[:int(max(0, min(len(CODE), (t - 14.5) / 3.4 * l
 for i in range(4):
     box(f'e2_{i}', row4(i), 0, 4, 3, 3.2, BOX, f'EXECUTOR {i + 1}', r)
     for k in range(6):
-        c = cube(f'c2_{i}{k}', row4(i) - 1 + (k % 3) * 1.0, -0.6 + (k // 3) * 1.2, 3.2, 'us', r)
+        c = cube(f'c2_{i}{k}', row4(i) - 1 + (k % 3) * 1.0, -0.6 + (k // 3) * 1.2, 3.2, 'us', r, label=False)
         tint(c.children[0], 18 + i * 0.1 + k * 0.05, KEYC[keyof(i, k)])
+        kk = keyof(i, k)
+        lab = text(kk.upper(), (0, -0.11, 0.824), (0, 0, 0), 0.3, rgb('#ffffff') if kk == 'in' else INK, 'ExtraBold', c, 'CENTER', f'c2_{i}{k}_k')
+        alpha(lab, 18 + i * 0.1 + k * 0.05, 0, 1, .25)
 SCN2_HUD = [term, tx]
 
 # 20-25 same key -> same partition; 25-32 the cubes move
