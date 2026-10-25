@@ -537,6 +537,87 @@ def prune(f0, f1):
     LIVE[:] = [(o, fn) for o, fn in LIVE if o not in doomed]
     for o in doomed: bpy.data.objects.remove(o, do_unlink=True)
 
+# ---------------- export for the web (glTF) ----------------
+def keys_of(o, path, index):
+    ad = o.animation_data
+    if not ad or not ad.action: return []
+    for fc in ad.action.fcurves:
+        if fc.data_path == path and fc.array_index == index:
+            return [[round((k.co[0] - 1) / FPS, 3), round(k.co[1], 4)] for k in fc.keyframe_points]
+    return []
+
+def export_gltf(path):
+    """Write the 3D scene (no on-screen text) as .glb plus an animation file (.anim.json) read from the keyframes.
+
+    Every object is renamed o<N> so the names survive the trip to the browser unchanged. The animation file holds,
+    per object: frames where its location/scale change, its show windows, colour keys and (arcs) draw-on keys."""
+    import json
+    LIVE.clear(); bpy.app.handlers.frame_change_pre.clear()
+    for o in set(cam.children_recursive): bpy.data.objects.remove(o, do_unlink=True)
+    bpy.data.objects.remove(bpy.data.objects['gridlines'], do_unlink=True)
+    sc.frame_set(1)
+    # text and curves become meshes (same parent, transform and animation)
+    dg = bpy.context.evaluated_depsgraph_get()
+    for o in list(bpy.data.objects):
+        if o.type not in ('FONT', 'CURVE'): continue
+        if o.type == 'CURVE': o.data.bevel_factor_end = 1.0; dg.update()
+        me = bpy.data.meshes.new_from_object(o.evaluated_get(dg))
+        m = bpy.data.objects.new(o.name + '_m', me); (C_LINE if o.name in C_LINE.objects else C_FLAT).objects.link(m)
+        m.parent = o.parent; m.matrix_parent_inverse = o.matrix_parent_inverse.copy()
+        m.location, m.rotation_euler, m.scale = o.location, o.rotation_euler, o.scale
+        m.color = o.color
+        if o.animation_data and o.animation_data.action:
+            m.animation_data_create(); m.animation_data.action = o.animation_data.action
+        if o.type == 'CURVE':
+            ad = o.data.animation_data
+            m['draw'] = [[(k.co[0] - 1) / FPS, k.co[1]] for fc in ad.action.fcurves for k in fc.keyframe_points] if ad and ad.action else []
+        m['kind'] = 'text' if o.type == 'FONT' else 'arc'
+        bpy.data.objects.remove(o, do_unlink=True)
+    anim, mats, N = {'fps': FPS, 'dur': DUR, 'objects': {}}, {}, sc.frame_end
+    for i, o in enumerate(list(bpy.data.objects)):
+        outlined = o.name in C_LINE.objects       # check before renaming: collections look objects up by name
+        o.name = 'o%d' % i
+        a = {'kind': o.get('kind', 'line' if outlined else 'flat'), 'color': [round(c, 4) for c in o.color]}
+        if o.type == 'MESH':
+            col = tuple(round(c, 3) for c in o.color[:3])
+            if col not in mats:
+                mm = bpy.data.materials.new('m%d' % len(mats)); mm.use_nodes = True
+                mm.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (*col, 1); mats[col] = mm
+            o.data.materials.clear(); o.data.materials.append(mats[col])
+        if 'draw' in o: a['draw'] = [[round(t, 3), round(v, 3)] for t, v in o['draw']]
+        ad = o.animation_data
+        if ad and ad.action:
+            fcs = {(fc.data_path, fc.array_index): fc for fc in ad.action.fcurves}
+            hr = fcs.get(('hide_render', 0))
+            if hr:
+                win, on = [], None
+                for k in hr.keyframe_points:
+                    t, v = (k.co[0] - 1) / FPS, k.co[1]
+                    if v < .5 and on is None: on = t
+                    elif v >= .5 and on is not None: win.append([round(on, 3), round(t, 3)]); on = None
+                if on is not None: win.append([round(on, 3), 999])
+                a['show'] = win
+            for ch, idx in zip('rgba', range(4)):
+                fc = fcs.get(('color', idx))
+                if fc: a[ch] = [[round((k.co[0] - 1) / FPS, 3), round(k.co[1], 4)] for k in fc.keyframe_points]
+            tr = [fcs.get((p, j)) for p in ('location', 'scale') for j in range(3)]
+            if any(tr):
+                base = list(o.location) + list(o.scale); frames, last = [], None
+                for f in range(1, N + 1):
+                    v = [round(fc.evaluate(f), 3) if fc else base[j] for j, fc in enumerate(tr)]
+                    if v != last: frames.append([f - 1] + v); last = v
+                a['tr'] = frames
+        anim['objects'][o.name] = a
+    with open(path.replace('.glb', '.anim.json'), 'w') as fh: json.dump(anim, fh, separators=(',', ':'))
+    bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', export_cameras=True, export_lights=False,
+                              export_animations=False, export_apply=False, export_yup=True, export_texcoords=False,
+                              export_normals=True, export_materials='EXPORT', export_extras=False)
+    print('EXPORTED', path)
+
+if '--export' in argv:
+    export_gltf(os.path.abspath(argv[argv.index('--export') + 1]))
+    sys.exit(0)
+
 # ---------------- render ----------------
 os.makedirs(OUT, exist_ok=True)
 if '--frames' in argv:

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spark Shuffle, Blender</title>
+<!--FONTS-->
+<style>
+/* The Blender scene (shuffle.glb + shuffle.anim.json, exported by ../shuffle.py) played live with three.js:
+   same orthographic isometric camera, flat face shading and outlines as the Blender render.
+   On-screen titles, counters and cards are HTML on top, on the same 1080x1100 layout as the Blender HUD. */
+:root{--paper:#ece6d6;--ink:#2b2721;--muted:#8a8270;--rule:#cfc6b0;--blue:#2f55b0;--red:#c0462f;--green:#2f6b55;--dark:#2a2722;--card:#f8f5ee;--amber:#c8782f}
+*{box-sizing:border-box;margin:0}
+body{background:#151412;color:#fff;font:13px system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px}
+.stage{position:relative;overflow:hidden;border-radius:14px;background:var(--paper) url(PAPER_SRC) center/cover}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#hud{position:absolute;left:0;top:0;width:1080px;height:1100px;transform-origin:0 0;font-family:"JetBrains Mono",monospace;color:var(--ink);pointer-events:none}
+.h{position:absolute;white-space:nowrap;opacity:0}
+.c{left:0;right:0;text-align:center}
+.card{background:var(--card);border:2.5px solid var(--ink);border-radius:8px}
+.term{background:var(--dark);color:#e8e2d0;border-radius:6px}
+.bar{position:absolute;left:0;top:0;bottom:0;transform-origin:left}
+.ctrl{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;color:#aaa}
+button{background:#262421;color:#fff;border:1px solid #444;border-radius:99px;padding:7px 14px;font-weight:600;cursor:pointer}
+input[type=range]{width:min(560px,90vw)}
+#err{color:#f88;font:12px monospace}
+</style>
+</head>
+<body>
+<div class="stage" id="stage"><canvas id="cv"></canvas><div id="hud"></div></div>
+<audio id="v" src="AUDIO_SRC" preload="auto"></audio>
+<input type="range" id="seek" min="0" max="80.4" step="0.05" value="0">
+<div class="ctrl"><button id="play">▶ Play</button><button id="mute">Mute</button><span id="clock">0.0s</span></div>
+<div id="err"></div>
+<!--LIBS-->
+<script>
+const GLB_B64 = "GLB_DATA", ANIM = /*ANIM*/null;
+const DUR = 80.4, FPS = 24;
+const v = document.getElementById('v'), stage = document.getElementById('stage'), hudEl = document.getElementById('hud');
+
+// ---------------- HUD: the Blender script's on-screen layer, in the same 1080x1100 layout ----------------
+const HUD = [];
+function h(t0, t1, html, css, fade) {
+  const e = document.createElement('div'); e.className = 'h'; e.innerHTML = html; e.style.cssText += css; hudEl.appendChild(e);
+  HUD.push({ e, t0, t1, fade: fade == null ? t0 : fade }); return e;
+}
+const LIVE = [];
+function live(e, fn) { LIVE.push([e, fn]); }
+const ramp = (t, t0, d, a, b) => { const k = Math.min(Math.max((t - t0) / d, 0), 1); return a + (b - a) * (1 - (1 - k) ** 3); };
+const comma = n => Math.round(n).toLocaleString('en-US');
+const T = (px, py, size, color = 'var(--ink)', w = 800) => `left:${px}px;top:${py}px;font-size:${size}px;color:${color};font-weight:${w};`;
+const C = (py, size, color = 'var(--ink)', w = 800) => `left:0;right:0;text-align:center;top:${py}px;font-size:${size}px;color:${color};font-weight:${w};`;
+const BOX = (px, py, w, ht, cls = 'card') => `left:${px}px;top:${py}px;width:${w}px;height:${ht}px;`;
+const bars = [];
+function bar(t0, t1, px, py, w, ht, color, g0, g1, fade) {   // a bar that grows from the left between g0 and g1
+  const e = h(t0, t1, '', `left:${px}px;top:${py}px;width:${w}px;height:${ht}px;background:${color};transform-origin:left`, fade); bars.push([e, g0, g1]); return e;
+}
+
+h(0, 99, '&gt; BINARY HABIT / SPARK PERF / 03', T(58, 64, 22, '#4a453b', 700) + 'letter-spacing:.06em', -1);
+h(0, 99, '', 'left:58px;top:100px;width:964px;height:2px;background:var(--rule)', -1);
+bar(0, 99, 58, 99, 964, 4, 'var(--blue)', 0, DUR, -1);
+// 0-8
+const n1 = h(0, 8, '24', C(130, 132), -1); live(n1, t => String(Math.round(ramp(t, 0, 2.2, 24, 100)))); n1.dataset.out = 4.2;
+const c1 = h(0, 8, 'SPARK EXECUTORS', C(270, 18, 'var(--muted)', 700) + 'letter-spacing:.2em', -1); c1.dataset.out = 4.2;
+h(0, 8, '', BOX(222, 130, 636, 190) + 'background:var(--card);border:2.5px solid var(--ink);border-radius:8px', 4.6);
+h(0, 8, 'SPARK JOB · STAGE 2 OF 3', T(252, 150, 15, 'var(--muted)', 700), 4.6);
+h(0, 8, 'groupBy · count', T(252, 196, 38), 4.6);
+live(h(0, 8, '00:04', `right:${1080 - 828}px;top:196px;font-size:40px;color:var(--green);font-weight:800`, 4.6), t => '00:' + String(Math.round(ramp(t, 4.8, 3, 4, 27))).padStart(2, '0'));
+h(0, 8, '', 'left:252px;top:250px;width:576px;height:30px;background:#f1ece0;border:2.5px solid var(--ink)', 4.6);
+bar(0, 8, 252, 250, 576 * .6, 30, 'var(--green)', 4.8, 7.8, 4.6);
+h(0, 8, 'running…', T(252, 290, 15, 'var(--green)', 700), 4.6);
+live(h(0, 8, '0%', `right:${1080 - 828}px;top:290px;font-size:15px;color:var(--green);font-weight:700`, 4.6), t => Math.round(ramp(t, 4.8, 3, 0, 60)) + '%');
+h(0, 8, '● SLOWING DOWN', C(1000, 20, 'var(--red)'), 6.3);
+// 8-14
+live(h(8, 14, '985,661,228', C(140, 88), -1), t => comma(ramp(t, 8, 1.6, 985661228, 1e9)));
+h(8, 14, 'ORDERS', C(240, 18, 'var(--muted)', 700) + 'letter-spacing:.2em', -1);
+// 14-20
+h(14, 20, '', BOX(58, 130, 964, 90) + 'background:var(--dark);border-radius:6px', -1);
+const CODE = 'df.groupBy("country").count()';
+live(h(14, 20, '', T(86, 156, 30, '#e8e2d0', 400), -1), t => '&gt;&gt;&gt; ' + CODE.slice(0, Math.max(0, Math.min(CODE.length, Math.floor((t - 14.5) / 3.4 * CODE.length)))) + (Math.floor(t * 2) % 2 ? '▌' : ''));
+// 20-32
+h(20, 25, 'same key → same partition', C(130, 44), -1);
+h(25, 32, 'data moves between executors', C(130, 44), -1);
+// 32-46 the six steps
+h(32, 33.2, '', BOX(520, 140, 480, 170) + 'background:var(--card);border:2.5px solid var(--ink);border-radius:8px', -1);
+h(32, 33.2, 'ORDER RECORD', T(548, 158, 13, 'var(--muted)', 700), -1);
+h(32, 33.2, 'order_id&nbsp; 48213907<br>country&nbsp;&nbsp; IN<br>amount&nbsp;&nbsp;&nbsp; ₹1,240', T(548, 186, 26, 'var(--ink)', 400) + 'line-height:1.45', -1);
+const STEPS = [[1, 'serialize', 33.2, 34.2, 1], [2, 'write to disk', 34.2, 36.2, 2], [3, 'send over network', 36.2, 41.2, 3], [4, 'fetch', 41.2, 43.2, 3], [5, 'deserialize', 43.2, 44.2, 4], [6, 'aggregate', 44.2, 46, 4]];
+const ITEMS = ['serialize', 'disk I/O', 'network I/O', 'deserialize'];
+for (const [n, title, a, b, cost] of STEPS) {
+  h(a, b, `STEP ${n} / 6`, T(62, 124, 18, 'var(--muted)', 700), -1); h(a, b, title, T(62, 152, 44), -1);
+  h(a, b, '', BOX(782, 124, 240, 180) + 'background:var(--card);border:2.5px solid var(--ink);border-radius:8px', -1);
+  h(a, b, 'SHUFFLE COST', T(800, 138, 12, 'var(--muted)', 700), -1);
+  ITEMS.forEach((it, i) => h(a, b, (i < cost ? '■ ' : '□ ') + it, T(800, 166 + i * 32, 18, i < cost ? 'var(--red)' : '#c9c1ae', 700), -1));
+}
+h(33.6, 34.2, '01001001 01001110 00110100', T(60, 880, 18, '#e8e2d0', 400) + 'background:var(--dark);padding:10px 16px;border-radius:4px', 33.6);
+h(44.4, 46, '', BOX(400, 300, 380, 110) + 'background:var(--card);border:2.5px solid var(--ink);border-radius:8px', 44.4);
+live(h(44.4, 46, '0', `left:400px;width:380px;text-align:center;top:322px;font-size:58px;font-weight:800`, 44.4), t => comma(ramp(t, 44.5, 1.2, 0, 2003311)));
+// 46-56
+const oh = h(46, 56, 'shuffle <span style="color:var(--red)">overhead</span>', C(130, 50), -1);
+for (let i = 1; i <= 4; i++) {
+  const y = 470 + (i - 1) * 132, w0 = (54 - i * 8) / 100, t = 49.2 + i * .25;
+  h(46, 56, `STAGE 2 · TASK ${i}`, T(150, y - 30, 14, 'var(--muted)', 700), t);
+  h(46, 56, '', BOX(150, y, 780, 50) + 'background:var(--card);border:2.5px solid var(--ink);border-radius:4px', t);
+  bar(46, 56, 152, y + 2, 776 * w0, 46, 'repeating-linear-gradient(45deg,#ddd5c2 0 8px,#eee9dc 8px 16px)', t, t + 2.4, t);
+  bar(46, 56, 152 + 776 * w0, y + 2, 776 * (.12 + i * .02), 46, 'var(--green)', 52.4 + i * .4, 53.4 + i * .4, t);
+  h(46, 56, 'waiting for data…', T(166, y + 14, 18, 'var(--muted)', 400), t);
+}
+// 56-78
+h(56, 63, 'FIX THE OVERHEAD', T(62, 124, 18, 'var(--muted)', 700), -1);
+h(56, 63, '– less data', T(62, 152, 44, 'var(--green)'), 57.8);
+h(56, 63, '+ more executors', T(62, 212, 44, 'var(--red)'), 61);
+h(63, 67, 'BEFORE THE SHUFFLE', T(62, 124, 18, 'var(--muted)', 700), -1);
+h(63, 67, 'filter <span style="color:var(--green)">rows</span> + <span style="color:var(--green)">columns</span>', T(62, 152, 44), -1);
+h(67, 70, 'AND', T(62, 124, 18, 'var(--muted)', 700), -1);
+h(67, 70, 'avoid unnecessary shuffles', T(62, 152, 44, 'var(--red)'), -1);
+h(67, 70, '<div style="font-size:120px;line-height:1">⇄</div><div style="font-size:32px;margin-top:20px">extra shuffle</div><i class="strike" style="position:absolute;left:-40px;right:-40px;top:50%;height:10px;background:var(--red);transform:rotate(-30deg) scaleX(0)"></i>',
+  BOX(310, 360, 460, 320) + 'background:var(--card);border:2.5px solid var(--ink);border-radius:10px;text-align:center;padding-top:50px;font-weight:800;overflow:hidden', 67.5);
+h(67, 70, '✓ less data moved · faster job', C(740, 17, 'var(--green)', 700), 68.9);
+h(70, 78, 'LESS DATA MOVEMENT', T(62, 124, 18, 'var(--muted)', 700), -1);
+h(70, 78, 'a powerful trick…', T(62, 152, 44), -1);
+// 78-end
+h(78, 99, 'DATA / 03', C(600, 22, 'var(--muted)', 700) + 'letter-spacing:.3em', 78.3);
+h(78, 99, 'Spark Performance', C(640, 66), 78.5);
+h(78, 99, 'Episode 3 · Shuffling', C(730, 28, 'var(--muted)', 400), 78.7);
+h(78, 99, '<span style="background:var(--blue);color:#fff;border-color:var(--blue)">IN</span> <span>US</span> <span>BR</span> <span>DE</span>', C(800, 22, 'var(--ink)') + '', 78.9);
+h(78, 99, 'BinaryHabit<span style="color:var(--amber)">.</span>', C(880, 44), 79.1);
+hudEl.querySelectorAll('.h').forEach(e => e.querySelectorAll(':scope > span').forEach(s => { if (e.textContent.trim().startsWith('IN')) s.style.cssText += ';display:inline-block;border:2.5px solid var(--ink);border-radius:8px;padding:6px 18px;margin:0 8px'; }));
+
+function hudAt(t) {
+  for (const { e, t0, t1, fade } of HUD) {
+    const out = e.dataset.out ? +e.dataset.out : null;
+    let a = t >= t0 && t < t1 ? 1 : 0;
+    if (a && fade >= 0) a = Math.min(1, Math.max(0, (t - fade) / .35));
+    if (a && out != null) a *= 1 - Math.min(1, Math.max(0, (t - out) / .4));
+    e.style.opacity = a;
+  }
+  for (const [e, g0, g1] of bars) e.style.transform = `scaleX(${Math.min(1, Math.max(0, (t - g0) / (g1 - g0)))})`;
+  const st = hudEl.querySelector('.strike'); if (st) st.style.transform = `rotate(-30deg) scaleX(${Math.min(1, Math.max(0, (t - 68.3) / .5))})`;
+  oh.style.transform = `translateY(${-18 * Math.min(1, Math.max(0, (t - 48.6)))}px) scale(${1 - .28 * Math.min(1, Math.max(0, (t - 48.6)))})`;
+  for (const [e, fn] of LIVE) e.innerHTML = fn(t);
+}
+
+// ---------------- the Blender scene ----------------
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('cv'), antialias: true, alpha: true });
+renderer.setClearColor(0x000000, 0);
+const scene = new THREE.Scene();
+let camera = null;
+const OBJ = [];                       // [object3d, anim entry, material or null]
+const lineMats = [];
+const toSRGB = c => Math.pow(Math.max(c, 0), 1 / 2.2);
+
+function flatMaterial(kind, col) {
+  return new THREE.ShaderMaterial({
+    uniforms: { color: { value: new THREE.Vector3(toSRGB(col[0]), toSRGB(col[1]), toSRGB(col[2])) }, opacity: { value: col[3] }, shaded: { value: kind === 'text' || kind === 'arc' ? 0 : 1 } },
+    vertexShader: `varying vec3 vN; void main(){ vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `uniform vec3 color; uniform float opacity; uniform float shaded; varying vec3 vN;
+      void main(){ vec3 n = normalize(vN); float s = max(n.y,0.0) + 0.86*max(n.z,0.0) + 0.70*max(n.x,0.0);
+        s = mix(1.0, s, shaded); gl_FragColor = vec4(color * s, opacity); }`,
+    transparent: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
+  });
+}
+function addOutline(mesh) {
+  const eg = new THREE.EdgesGeometry(mesh.geometry, 25);
+  const g = new THREE.LineSegmentsGeometry().fromEdgesGeometry(eg);
+  const m = new THREE.LineMaterial({ color: 0x2b2721, linewidth: 2.2, transparent: true }); lineMats.push(m);
+  const l = new THREE.LineSegments2(g, m); mesh.add(l); return m;
+}
+function grid() {
+  const pts = [], N = 40;
+  for (let i = -N; i <= N; i++) { pts.push(-N, 0, i, N, 0, i, i, 0, -N, i, 0, N); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xcfc2a6, transparent: true, opacity: .8 })); l.position.y = -0.001; scene.add(l);
+}
+
+function lerpKeys(keys, t) {
+  if (!keys.length) return null;
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) if (t < keys[i][0]) { const [a, va] = keys[i - 1], [b, vb] = keys[i]; return va + (vb - va) * (t - a) / (b - a); }
+  return keys[keys.length - 1][1];
+}
+function apply(t) {
+  const f = Math.floor(t * FPS);
+  for (const [o, a, mat, line] of OBJ) {
+    if (a.show) o.visible = a.show.some(([s, e]) => t >= s && t < e);
+    if (a.tr) {                                    // Blender (x, y, z) -> three (x, z, -y)
+      let lo = 0, hi = a.tr.length - 1;
+      while (lo < hi) { const m = (lo + hi + 1) >> 1; if (a.tr[m][0] <= f) lo = m; else hi = m - 1; }
+      const r = a.tr[lo]; o.position.set(r[1], r[3], -r[2]); o.scale.set(r[4], r[6], r[5]);
+    }
+    if (mat) {
+      const c = mat.uniforms.color.value, base = a.color;
+      if (a.r || a.g || a.b) c.set(toSRGB(a.r ? lerpKeys(a.r, t) : base[0]), toSRGB(a.g ? lerpKeys(a.g, t) : base[1]), toSRGB(a.b ? lerpKeys(a.b, t) : base[2]));
+      if (a.a) { const al = lerpKeys(a.a, t); mat.uniforms.opacity.value = al; if (line) line.opacity = al; }
+      if (a.draw && o.geometry) { const k = lerpKeys(a.draw, t); const n = o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count; o.geometry.setDrawRange(0, Math.floor(n * k / 3) * 3); }
+    }
+  }
+}
+
+function fit() {
+  const vw = document.documentElement.clientWidth - 32, vh = innerHeight - 140;
+  const w = Math.max(200, Math.min(620, vw, vh * 1080 / 1100)), ht = w * 1100 / 1080;
+  stage.style.width = w + 'px'; stage.style.height = ht + 'px';
+  hudEl.style.transform = `scale(${w / 1080})`;
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setSize(w, ht, false);
+  for (const m of lineMats) m.resolution.set(w * renderer.getPixelRatio(), ht * renderer.getPixelRatio());
+}
+addEventListener('resize', fit); addEventListener('orientationchange', fit);
+
+const bin = Uint8Array.from(atob(GLB_B64), ch => ch.charCodeAt(0)).buffer;
+new THREE.GLTFLoader().parse(bin, '', gltf => {
+  scene.add(gltf.scene);
+  camera = gltf.cameras[0];
+  camera.near = 0.1; camera.far = 1000; camera.updateProjectionMatrix();
+  gltf.scene.traverse(o => {
+    const a = ANIM.objects[o.name]; if (!a) return;
+    let mat = null, line = null;
+    if (o.isMesh) {
+      mat = flatMaterial(a.kind, a.color); o.material = mat;
+      if (a.kind === 'line') line = addOutline(o);
+    } else if (o.children.length === 1 && o.children[0].isMesh && !ANIM.objects[o.children[0].name]) {
+      // glTF may split a node from its mesh: style the mesh child with the node's entry
+      const m = o.children[0]; mat = flatMaterial(a.kind, a.color); m.material = mat; if (a.kind === 'line') line = addOutline(m);
+    }
+    OBJ.push([o, a, mat, line]);
+  });
+  grid(); fit();
+  requestAnimationFrame(frame);
+}, e => { document.getElementById('err').textContent = 'Could not load the 3D scene: ' + e; });
+
+function frame() {
+  const t = Math.min(v.currentTime, DUR);
+  apply(t); hudAt(t);
+  if (camera) renderer.render(scene, camera);
+  document.getElementById('seek').value = t; document.getElementById('clock').textContent = t.toFixed(1) + 's';
+  requestAnimationFrame(frame);
+}
+fit();
+document.getElementById('seek').oninput = e => { v.currentTime = +e.target.value; };
+const playBtn = document.getElementById('play');
+playBtn.onclick = () => v.paused ? v.play() : v.pause();
+v.onplay = () => playBtn.textContent = '❚❚ Pause'; v.onpause = () => playBtn.textContent = '▶ Play';
+document.getElementById('mute').onclick = e => { v.muted = !v.muted; e.target.textContent = v.muted ? 'Unmute' : 'Mute'; };
+</script>
+</body>
+</html>
