@@ -19,6 +19,7 @@ html = html.replace('<!--FONTS-->', '<style>' + re.sub(r'url\((https://[^)]+)\)'
 libs = ['three-three.min.js', 'three-GLTFLoader.js', 'three-LineSegmentsGeometry.js', 'three-LineMaterial.js', 'three-LineSegments2.js']
 html = html.replace('<!--LIBS-->', ''.join('<script>' + (libdir / f).read_text().replace('</script', '<\\/script') + '</script>' for f in libs))
 html = html.replace('/*ANIM*/null', (here / 'shuffle.anim.json').read_text())
+html = html.replace('/*SUBS*/[]', (here / '../voice/narration.subtitles.json').read_text())
 html = html.replace('GLB_DATA', b64(here / 'shuffle.glb'))
 html = html.replace('PAPER_SRC', 'data:image/webp;base64,' + b64(here / '../../shuffle-iso/assets/paper-bg.webp'))
 html = html.replace('AUDIO_SRC', 'data:audio/mp4;base64,' + b64(here / '../audio/narrated.m4a'))

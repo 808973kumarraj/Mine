@@ -1,6 +1,7 @@
 """Narration for the Blender version: one line per scene, spoken by Kokoro (open source, Apache-2.0).
 
 usage: KOKORO_DIR=<dir with kokoro-v1.0.onnx + voices-v1.0.bin> python script.py OUT.wav
+Also writes OUT.subtitles.json, OUT.srt and OUT.vtt with each line's spoken start and end.
 Each line starts at its scene time; a line that would run into the next one is sped up to fit.
 """
 import os, sys, numpy as np, soundfile as sf
@@ -30,6 +31,8 @@ LINES = [
 
 k = Kokoro(os.path.join(os.environ['KOKORO_DIR'], 'kokoro-v1.0.onnx'), os.path.join(os.environ['KOKORO_DIR'], 'voices-v1.0.bin'))
 track = np.zeros(int(DUR * SR), dtype=np.float32)
+CUES = []                                            # (start, end, text) as actually spoken -> subtitles
+SHOW = {'You run: d f, dot group by country, dot count.': 'You run: df.groupBy("country").count()'}   # subtitle text where it differs from the spoken text
 for start, end, text in LINES:
     speed, room = 1.0, end - start - 0.15
     audio, sr = k.create(text, voice=VOICE, speed=speed, lang='en-us')
@@ -39,4 +42,16 @@ for start, end, text in LINES:
     i = int(start * SR); audio = audio[: len(track) - i]
     track[i:i + len(audio)] += audio
     print(f'{start:5.1f}s  {len(audio) / sr:4.1f}s of {end - start:4.1f}s  x{speed:.2f}  {text}')
+    CUES.append((round(start, 2), round(start + len(audio) / sr + 0.25, 2), SHOW.get(text, text)))
 sf.write(sys.argv[1], track / max(1e-6, np.abs(track).max()) * 0.9, SR)
+
+# subtitles: JSON for the HTML player, plus standard SRT and WebVTT files
+import json
+base = os.path.splitext(sys.argv[1])[0]
+ts = lambda t, sep: f'{int(t // 3600):02d}:{int(t % 3600 // 60):02d}:{int(t % 60):02d}{sep}{int(round(t % 1 * 1000)):03d}'
+json.dump([{'start': a, 'end': b, 'text': t} for a, b, t in CUES], open(base + '.subtitles.json', 'w'), indent=1)
+with open(base + '.srt', 'w') as f:
+    for i, (a, b, t) in enumerate(CUES, 1): f.write(f'{i}\n{ts(a, ",")} --> {ts(b, ",")}\n{t}\n\n')
+with open(base + '.vtt', 'w') as f:
+    f.write('WEBVTT\n\n')
+    for a, b, t in CUES: f.write(f'{ts(a, ".")} --> {ts(b, ".")}\n{t}\n\n')

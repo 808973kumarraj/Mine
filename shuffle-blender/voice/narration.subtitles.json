@@ -1,0 +1,92 @@
+[
+ {
+  "start": 0.3,
+  "end": 6.05,
+  "text": "Spark gives you a hundred executors. Then one group by, and the whole job slows to a crawl."
+ },
+ {
+  "start": 8.2,
+  "end": 11.78,
+  "text": "Picture a billion orders, spread across those executors."
+ },
+ {
+  "start": 14.4,
+  "end": 17.68,
+  "text": "You run: df.groupBy(\"country\").count()"
+ },
+ {
+  "start": 20.2,
+  "end": 25.31,
+  "text": "To count by country, every row with the same key has to land in the same partition."
+ },
+ {
+  "start": 25.2,
+  "end": 29.4,
+  "text": "So data moves between executors. That movement is called the shuffle."
+ },
+ {
+  "start": 32.1,
+  "end": 33.25,
+  "text": "Follow one record."
+ },
+ {
+  "start": 33.3,
+  "end": 34.3,
+  "text": "Serialize it."
+ },
+ {
+  "start": 34.3,
+  "end": 35.66,
+  "text": "Write it to disk."
+ },
+ {
+  "start": 36.4,
+  "end": 39.36,
+  "text": "Send it over the network to another executor."
+ },
+ {
+  "start": 41.3,
+  "end": 43.06,
+  "text": "The next stage fetches it."
+ },
+ {
+  "start": 43.3,
+  "end": 44.38,
+  "text": "Deserializes it."
+ },
+ {
+  "start": 44.3,
+  "end": 46.04,
+  "text": "And finally aggregates."
+ },
+ {
+  "start": 46.2,
+  "end": 53.77,
+  "text": "Every one of those steps costs time. The next stage can't start until all the data arrives, so its tasks just sit and wait."
+ },
+ {
+  "start": 56.2,
+  "end": 60.44,
+  "text": "The fix? Move less data. Or spread the work across more executors."
+ },
+ {
+  "start": 63.2,
+  "end": 65.99,
+  "text": "Filter rows and columns before the shuffle."
+ },
+ {
+  "start": 67.2,
+  "end": 69.16,
+  "text": "And avoid shuffles you don't need."
+ },
+ {
+  "start": 70.2,
+  "end": 76.57,
+  "text": "One powerful trick: broadcast the small table to every executor, and skip the shuffle entirely."
+ },
+ {
+  "start": 78.3,
+  "end": 80.62,
+  "text": "Spark performance. Episode three."
+ }
+]

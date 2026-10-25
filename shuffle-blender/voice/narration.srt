@@ -1,0 +1,72 @@
+1
+00:00:00,300 --> 00:00:06,050
+Spark gives you a hundred executors. Then one group by, and the whole job slows to a crawl.
+
+2
+00:00:08,200 --> 00:00:11,780
+Picture a billion orders, spread across those executors.
+
+3
+00:00:14,400 --> 00:00:17,680
+You run: df.groupBy("country").count()
+
+4
+00:00:20,200 --> 00:00:25,310
+To count by country, every row with the same key has to land in the same partition.
+
+5
+00:00:25,200 --> 00:00:29,400
+So data moves between executors. That movement is called the shuffle.
+
+6
+00:00:32,100 --> 00:00:33,250
+Follow one record.
+
+7
+00:00:33,300 --> 00:00:34,300
+Serialize it.
+
+8
+00:00:34,300 --> 00:00:35,660
+Write it to disk.
+
+9
+00:00:36,400 --> 00:00:39,360
+Send it over the network to another executor.
+
+10
+00:00:41,300 --> 00:00:43,060
+The next stage fetches it.
+
+11
+00:00:43,300 --> 00:00:44,380
+Deserializes it.
+
+12
+00:00:44,300 --> 00:00:46,040
+And finally aggregates.
+
+13
+00:00:46,200 --> 00:00:53,770
+Every one of those steps costs time. The next stage can't start until all the data arrives, so its tasks just sit and wait.
+
+14
+00:00:56,200 --> 00:01:00,440
+The fix? Move less data. Or spread the work across more executors.
+
+15
+00:01:03,200 --> 00:01:05,990
+Filter rows and columns before the shuffle.
+
+16
+00:01:07,200 --> 00:01:09,160
+And avoid shuffles you don't need.
+
+17
+00:01:10,200 --> 00:01:16,570
+One powerful trick: broadcast the small table to every executor, and skip the shuffle entirely.
+
+18
+00:01:18,300 --> 00:01:20,620
+Spark performance. Episode three.
+
