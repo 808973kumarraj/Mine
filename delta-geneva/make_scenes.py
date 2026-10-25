@@ -74,7 +74,7 @@ class Scene:
         op = 'opacity:.55;' if dashed else ''
         self.els.append((self.depth(x, y, z), f'<div class="o" style="left:{x0:.0f}px;top:{y0:.0f}px;width:{bw:.0f}px;height:{bh:.0f}px;{op}{self.anim(anim)}">{shadow}{faces}{text}</div>'))
 
-    def depth(self, x, y, z): return x + y + z * 0.01
+    def depth(self, x, y, z): return x + y + z   # things stacked higher are drawn later
 
     def plane_text(self, s, x, y, z, plane, size, x0, y0, color, weight=800):
         """Text lying in an isometric plane, as rotate·scale·rotate (Geneva draws no skew)."""
@@ -276,10 +276,10 @@ for sc_meta in scenes:
     elif nm == 'checkpoint':
         sc.box(0, 120, 260, 220, 24, LOG, label='_delta_log/', label_size=20)
         for i in range(10):
-            sc.box(-40 + (i // 5) * 0, 120, 120, 80, 14, LOG, z=i * 15, top_label=f'{i:03d}.json' if i in (0, 9) else '', top_size=13, anim=A('drop', .4, .2 + i * .12))
-        sc.box(140, 70, 140, 110, 70, ('#dfe6f6', '#c7d2ec', '#a9b8de'), z=24, label='010.checkpoint', label_size=13, anim=A('drop', .8, L[0] + 2.2))
+            sc.box(-50, 120, 120, 80, 14, LOG, z=24 + i * 15, top_label=f'{i:03d}.json' if i in (0, 9) else '', top_size=13, anim=A('drop', .4, .2 + i * .12))
+        sc.box(90, 160, 140, 110, 70, ('#dfe6f6', '#c7d2ec', '#a9b8de'), z=24, label='010.checkpoint', label_size=13, anim=A('drop', .8, L[0] + 2.2))
         sc.box(-330, 200, 150, 120, 120, BOX, label='READER', label_size=17, anim=A('drop', .7, L[1]))
-        sc.line((-330, 200, 70), (140, 70, 100), PAL['blue'], 5, True, A('fadein', .4, L[1] + .8))
+        sc.line((-330, 200, 70), (90, 160, 100), PAL['blue'], 5, True, A('fadein', .4, L[1] + .8))
         sc.flat('<span class="chip" style="color:#2f55b0">start from the checkpoint</span>', 'left:1200px;top:740px', A('pop', .5, L[1] + 1.2))
         html = sc.html('Checkpoints keep reads fast', 'EVERY 10 COMMITS')
 
