@@ -1,107 +1,107 @@
 [
  {
   "start": 0.4,
-  "end": 2.02,
+  "end": 2.58,
   "text": "How does Delta Lake work?"
  },
  {
-  "start": 3.47,
-  "end": 7.7,
+  "start": 4.03,
+  "end": 9.35,
   "text": "A data lake is just files. Parquet files, sitting in cloud storage."
  },
  {
-  "start": 7.85,
-  "end": 13.0,
+  "start": 9.5,
+  "end": 19.13,
   "text": "But if a job fails halfway through a write, it leaves half the files behind, and every reader sees broken data."
  },
  {
-  "start": 14.45,
-  "end": 17.11,
+  "start": 20.58,
+  "end": 25.9,
   "text": "Delta Lake adds one thing: a transaction log."
  },
  {
-  "start": 17.26,
-  "end": 22.66,
+  "start": 26.05,
+  "end": 34.73,
   "text": "Next to the data files sits a folder called _delta_log, holding numbered commit files."
  },
  {
-  "start": 22.81,
-  "end": 26.3,
+  "start": 34.88,
+  "end": 41.08,
   "text": "The log is the single source of truth for what the table contains."
  },
  {
-  "start": 27.75,
-  "end": 31.53,
+  "start": 42.53,
+  "end": 47.45,
   "text": "When you write, Delta first writes the new Parquet files."
  },
  {
-  "start": 31.68,
-  "end": 35.04,
+  "start": 47.6,
+  "end": 53.46,
   "text": "Then it adds the next commit to the log, in one atomic step."
  },
  {
-  "start": 35.19,
-  "end": 39.09,
+  "start": 53.61,
+  "end": 58.13,
   "text": "If the job fails before the commit, the new files are simply ignored."
  },
  {
-  "start": 40.54,
-  "end": 45.17,
+  "start": 59.58,
+  "end": 67.2,
   "text": "To read, Spark opens the log first, and replays the commits to get the list of current files."
  },
  {
-  "start": 45.32,
-  "end": 47.68,
+  "start": 67.35,
+  "end": 71.63,
   "text": "Only those files are read. Nothing else."
  },
  {
-  "start": 49.13,
-  "end": 51.3,
+  "start": 73.08,
+  "end": 78.51,
   "text": "Parquet files are never edited in place."
  },
  {
-  "start": 51.45,
-  "end": 56.87,
+  "start": 78.66,
+  "end": 89.55,
   "text": "An update or delete writes a new file, and one commit marks the old file as removed and the new file as added."
  },
  {
-  "start": 58.32,
-  "end": 60.57,
+  "start": 91.0,
+  "end": 94.8,
   "text": "What if two writers commit at the same time?"
  },
  {
-  "start": 60.72,
-  "end": 63.81,
+  "start": 94.95,
+  "end": 100.89,
   "text": "Both try to create commit number three. Only one can win."
  },
  {
-  "start": 63.96,
-  "end": 68.44,
+  "start": 101.04,
+  "end": 107.8,
   "text": "The other checks for conflicts, and retries as commit number four."
  },
  {
-  "start": 69.89,
-  "end": 74.29,
+  "start": 109.25,
+  "end": 117.1,
   "text": "Because old files are kept, and every commit is recorded, you can read the table as it was."
  },
  {
-  "start": 74.44,
-  "end": 78.5,
+  "start": 117.25,
+  "end": 122.33,
   "text": "VERSION AS OF 1 gives you the table exactly as it looked back then."
  },
  {
-  "start": 79.95,
-  "end": 85.35,
+  "start": 123.78,
+  "end": 131.96,
   "text": "Every ten commits, Delta writes a checkpoint: one Parquet file that summarizes the log so far."
  },
  {
-  "start": 85.5,
-  "end": 89.06,
+  "start": 132.11,
+  "end": 136.47,
   "text": "Readers start from the latest checkpoint, so they stay fast."
  },
  {
-  "start": 90.51,
-  "end": 96.13,
+  "start": 137.92,
+  "end": 144.84,
   "text": "Files, plus a log. That is Delta Lake."
  }
 ]

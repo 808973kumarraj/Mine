@@ -1,84 +1,84 @@
 1
-00:00:00,400 --> 00:00:02,020
+00:00:00,400 --> 00:00:02,580
 How does Delta Lake work?
 
 2
-00:00:03,470 --> 00:00:07,700
+00:00:04,030 --> 00:00:09,350
 A data lake is just files. Parquet files, sitting in cloud storage.
 
 3
-00:00:07,850 --> 00:00:13,000
+00:00:09,500 --> 00:00:19,130
 But if a job fails halfway through a write, it leaves half the files behind, and every reader sees broken data.
 
 4
-00:00:14,450 --> 00:00:17,110
+00:00:20,580 --> 00:00:25,900
 Delta Lake adds one thing: a transaction log.
 
 5
-00:00:17,260 --> 00:00:22,660
+00:00:26,050 --> 00:00:34,730
 Next to the data files sits a folder called _delta_log, holding numbered commit files.
 
 6
-00:00:22,810 --> 00:00:26,300
+00:00:34,880 --> 00:00:41,080
 The log is the single source of truth for what the table contains.
 
 7
-00:00:27,750 --> 00:00:31,530
+00:00:42,530 --> 00:00:47,450
 When you write, Delta first writes the new Parquet files.
 
 8
-00:00:31,680 --> 00:00:35,040
+00:00:47,600 --> 00:00:53,460
 Then it adds the next commit to the log, in one atomic step.
 
 9
-00:00:35,190 --> 00:00:39,090
+00:00:53,610 --> 00:00:58,130
 If the job fails before the commit, the new files are simply ignored.
 
 10
-00:00:40,540 --> 00:00:45,170
+00:00:59,580 --> 00:01:07,200
 To read, Spark opens the log first, and replays the commits to get the list of current files.
 
 11
-00:00:45,320 --> 00:00:47,680
+00:01:07,350 --> 00:01:11,630
 Only those files are read. Nothing else.
 
 12
-00:00:49,130 --> 00:00:51,300
+00:01:13,080 --> 00:01:18,510
 Parquet files are never edited in place.
 
 13
-00:00:51,450 --> 00:00:56,870
+00:01:18,660 --> 00:01:29,550
 An update or delete writes a new file, and one commit marks the old file as removed and the new file as added.
 
 14
-00:00:58,320 --> 00:01:00,570
+00:01:31,000 --> 00:01:34,800
 What if two writers commit at the same time?
 
 15
-00:01:00,720 --> 00:01:03,810
+00:01:34,950 --> 00:01:40,890
 Both try to create commit number three. Only one can win.
 
 16
-00:01:03,960 --> 00:01:08,440
+00:01:41,040 --> 00:01:47,800
 The other checks for conflicts, and retries as commit number four.
 
 17
-00:01:09,890 --> 00:01:14,290
+00:01:49,250 --> 00:01:57,100
 Because old files are kept, and every commit is recorded, you can read the table as it was.
 
 18
-00:01:14,440 --> 00:01:18,500
+00:01:57,250 --> 00:02:02,330
 VERSION AS OF 1 gives you the table exactly as it looked back then.
 
 19
-00:01:19,950 --> 00:01:25,350
+00:02:03,780 --> 00:02:11,960
 Every ten commits, Delta writes a checkpoint: one Parquet file that summarizes the log so far.
 
 20
-00:01:25,500 --> 00:01:29,060
+00:02:12,110 --> 00:02:16,470
 Readers start from the latest checkpoint, so they stay fast.
 
 21
-00:01:30,510 --> 00:01:36,130
+00:02:17,920 --> 00:02:24,840
 Files, plus a log. That is Delta Lake.
 

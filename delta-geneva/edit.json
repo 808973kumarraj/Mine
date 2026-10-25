@@ -58,79 +58,79 @@
       "asset": "title"
      },
      "start": "0.0s",
-     "duration": "3.071s"
+     "duration": "3.635s"
     },
     {
      "source": {
       "kind": "html",
       "asset": "problem"
      },
-     "start": "3.071s",
-     "duration": "10.976s"
+     "start": "3.635s",
+     "duration": "16.544s"
     },
     {
      "source": {
       "kind": "html",
       "asset": "log"
      },
-     "start": "14.047s",
-     "duration": "13.301s"
+     "start": "20.179s",
+     "duration": "21.95s"
     },
     {
      "source": {
       "kind": "html",
       "asset": "write"
      },
-     "start": "27.348s",
-     "duration": "12.791s"
+     "start": "42.129s",
+     "duration": "17.05s"
     },
     {
      "source": {
       "kind": "html",
       "asset": "read"
      },
-     "start": "40.138s",
-     "duration": "8.592s"
+     "start": "59.179s",
+     "duration": "13.5s"
     },
     {
      "source": {
       "kind": "html",
       "asset": "update"
      },
-     "start": "48.73s",
-     "duration": "9.193s"
+     "start": "72.679s",
+     "duration": "17.922s"
     },
     {
      "source": {
       "kind": "html",
       "asset": "concurrent"
      },
-     "start": "57.923s",
-     "duration": "11.565s"
+     "start": "90.601s",
+     "duration": "18.246s"
     },
     {
      "source": {
       "kind": "html",
       "asset": "timetravel"
      },
-     "start": "69.488s",
-     "duration": "10.062s"
+     "start": "108.847s",
+     "duration": "14.533s"
     },
     {
      "source": {
       "kind": "html",
       "asset": "checkpoint"
      },
-     "start": "79.55s",
-     "duration": "10.558s"
+     "start": "123.38s",
+     "duration": "14.142s"
     },
     {
      "source": {
       "kind": "html",
       "asset": "outro"
      },
-     "start": "90.108s",
-     "duration": "7.075s"
+     "start": "137.522s",
+     "duration": "8.37s"
     }
    ]
   },

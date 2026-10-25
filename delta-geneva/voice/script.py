@@ -10,7 +10,7 @@ from qwen_tts import Qwen3TTSModel
 
 GAP, PAD = 0.35, 0.9
 REF = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ref/my-voice.wav')   # the owner's own voice sample, which Qwen3-TTS clones
-EXAGGERATION, CFG = 0.55, 0.45                         # a little more expressive than neutral, unhurried pacing      # pause between lines, breathing room at the end of a scene
+MODEL = os.environ.get('QWEN_TTS_MODEL', 'Qwen/Qwen3-TTS-12Hz-0.6B-Base')   # the Base models clone a voice; 0.6B runs on CPU
 SCENES = [
     ('title',      ["How does Delta Lake work?"]),
     ('problem',    ["A data lake is just files. Parquet files, sitting in cloud storage.",

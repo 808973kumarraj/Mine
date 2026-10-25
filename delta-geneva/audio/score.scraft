@@ -41,7 +41,7 @@
               "id": 2,
               "name": "Pad",
               "start": 0,
-              "length": 4711362,
+              "length": 7067725,
               "content": {
                 "Midi": {
                   "sequence": {
@@ -909,6 +909,438 @@
                         "channel": 0,
                         "start": 134400,
                         "length": 3800
+                      },
+                      {
+                        "pitch": 52,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 138240,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 138240,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 59,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 138240,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 48,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 142080,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 52,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 142080,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 142080,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 145920,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 59,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 145920,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 62,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 145920,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 50,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 149760,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 53,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 149760,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 57,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 149760,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 52,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 153600,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 153600,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 59,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 153600,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 48,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 157440,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 52,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 157440,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 157440,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 161280,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 59,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 161280,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 62,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 161280,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 50,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 165120,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 53,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 165120,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 57,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 165120,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 52,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 168960,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 168960,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 59,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 168960,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 48,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 172800,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 52,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 172800,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 172800,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 176640,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 59,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 176640,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 62,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 176640,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 50,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 180480,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 53,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 180480,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 57,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 180480,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 52,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 184320,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 184320,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 59,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 184320,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 48,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 188160,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 52,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 188160,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 188160,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 192000,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 59,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 192000,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 62,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 192000,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 50,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 195840,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 53,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 195840,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 57,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 195840,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 52,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 199680,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 199680,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 59,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 199680,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 48,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 203520,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 52,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 203520,
+                        "length": 3800
+                      },
+                      {
+                        "pitch": 55,
+                        "velocity": 50,
+                        "release_velocity": 0,
+                        "channel": 0,
+                        "start": 203520,
+                        "length": 3800
                       }
                     ],
                     "ctrls": [
@@ -1029,7 +1461,7 @@
               "id": 4,
               "name": "Bass",
               "start": 0,
-              "length": 4708635,
+              "length": 7064998,
               "content": {
                 "Midi": {
                   "sequence": {
@@ -2185,6 +2617,582 @@
                         "channel": 1,
                         "start": 137280,
                         "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 138240,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 139200,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 140160,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 141120,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 142080,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 143040,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 144000,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 144960,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 145920,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 146880,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 147840,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 148800,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 149760,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 150720,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 151680,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 152640,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 153600,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 154560,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 155520,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 156480,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 157440,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 158400,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 159360,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 160320,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 161280,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 162240,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 163200,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 164160,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 165120,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 166080,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 167040,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 168000,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 168960,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 169920,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 170880,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 171840,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 172800,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 173760,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 174720,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 175680,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 176640,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 177600,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 178560,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 179520,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 180480,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 181440,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 182400,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 183360,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 184320,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 185280,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 186240,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 187200,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 188160,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 189120,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 190080,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 191040,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 192000,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 192960,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 193920,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 43,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 194880,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 195840,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 196800,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 197760,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 38,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 198720,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 199680,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 200640,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 201600,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 40,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 202560,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 66,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 203520,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 204480,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 205440,
+                        "length": 840
+                      },
+                      {
+                        "pitch": 36,
+                        "velocity": 52,
+                        "release_velocity": 0,
+                        "channel": 1,
+                        "start": 206400,
+                        "length": 840
                       }
                     ],
                     "ctrls": [
@@ -2305,7 +3313,7 @@
               "id": 6,
               "name": "Arp",
               "start": 0,
-              "length": 4579090,
+              "length": 6935453,
               "content": {
                 "Midi": {
                   "sequence": {
@@ -4424,18 +5432,1114 @@
                       },
                       {
                         "pitch": 67,
-                        "velocity": 30,
+                        "velocity": 38,
                         "release_velocity": 0,
                         "channel": 2,
                         "start": 130560,
-                        "length": 880
+                        "length": 400
                       },
                       {
                         "pitch": 71,
-                        "velocity": 30,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 131040,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
                         "release_velocity": 0,
                         "channel": 2,
                         "start": 131520,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 79,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 132000,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 132480,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 132960,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 133440,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 83,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 133920,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 62,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 134400,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 65,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 134880,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 69,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 135360,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 135840,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 65,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 136320,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 69,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 136800,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 62,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 137280,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 77,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 137760,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 138240,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 138720,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 139200,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 76,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 139680,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 140160,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 140640,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 141120,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 79,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 141600,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 60,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 142080,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 142560,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 143040,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 72,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 143520,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 144000,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 144480,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 60,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 144960,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 76,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 145440,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 145920,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 146400,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 146880,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 79,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 147360,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 147840,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 148320,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 148800,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 83,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 149280,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 62,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 149760,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 65,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 150240,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 69,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 150720,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 151200,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 65,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 151680,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 69,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 152160,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 62,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 152640,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 77,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 153120,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 153600,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 154080,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 154560,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 76,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 155040,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 155520,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 156000,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 156480,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 79,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 156960,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 60,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 157440,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 157920,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 158400,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 72,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 158880,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 159360,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 159840,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 60,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 160320,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 76,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 160800,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 161280,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 161760,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 162240,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 79,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 162720,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 163200,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 163680,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 164160,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 83,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 164640,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 62,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 165120,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 65,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 165600,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 69,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 166080,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 166560,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 65,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 167040,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 69,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 167520,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 62,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 168000,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 77,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 168480,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 168960,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 169440,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 169920,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 76,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 170400,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 170880,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 171360,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 171840,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 79,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 172320,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 60,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 172800,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 173280,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 173760,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 72,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 174240,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 174720,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 175200,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 60,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 175680,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 76,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 176160,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 176640,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 177120,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 177600,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 79,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 178080,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 178560,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 179040,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 179520,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 83,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 180000,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 62,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 180480,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 65,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 180960,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 69,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 181440,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 181920,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 65,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 182400,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 69,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 182880,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 62,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 183360,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 77,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 183840,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 184320,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 184800,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 185280,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 76,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 185760,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 186240,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 186720,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 187200,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 79,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 187680,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 60,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 188160,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 188640,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 189120,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 72,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 189600,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 64,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 190080,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 190560,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 60,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 191040,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 76,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 191520,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 192000,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 192480,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 192960,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 79,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 193440,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 193920,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 74,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 194400,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 194880,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 83,
+                        "velocity": 38,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 195360,
+                        "length": 400
+                      },
+                      {
+                        "pitch": 62,
+                        "velocity": 30,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 195840,
+                        "length": 880
+                      },
+                      {
+                        "pitch": 65,
+                        "velocity": 30,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 196800,
+                        "length": 880
+                      },
+                      {
+                        "pitch": 69,
+                        "velocity": 30,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 197760,
                         "length": 880
                       },
                       {
@@ -4443,15 +6547,39 @@
                         "velocity": 30,
                         "release_velocity": 0,
                         "channel": 2,
-                        "start": 132480,
+                        "start": 198720,
                         "length": 880
                       },
                       {
-                        "pitch": 79,
+                        "pitch": 64,
                         "velocity": 30,
                         "release_velocity": 0,
                         "channel": 2,
-                        "start": 133440,
+                        "start": 199680,
+                        "length": 880
+                      },
+                      {
+                        "pitch": 67,
+                        "velocity": 30,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 200640,
+                        "length": 880
+                      },
+                      {
+                        "pitch": 71,
+                        "velocity": 30,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 201600,
+                        "length": 880
+                      },
+                      {
+                        "pitch": 76,
+                        "velocity": 30,
+                        "release_velocity": 0,
+                        "channel": 2,
+                        "start": 202560,
                         "length": 880
                       }
                     ],
@@ -4573,7 +6701,7 @@
               "id": 8,
               "name": "Bell",
               "start": 0,
-              "length": 4465703,
+              "length": 6741544,
               "content": {
                 "Midi": {
                   "sequence": {
@@ -4583,7 +6711,7 @@
                         "velocity": 60,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 4324,
+                        "start": 5118,
                         "length": 1920
                       },
                       {
@@ -4591,7 +6719,7 @@
                         "velocity": 42,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 4324,
+                        "start": 5118,
                         "length": 1920
                       },
                       {
@@ -4599,7 +6727,7 @@
                         "velocity": 60,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 19778,
+                        "start": 28412,
                         "length": 1920
                       },
                       {
@@ -4607,7 +6735,7 @@
                         "velocity": 42,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 19778,
+                        "start": 28412,
                         "length": 1920
                       },
                       {
@@ -4615,7 +6743,7 @@
                         "velocity": 60,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 38506,
+                        "start": 59318,
                         "length": 1920
                       },
                       {
@@ -4623,7 +6751,7 @@
                         "velocity": 42,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 38506,
+                        "start": 59318,
                         "length": 1920
                       },
                       {
@@ -4631,7 +6759,7 @@
                         "velocity": 60,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 56514,
+                        "start": 83324,
                         "length": 1920
                       },
                       {
@@ -4639,7 +6767,7 @@
                         "velocity": 42,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 56514,
+                        "start": 83324,
                         "length": 1920
                       },
                       {
@@ -4647,7 +6775,7 @@
                         "velocity": 60,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 68612,
+                        "start": 102332,
                         "length": 1920
                       },
                       {
@@ -4655,7 +6783,7 @@
                         "velocity": 42,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 68612,
+                        "start": 102332,
                         "length": 1920
                       },
                       {
@@ -4663,7 +6791,7 @@
                         "velocity": 60,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 81556,
+                        "start": 127566,
                         "length": 1920
                       },
                       {
@@ -4671,7 +6799,7 @@
                         "velocity": 42,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 81556,
+                        "start": 127566,
                         "length": 1920
                       },
                       {
@@ -4679,7 +6807,7 @@
                         "velocity": 60,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 97840,
+                        "start": 153256,
                         "length": 1920
                       },
                       {
@@ -4687,7 +6815,7 @@
                         "velocity": 42,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 97840,
+                        "start": 153256,
                         "length": 1920
                       },
                       {
@@ -4695,7 +6823,7 @@
                         "velocity": 60,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 112006,
+                        "start": 173720,
                         "length": 1920
                       },
                       {
@@ -4703,7 +6831,7 @@
                         "velocity": 42,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 112006,
+                        "start": 173720,
                         "length": 1920
                       },
                       {
@@ -4711,7 +6839,7 @@
                         "velocity": 60,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 126872,
+                        "start": 193630,
                         "length": 1920
                       },
                       {
@@ -4719,7 +6847,7 @@
                         "velocity": 42,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 126872,
+                        "start": 193630,
                         "length": 1920
                       },
                       {
@@ -4727,7 +6855,7 @@
                         "velocity": 70,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 127154,
+                        "start": 193912,
                         "length": 3840
                       },
                       {
@@ -4735,7 +6863,7 @@
                         "velocity": 55,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 127154,
+                        "start": 193912,
                         "length": 3840
                       },
                       {
@@ -4743,7 +6871,7 @@
                         "velocity": 45,
                         "release_velocity": 0,
                         "channel": 3,
-                        "start": 127154,
+                        "start": 193912,
                         "length": 3840
                       }
                     ],
