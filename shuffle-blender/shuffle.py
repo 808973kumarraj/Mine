@@ -518,13 +518,29 @@ SCN11_HUD = f5
 
 # ---------------- visibility windows ----------------
 for r in SC: visible(r, *WIN[r.name])
-for objs, (t0, t1) in [(SCN0_HUD, (0, 8)), (SCN1_HUD, (8, 14)), (SCN2_HUD, (14, 20)), (SCN3_HUD, (20, 25)), (SCN4_HUD, (25, 32)),
-                       (SCN6_HUD, (46, 56)), (SCN7_HUD, (56, 63)), (SCN8_HUD, (63, 67)), (SCN9_HUD, (67, 70)), (SCN10_HUD, (70, 78)), (SCN11_HUD, (78, DUR + 1))]:
+HUD_WINDOWS = [(SCN0_HUD, (0, 8)), (SCN1_HUD, (8, 14)), (SCN2_HUD, (14, 20)), (SCN3_HUD, (20, 25)), (SCN4_HUD, (25, 32)),
+                       (SCN6_HUD, (46, 56)), (SCN7_HUD, (56, 63)), (SCN8_HUD, (63, 67)), (SCN9_HUD, (67, 70)), (SCN10_HUD, (70, 78)), (SCN11_HUD, (78, DUR + 1))]
+for objs, (t0, t1) in HUD_WINDOWS:
     for o in objs: visible(o, t0, t1)
 for o, t0, t1 in STEP_HUD: visible(o, t0, t1)
 
+# ---------------- keep only what the rendered frames need ----------------
+def prune(f0, f1):
+    """Delete scenes and on-screen text that never show in frames f0..f1 (far fewer objects to process per frame)."""
+    t0, t1 = (f0 - 1) / FPS, (f1 - 1) / FPS
+    groups = [(r, WIN[r.name]) for r in SC]
+    groups += [(o, w) for objs, w in HUD_WINDOWS for o in objs] + [(o, (a, b)) for o, a, b in STEP_HUD]
+    doomed = set()
+    for o, (a, b) in groups:
+        if b < t0 - 0.5 or a > t1 + 0.5:
+            doomed.update([o] + list(o.children_recursive))
+    LIVE[:] = [(o, fn) for o, fn in LIVE if o not in doomed]
+    for o in doomed: bpy.data.objects.remove(o, do_unlink=True)
+
 # ---------------- render ----------------
 os.makedirs(OUT, exist_ok=True)
+if '--frames' in argv:
+    a_, b_ = argv[argv.index('--frames') + 1].split('-'); prune(int(a_), int(b_))
 if '--still' in argv:
     for t in [float(x) for x in argv[argv.index('--still') + 1].split(',')]:
         sc.frame_set(F(t)); on_frame(sc)
