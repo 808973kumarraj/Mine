@@ -1,6 +1,7 @@
 """Narration for "How Delta Lake works", one block per scene, spoken by Chatterbox (Resemble AI, open source, MIT).
 
 usage: python script.py OUTDIR      (runs on CPU; the model downloads from Hugging Face on first use)
+With voice/ref/my-voice.wav present, the narration is spoken in that voice (the channel owner's own recording).
 Writes OUTDIR/narration.wav, OUTDIR/scenes.json (each scene's start and length, set by its narration)
 and the subtitles as OUTDIR/narration.srt, .vtt and .subtitles.json.
 """
@@ -8,6 +9,7 @@ import json, os, sys, numpy as np, soundfile as sf, torch
 from chatterbox.tts import ChatterboxTTS
 
 GAP, PAD = 0.35, 0.9
+REF = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ref/my-voice.wav')   # the owner's own voice sample: Chatterbox clones its tone
 EXAGGERATION, CFG = 0.55, 0.45                         # a little more expressive than neutral, unhurried pacing      # pause between lines, breathing room at the end of a scene
 SCENES = [
     ('title',      ["How does Delta Lake work?"]),
@@ -43,7 +45,7 @@ model = ChatterboxTTS.from_pretrained(device='cpu')
 SR = model.sr
 
 def speak(text):
-    wav = model.generate(text, exaggeration=EXAGGERATION, cfg_weight=CFG)
+    wav = model.generate(text, audio_prompt_path=REF if os.path.exists(REF) else None, exaggeration=EXAGGERATION, cfg_weight=CFG)
     a = wav.squeeze(0).numpy().astype(np.float32)
     nz = np.nonzero(np.abs(a) > 0.01)[0]                 # trim leading/trailing silence so the subtitle timing is tight
     return a[max(0, nz[0] - int(.03 * SR)): nz[-1] + int(.08 * SR)] if len(nz) else a
