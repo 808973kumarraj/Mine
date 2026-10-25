@@ -72,7 +72,8 @@ class Scene:
         if top_label:
             text += self.plane_text(top_label, x - hw + 8, y - hd / 2 + 4, z + h, 'top', top_size, x0, y0, PAL['ink'])
         op = 'opacity:.55;' if dashed else ''
-        self.els.append((self.depth(x, y, z), f'<div class="o" style="left:{x0:.0f}px;top:{y0:.0f}px;width:{bw:.0f}px;height:{bh:.0f}px;{op}{self.anim(anim)}">{shadow}{faces}{text}</div>'))
+        d = -1e5 + x + y if (h <= 26 and w >= 240) else self.depth(x, y, z)   # platforms and trays: always under what stands on them
+        self.els.append((d, f'<div class="o" style="left:{x0:.0f}px;top:{y0:.0f}px;width:{bw:.0f}px;height:{bh:.0f}px;{op}{self.anim(anim)}">{shadow}{faces}{text}</div>'))
 
     def depth(self, x, y, z): return x + y + z   # things stacked higher are drawn later
 
@@ -131,11 +132,11 @@ body{{margin:0;width:{W}px;height:{H}px;overflow:hidden;background:{PAL['paper']
 .chip{{display:inline-block;border:3px solid currentColor;border-radius:999px;padding:8px 22px;font:800 26px JetBrains Mono;background:{PAL['card']}}}
 .mono{{font:700 26px/1.55 JetBrains Mono}}
 @keyframes up{{from{{opacity:0;transform:translateY(30px)}}to{{opacity:1;transform:translateY(0)}}}}
-@keyframes drop{{0%{{opacity:0;transform:translateY(-160px)}}35%{{opacity:1}}70%{{transform:translateY(8px)}}85%{{transform:translateY(-4px)}}100%{{opacity:1;transform:translateY(0)}}}}
+@keyframes drop{{0%{{opacity:0;transform:translateY(-70px)}}35%{{opacity:1}}70%{{transform:translateY(8px)}}85%{{transform:translateY(-4px)}}100%{{opacity:1;transform:translateY(0)}}}}
 @keyframes pop{{0%{{opacity:0;transform:scale(.6)}}70%{{opacity:1;transform:scale(1.06)}}100%{{opacity:1;transform:scale(1)}}}}
 @keyframes fadein{{from{{opacity:0}}to{{opacity:1}}}}
-@keyframes fadeout{{from{{opacity:1}}to{{opacity:.18}}}}
-@keyframes gone{{from{{opacity:1}}to{{opacity:0}}}}
+@keyframes fadeout{{to{{opacity:.18}}}}
+@keyframes gone{{to{{opacity:0}}}}
 @keyframes solid{{from{{opacity:.45}}to{{opacity:1}}}}
 @keyframes grow{{from{{transform:scaleX(0)}}to{{transform:scaleX(1)}}}}
 @keyframes pulse{{0%{{transform:scale(1)}}50%{{transform:scale(1.08)}}100%{{transform:scale(1)}}}}
@@ -156,7 +157,7 @@ FILES6 = [(-210, -90), (-90, -90), (30, -90), (-210, 30), (-90, 30), (30, 30)]
 
 def files(sc, t, positions=FILES6, names=None, cols=None, step=.12, anim='drop'):
     for i, (x, y) in enumerate(positions):
-        sc.box(x, y, 90, 90, 60, (cols or {}).get(i, FILE), label=(names[i] if names else f'part-{i + 1}'), label_size=15,
+        sc.box(x, y, 90, 90, 60, (cols or {}).get(i, FILE), label=(names[i] if names else f'part-{i + 1}'), label_size=15, z=24,
                anim=A(anim, .7, t + i * step) if t is not None else None)
 
 
@@ -207,7 +208,7 @@ for sc_meta in scenes:
         files(sc, None, [(x - 40, y) for x, y in FILES6[:4]])
         for i, (x, y) in enumerate([(-130 + 80, 30 + 0), (-10 + 40, 30)]):
             pass
-        newpos = [(30 - 40 + 120, -90), (30 - 40 + 120, 30)]
+        newpos = [(30 - 40, -90), (30 - 40, 30)]   # the two free slots on the orders/ platform
         for i, (x, y) in enumerate(newpos):
             sc.box(x, y, 90, 90, 60, FILE, label=f'part-{5 + i}', label_size=15, anim=f"{A('drop', .7, L[0] + .5 + i * .25)},{A('solid', .4, L[1] + 1.6)}", z=24, dashed=False)
         sc.box(300, 120, 260, 220, 24, LOG, label='_delta_log/', label_size=20)
@@ -216,7 +217,7 @@ for sc_meta in scenes:
         sc.flat('<span class="chip" style="color:#2f6b55">✓ COMMIT 003 — ATOMIC</span>', 'left:1240px;top:730px', A('pop', .5, L[1] + 1.6))
         sc.flat('<div class="card mono" style="font-size:19px;line-height:1.5;background:#24211c;color:#e8e2d0;border-color:#24211c"><span style="color:#ffcf8a">…003.json</span><br>{"add": {"path": "part-00005-….parquet",<br>&nbsp; "stats": {"numRecords": 3}}}<br>{"add": {"path": "part-00006-….parquet",<br>&nbsp; "stats": {"numRecords": 2}}}<br>{"commitInfo": {"operation": "WRITE"}}</div>', 'left:1130px;top:260px', A('up', .5, L[1] + 1.2))
         for i in range(2):
-            sc.box(-330 + i * 100, 250, 90, 90, 60, GHOST, label=f'tmp-{i + 1}', label_size=15, anim=f"{A('drop', .6, L[2] + .3 + i * .2)},{A('fadeout', .5, L[2] + 2.2)}", dashed=True)
+            sc.box(-380 + i * 100, 300, 90, 90, 60, GHOST, label=f'tmp-{i + 1}', label_size=15, anim=f"{A('drop', .6, L[2] + .3 + i * .2)},{A('fadeout', .5, L[2] + 2.2)}", dashed=True)
         sc.flat('<span class="chip" style="color:#c0462f">✗ no commit → ignored</span>', 'left:180px;top:810px', A('pop', .5, L[2] + 1.8))
         html = sc.html('Writing: files first, then one commit', 'WRITE')
 
@@ -240,7 +241,7 @@ for sc_meta in scenes:
         for i, (x, y) in enumerate([(x - 40, y) for x, y in FILES6]):
             a = A('fadeout', .7, L[1] + 2.0) if i == 1 else None
             sc.box(x, y, 90, 90, 60, FILE, label=f'part-{i + 1}', label_size=15, anim=a, z=24)
-        sc.box(80 + 120, 150, 90, 90, 60, ('#d9ead9', '#b9d6bd', '#93bb9b'), label='part-7', label_size=15, z=24, anim=A('drop', .7, L[1] + .6))
+        sc.box(-130, -90 - 0.01, 90, 90, 60, ('#d9ead9', '#b9d6bd', '#93bb9b'), label='part-7', label_size=15, z=24.5, anim=A('drop', .7, L[1] + 2.4))
         sc.flat('<span class="chip" style="color:#c0462f">✗ never edited in place</span>', 'left:150px;top:300px', A('pop', .5, L[0] + .4))
         sc.flat('<div class="card mono" style="font-size:19px;line-height:1.5;background:#24211c;color:#e8e2d0;border-color:#24211c"><span style="color:#ffcf8a">UPDATE orders SET amount = 198 WHERE id = 1003</span><br><br><span style="color:#ffcf8a">…004.json</span><br><span style="color:#f2a08e">{"remove": {"path": "part-00002-….parquet"}}</span><br><span style="color:#8fd19e">{"add": {"path": "part-00007-….parquet"}}</span><br>{"commitInfo": {"operation": "UPDATE"}}</div>', 'left:1060px;top:250px', A('up', .5, L[1] + 2.6))
         html = sc.html('Updates and deletes', 'COPY ON WRITE')
@@ -248,9 +249,9 @@ for sc_meta in scenes:
     elif nm == 'concurrent':
         sc.box(0, 160, 260, 220, 24, LOG, label='_delta_log/', label_size=20)
         log_stack(sc, 0, 160, 3)
-        sc.box(-430, 60, 150, 120, 120, BOX, label='WRITER A', label_size=17, anim=A('drop', .7, L[0]))
+        sc.box(-380, 170, 150, 120, 120, BOX, label='WRITER A', label_size=17, anim=A('drop', .7, L[0]))
         sc.box(380, -330, 150, 120, 120, BOX, label='WRITER B', label_size=17, anim=A('drop', .7, L[0] + .3))
-        sc.keyframes('flyA', 'from{transform:translate(-430px,-120px);opacity:0}20%{opacity:1}to{transform:translate(0,0);opacity:1}')
+        sc.keyframes('flyA', 'from{transform:translate(-330px,-20px);opacity:0}20%{opacity:1}to{transform:translate(0,0);opacity:1}')
         sc.keyframes('flyB', 'from{transform:translate(380px,-300px);opacity:0}20%{opacity:1}60%{transform:translate(40px,-30px)}75%{transform:translate(120px,-120px)}to{transform:translate(120px,-120px);opacity:1}')
         sc.box(0, 160, 120, 80, 16, ('#d9ead9', '#b9d6bd', '#93bb9b'), z=3 * 18, top_label='003.json', top_size=14, anim=A('flyA', 1.2, L[1] + .4, 'ease-in-out'))
         sc.box(0, 160, 120, 80, 16, REDF, z=3 * 18 + 40, top_label='003.json', top_size=14, anim=f"{A('flyB', 1.4, L[1] + .5, 'ease-in-out')},{A('gone', .3, L[2] + .2)}")
@@ -276,10 +277,10 @@ for sc_meta in scenes:
     elif nm == 'checkpoint':
         sc.box(0, 120, 260, 220, 24, LOG, label='_delta_log/', label_size=20)
         for i in range(10):
-            sc.box(-50, 120, 120, 80, 14, LOG, z=24 + i * 15, top_label=f'{i:03d}.json' if i in (0, 9) else '', top_size=13, anim=A('drop', .4, .2 + i * .12))
-        sc.box(90, 160, 140, 110, 70, ('#dfe6f6', '#c7d2ec', '#a9b8de'), z=24, label='010.checkpoint', label_size=13, anim=A('drop', .8, L[0] + 2.2))
+            sc.box(-60, 70, 110, 76, 14, LOG, z=24 + i * 15, top_label=f'{i:03d}.json' if i in (0, 9) else '', top_size=13, anim=A('drop', .4, .2 + i * .12))
+        sc.box(70, 175, 110, 80, 64, ('#dfe6f6', '#c7d2ec', '#a9b8de'), z=24, label='010.checkpoint', label_size=13, anim=A('drop', .8, L[0] + 2.2))
         sc.box(-330, 200, 150, 120, 120, BOX, label='READER', label_size=17, anim=A('drop', .7, L[1]))
-        sc.line((-330, 200, 70), (90, 160, 100), PAL['blue'], 5, True, A('fadein', .4, L[1] + .8))
+        sc.line((-330, 200, 70), (70, 175, 90), PAL['blue'], 5, True, A('fadein', .4, L[1] + .8))
         sc.flat('<span class="chip" style="color:#2f55b0">start from the checkpoint</span>', 'left:1200px;top:740px', A('pop', .5, L[1] + 1.2))
         html = sc.html('Checkpoints keep reads fast', 'EVERY 10 COMMITS')
 
