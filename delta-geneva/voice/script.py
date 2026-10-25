@@ -1,4 +1,4 @@
-"""Narration for "How Delta Lake works", one block per scene, spoken by Chatterbox (Resemble AI, open source, MIT).
+"""Narration for "How Delta Lake works", one block per scene, spoken by Qwen3-TTS (Alibaba Qwen, open source, Apache-2.0).
 
 usage: python script.py OUTDIR      (runs on CPU; the model downloads from Hugging Face on first use)
 With voice/ref/my-voice.wav present, the narration is spoken in that voice (the channel owner's own recording).
@@ -6,10 +6,10 @@ Writes OUTDIR/narration.wav, OUTDIR/scenes.json (each scene's start and length, 
 and the subtitles as OUTDIR/narration.srt, .vtt and .subtitles.json.
 """
 import json, os, sys, numpy as np, soundfile as sf, torch
-from chatterbox.tts import ChatterboxTTS
+from qwen_tts import Qwen3TTSModel
 
 GAP, PAD = 0.35, 0.9
-REF = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ref/my-voice.wav')   # the owner's own voice sample: Chatterbox clones its tone
+REF = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ref/my-voice.wav')   # the owner's own voice sample, which Qwen3-TTS clones
 EXAGGERATION, CFG = 0.55, 0.45                         # a little more expressive than neutral, unhurried pacing      # pause between lines, breathing room at the end of a scene
 SCENES = [
     ('title',      ["How does Delta Lake work?"]),
@@ -41,12 +41,25 @@ SHOW = {"Next to the data files sits a folder called underscore delta log, holdi
 
 out = sys.argv[1]; os.makedirs(out, exist_ok=True)
 torch.manual_seed(7)                                     # same seed, same performance on every run
-model = ChatterboxTTS.from_pretrained(device='cpu')
-SR = model.sr
+model = Qwen3TTSModel.from_pretrained(MODEL, device_map='cpu', dtype=torch.float32)
+
+def ref_text(path):
+    """What is said in the voice sample (Qwen needs it to clone): transcribed once by Whisper, cached next to it."""
+    cache = path + '.txt'
+    if not os.path.exists(cache):
+        from faster_whisper import WhisperModel
+        import subprocess
+        pcm = subprocess.run(['ffmpeg', '-v', 'error', '-i', path, '-ac', '1', '-ar', '16000', '-f', 'f32le', '-'], capture_output=True, check=True).stdout
+        segs, _ = WhisperModel('small', device='cpu', compute_type='int8').transcribe(np.frombuffer(pcm, np.float32), language='en')
+        open(cache, 'w').write(' '.join(s.text.strip() for s in segs))
+    return open(cache).read().strip()
+REF_TEXT = ref_text(REF)
+SR = None
 
 def speak(text):
-    wav = model.generate(text, audio_prompt_path=REF if os.path.exists(REF) else None, exaggeration=EXAGGERATION, cfg_weight=CFG)
-    a = wav.squeeze(0).numpy().astype(np.float32)
+    global SR
+    wavs, SR = model.generate_voice_clone(text=text, language='English', ref_audio=REF, ref_text=REF_TEXT)
+    a = np.asarray(wavs[0], dtype=np.float32)
     nz = np.nonzero(np.abs(a) > 0.01)[0]                 # trim leading/trailing silence so the subtitle timing is tight
     return a[max(0, nz[0] - int(.03 * SR)): nz[-1] + int(.08 * SR)] if len(nz) else a
 chunks, cues, scenes, t = [], [], [], 0.0
