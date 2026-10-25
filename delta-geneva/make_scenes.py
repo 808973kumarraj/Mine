@@ -278,8 +278,8 @@ for sc_meta in scenes:
         for i in range(10):
             sc.box(-40 + (i // 5) * 0, 120, 120, 80, 14, LOG, z=i * 15, top_label=f'{i:03d}.json' if i in (0, 9) else '', top_size=13, anim=A('drop', .4, .2 + i * .12))
         sc.box(140, 70, 140, 110, 70, ('#dfe6f6', '#c7d2ec', '#a9b8de'), z=24, label='010.checkpoint', label_size=13, anim=A('drop', .8, L[0] + 2.2))
-        sc.box(-420, 60, 150, 120, 120, BOX, label='READER', label_size=17, anim=A('drop', .7, L[1]))
-        sc.line((-420, 60, 70), (140, 70, 100), PAL['blue'], 5, True, A('fadein', .4, L[1] + .8))
+        sc.box(-330, 200, 150, 120, 120, BOX, label='READER', label_size=17, anim=A('drop', .7, L[1]))
+        sc.line((-330, 200, 70), (140, 70, 100), PAL['blue'], 5, True, A('fadein', .4, L[1] + .8))
         sc.flat('<span class="chip" style="color:#2f55b0">start from the checkpoint</span>', 'left:1200px;top:740px', A('pop', .5, L[1] + 1.2))
         html = sc.html('Checkpoints keep reads fast', 'EVERY 10 COMMITS')
 
