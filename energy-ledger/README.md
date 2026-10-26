@@ -14,12 +14,16 @@ always adds up to the same total:
 | Spread thin | the same 20 J spreading through a room over 10 minutes | hot bulb, warm wall, whole room |
 | The books balance | a balance scale: before = after | |
 
+The **Notes** button (on the text card, the cover and the last page) opens two tabs:
+**For teachers** (aims, the numbers behind each model, common mistakes, questions with answers,
+and the simplifications to point out) and **Sources & credits** (where each number comes from, with links).
+
 ## Build
 
     python3 build.py            # writes ../energy-ledger.html
 
-`src/index.html`, `src/style.css` and `src/app.js` are the notebook. `build.py` inlines the
-fonts and the libraries so the page needs no server and no network.
+`src/index.html`, `src/style.css`, `src/notes.html` and `src/app.js` are the notebook. `build.py`
+inlines the fonts, the sounds and the libraries so the page needs no server and no network.
 
 URL options for testing: `?p=3` opens at page 3, `?shot=1` stops the idle camera sway.
 
@@ -28,3 +32,4 @@ URL options for testing: `?p=3` opens at page 3, `?shot=1` stops the idle camera
 - three.js r147 and its LineSegments2 add-ons (MIT), in `vendor/`
 - GSAP 3.12.5 (GreenSock standard license), in `vendor/`
 - Newsreader and Caveat fonts (SIL Open Font License), in `fonts/`
+- Sounds by Kenney (CC0, public domain), in `sfx/` (see `sfx/CREDITS.md`)

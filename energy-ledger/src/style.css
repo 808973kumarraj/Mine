@@ -94,3 +94,29 @@ html[data-ready] #loading{opacity:0;pointer-events:none}
   button{font-size:14.5px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* notes sheet: teacher notes, sources and credits */
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#notes{min-height:30px;padding:0 11px;border-radius:6px;font-size:13.5px}
+#sheet{position:fixed;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(43,39,33,.45)}
+#sheet[hidden]{display:none}
+.sheet-in{width:min(760px,100%);max-height:100%;display:flex;flex-direction:column;background:var(--paper);
+  border:1.5px solid var(--ink);border-radius:8px;box-shadow:4px 5px 0 rgba(43,39,33,.28);overflow:hidden}
+.sheet-in header{display:flex;align-items:center;gap:8px;padding:10px 10px 8px 14px;border-bottom:1px dashed var(--rule)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tabs [role=tab]{min-height:36px;padding:7px 13px;font-weight:500}
+.tabs [aria-selected=true]{background:var(--ink);color:var(--paper)}
+#sheetX{margin-left:auto;width:38px;min-height:38px;padding:0;font-size:22px;line-height:1;flex:none}
+.sheet-body{overflow:auto;padding:4px 20px 22px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.sheet-body h3{font:600 21px/1.2 'Newsreader',serif;margin:18px 0 6px}
+.sheet-body p,.sheet-body li{font-size:15.5px}
+.sheet-body table{border-collapse:collapse;width:100%;margin:6px 0 10px;font-size:14.5px}
+.sheet-body th,.sheet-body td{border-bottom:1px dashed var(--rule);padding:5px 10px 5px 0;text-align:left;vertical-align:top}
+.sheet-body th{font-weight:600;white-space:nowrap;width:1%}
+.sheet-body ol li{margin-bottom:7px}
+.sheet-body .a{display:block;color:var(--ok);font-size:14.5px}
+.sheet-body .a::before{content:'Answer: ';font-weight:600}
+.src li{margin-bottom:9px}
+.src a{color:var(--accent);text-underline-offset:2px}
+.links{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px}
+.links button{min-height:36px;padding:7px 13px;font-weight:500}
+@media (max-width:420px){.sheet-body{padding:2px 14px 18px}.sheet-body th{white-space:normal;width:auto}.tabs [role=tab]{padding:7px 10px}}

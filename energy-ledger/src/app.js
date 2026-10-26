@@ -336,7 +336,7 @@ const LEFT = {
     pen(x, INKC, 2.6); skLine(x, 396, 930, 700, 930, r, 1.2);
     hand(x, 'total energy in', 420, 975, 44, { w: 500 });
     hand(x, 'filament: 2 ÷ 20 = 10%', 100, 1090, 52);
-    hand(x, 'LED: 8 ÷ 20 = 40%', 100, 1160, 52, { col: RED });
+    hand(x, 'LED: 6 ÷ 20 = 30%', 100, 1160, 52, { col: RED });
   },
   room(x, r) {
     heading(x, 4, 'Spread thin');
@@ -937,7 +937,7 @@ SIM.slide = {
 SIM.torch = {
   bulb: 0, on: false, chem: 20, light: 0, heat: 0, P: 2.6, hint: true,
   N() { return 20; },
-  eff() { return this.bulb ? 0.4 : 0.1; },
+  eff() { return this.bulb ? 0.3 : 0.1; },
   setBulb(i) { this.bulb = i; this.reset(); },
   reset() { this.on = false; this.chem = 20; this.light = 0; this.heat = 0; },
   toggle() { if (this.chem <= 0) this.reset(); this.on = !this.on; this.hint = false; click(); },
@@ -946,7 +946,7 @@ SIM.torch = {
       const dE = Math.min(this.chem, this.P * dt);
       this.chem -= dE; this.light += dE * this.eff(); this.heat += dE * (1 - this.eff());
       if (this.chem <= 1e-6) { this.chem = 0; this.on = false; }
-      const b = this.eff() / 0.4;
+      const b = this.eff() / 0.3;
       if (Math.random() < dt * 22 * b) {
         _v.set(TO.lensX + 0.02, PY + TO.AXY + (Math.random() - 0.5) * 0.08, TO.Z + (Math.random() - 0.5) * 0.08);
         spawn(fxTexs.dot, _v, { vel: new T.Vector3(1.0, 0, 0), life: (TO.wallX - TO.lensX - 0.03) / 1.0, op: 1, scale: [0.036, 0.036] });
@@ -956,7 +956,7 @@ SIM.torch = {
         spawn(fxTexs.squig, _v, { life: 1.1 });
       }
     }
-    const b = this.on ? this.eff() / 0.4 : 0, m = TO.m;
+    const b = this.on ? this.eff() / 0.3 : 0, m = TO.m;
     m.lensMat.color.setRGB(0.86 + 0.14 * b, 0.84 + 0.16 * b, 0.78 + 0.0 * b);
     if (b > 0) m.lensMat.color.setRGB(1, 0.93 + 0.07 * b, 0.6 + 0.3 * b);
     TO.beamMat.opacity += ((this.on ? 0.07 + 0.16 * b : 0) - TO.beamMat.opacity) * Math.min(1, dt * 10);
@@ -1066,7 +1066,8 @@ const CARD = {
 <p class="lead">Energy never gets used up. It moves from one store to another, and the total stays the same.</p>
 <p>This notebook keeps the accounts: <b>1 coin = 1 joule</b>. Play with each model, then count the coins.</p>
 <div class="row"><button class="primary" data-act="open">Open the notebook</button></div>
-<p class="small">Drag the desk to look around. Turn the pages with ‹ Back and Next ›.</p>`,
+<p class="small">Drag the desk to look around. Turn the pages with ‹ Back and Next ›.</p>
+<div class="links"><button data-sheet="0">For teachers</button><button data-sheet="1">Sources &amp; credits</button></div>`,
   swing: () => `<h2>The swing</h2>
 <p>A 2 kg ball hangs on a 2 m string. Pulling it back lifts it, and that fills its <b class="g">gravitational</b> store: <i>E&nbsp;=&nbsp;m&nbsp;×&nbsp;g&nbsp;×&nbsp;h</i>. We use g = 10&nbsp;N/kg.</p>
 <label class="range">Pull back<input type="range" min="10" max="60" step="1" data-ctl="pull"><output data-out="pull"></output></label>
@@ -1091,7 +1092,7 @@ ${chipsHTML(SP[2].stores)}`,
 <div class="row"><button class="primary" data-act="go">Switch on</button><button data-act="reset">New battery</button></div>
 <p class="readout" data-out="eff"></p>
 ${guessHTML('torch', 'With the filament bulb, how many of the 20 J come out as light?', ['About 18 J', 'About 10 J', 'About 2 J'], 2,
-  'Only about 2 J. The other 18 J heat the bulb and the air around it. Efficiency = useful energy out ÷ total energy in = 2 ÷ 20 = 10%. An LED turns about 8 J into light: 40%. Try both.')}
+  'Only about 2 J. The other 18 J heat the bulb and the air around it. Efficiency = useful energy out ÷ total energy in = 2 ÷ 20 = 10%. An LED turns about 6 J into light: 30%. Try both.')}
 ${chipsHTML(SP[3].stores)}
 <p class="small">Light is not a store. It is a way energy travels, and it warms whatever it lands on: here, the wall.</p>`,
   room: () => `<h2>Spread thin</h2>
@@ -1107,11 +1108,12 @@ ${chipsHTML(SP[4].stores)}`,
 <ul class="sum">
 <li data-p="swing"><b>The swing:</b> gravitational ⇄ kinetic, 20 J all the way.</li>
 <li data-p="slide"><b>Slide and stop:</b> friction moved all 20 J to the thermal store.</li>
-<li data-p="torch"><b>Light and heat:</b> 2 J of light from a filament bulb, 8 J from an LED.</li>
+<li data-p="torch"><b>Light and heat:</b> 2 J of light from a filament bulb, 6 J from an LED.</li>
 <li data-p="room"><b>Spread thin:</b> still 20 J, but too spread out to use.</li></ul>
 <p class="readout" data-out="score"></p>
 <p class="small">Tap a pan to test the scale.</p>
-<div class="row"><button data-act="restart">Close the notebook</button></div>`,
+<div class="row"><button data-act="restart">Close the notebook</button></div>
+<div class="links"><button data-sheet="0">For teachers</button><button data-sheet="1">Sources &amp; credits</button></div>`,
 };
 const outs = {};
 function renderCard(i) {
@@ -1146,6 +1148,7 @@ function wire(id) {
     bs.forEach(b => b.addEventListener('click', () => { GUESS[gid] = +b.dataset.a; show(GUESS[gid]); }));
     if (gid in GUESS) show(GUESS[gid]);
   });
+  cbody.querySelectorAll('[data-sheet]').forEach(b => b.addEventListener('click', () => openSheet(+b.dataset.sheet)));
   if (id === 'cover') on('[data-act=open]', () => go(1));
   if (id === 'swing') {
     const S = SIM.swing, pull = cbody.querySelector('[data-ctl=pull]');
@@ -1278,11 +1281,26 @@ addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(r
 new ResizeObserver(() => { clearTimeout(resizeT); resizeT = setTimeout(resize, 60); }).observe(card);
 
 // ---------- sound (synthesised, no files) ----------
-let AC = null, soundOn = true;
+let AC = null, soundOn = true, sfxLoading = null;
+const SFX_SRC = /*SFX*/{}, SFX = {};
 function audio() {
   if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; } }
   if (AC && AC.state === 'suspended') AC.resume();
+  if (AC && !sfxLoading) sfxLoading = Promise.all(Object.entries(SFX_SRC).map(async ([k, uri]) => {
+    try {
+      const bin = Uint8Array.from(atob(uri.slice(uri.indexOf(',') + 1)), c => c.charCodeAt(0));
+      SFX[k] = await AC.decodeAudioData(bin.buffer);
+    } catch (e) { /* that sound falls back to the synthesised one */ }
+  }));
   return AC;
+}
+function sample(names, gain, rate = 1) {
+  if (!soundOn || !AC || AC.state !== 'running') return true;
+  const have = names.filter(n => SFX[n]); if (!have.length) return false;
+  const s = AC.createBufferSource(), g = AC.createGain();
+  s.buffer = SFX[have[(Math.random() * have.length) | 0]]; s.playbackRate.value = rate; g.gain.value = gain;
+  s.connect(g).connect(AC.destination); s.start();
+  return true;
 }
 function tone(f0, f1, dur, gain, type = 'sine') {
   if (!soundOn || !AC || AC.state !== 'running') return;
@@ -1292,12 +1310,15 @@ function tone(f0, f1, dur, gain, type = 'sine') {
   o.connect(g).connect(AC.destination); o.start(t); o.stop(t + dur + 0.02);
 }
 function clink() {
-  const now = performance.now(); if (now - clinkGate < 70) return; clinkGate = now;
+  const now = performance.now(); if (now - clinkGate < 80) return; clinkGate = now;
+  if (sample(['chip1', 'chip2', 'chip3'], 0.32, 0.94 + Math.random() * 0.14)) return;
   const f = 2500 * (0.9 + Math.random() * 0.2); tone(f, f * 0.98, 0.12, 0.03); tone(f * 2.7, f * 2.6, 0.08, 0.012);
 }
-function click() { tone(1200, 600, 0.05, 0.05, 'square'); }
-function popSound() { tone(260, 120, 0.12, 0.05); }
+function click() { sample(['switch'], 0.6) || tone(1200, 600, 0.05, 0.05, 'square'); }
+function popSound() { sample(['place1', 'place2'], 0.28, 1.12 + Math.random() * 0.12) || tone(260, 120, 0.12, 0.05); }
+function bookSound(open) { sample([open ? 'open' : 'close'], 0.8); }
 function flipSound() {
+  if (sample(['flip1', 'flip2'], 0.75, 0.95 + Math.random() * 0.1)) return;
   if (!soundOn || !AC || AC.state !== 'running') return;
   const t = AC.currentTime, n = Math.floor(AC.sampleRate * 0.45), buf = AC.createBuffer(1, n, AC.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / n) ** 2;
@@ -1312,6 +1333,7 @@ $('#snd').addEventListener('click', () => {
 
 // ---------- turning pages ----------
 let cur = -1, busy = false;
+gsap.ticker.lagSmoothing(0);   // page turns keep to their own length even if a slow frame happens (e.g. a shader compiling)
 const tw = (target, vars) => new Promise(res => gsap.to(target, { ...vars, onComplete: res }));
 function popIn(i, instant) {
   const D = DIO[SP[i].id]; if (!D) return Promise.resolve();
@@ -1358,10 +1380,10 @@ async function go(to, instant = false) {
   if (from <= 0 && to >= 1) {
     drawPage(pL, 'L', to); drawPage(pR, 'R', to);
     if (instant) leftHalf.rotation.z = 0;
-    else { flipSound(); await tw(leftHalf.rotation, { z: 0, duration: 1.15, ease: 'power2.inOut' }); }
+    else { bookSound(true); flipSound(); await tw(leftHalf.rotation, { z: 0, duration: 1.15, ease: 'power2.inOut' }); }
   } else if (to === 0) {
     if (instant) leftHalf.rotation.z = -Math.PI;
-    else { flipSound(); await tw(leftHalf.rotation, { z: -Math.PI, duration: 1.05, ease: 'power2.inOut' }); }
+    else { flipSound(); await tw(leftHalf.rotation, { z: -Math.PI, duration: 1.05, ease: 'power2.inOut' }); bookSound(false); }
   } else {
     const fwd = to > from, st = { th: fwd ? 0 : Math.PI };
     if (fwd) { drawPage(pF, 'R', from); drawPage(pB, 'L', to); drawPage(pR, 'R', to); }
@@ -1379,7 +1401,33 @@ $('#next').addEventListener('click', () => go(cur + 1));
 $('#fold').addEventListener('click', () => {
   const f = card.classList.toggle('folded'); $('#fold').setAttribute('aria-expanded', !f);
 });
+const sheetEl = $('#sheet'), tabs = [$('#tabT'), $('#tabS')], panes = [$('#panT'), $('#panS')];
+let sheetReturn = null;
+function showTab(k) {
+  tabs.forEach((t, i) => { t.setAttribute('aria-selected', i === k); t.tabIndex = i === k ? 0 : -1; panes[i].hidden = i !== k; });
+  sheetEl.querySelector('.sheet-body').scrollTop = 0;
+}
+function openSheet(k = 0) { sheetReturn = document.activeElement; showTab(k); sheetEl.hidden = false; tabs[k].focus(); }
+function closeSheet() { sheetEl.hidden = true; if (sheetReturn && sheetReturn.focus) sheetReturn.focus(); }
+tabs.forEach((t, i) => t.addEventListener('click', () => showTab(i)));
+$('#sheetX').addEventListener('click', closeSheet);
+$('#notes').addEventListener('click', () => openSheet(0));
+sheetEl.addEventListener('click', e => { if (e.target === sheetEl) closeSheet(); });
+sheetEl.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeSheet(); e.preventDefault(); return; }
+  const k = tabs.indexOf(document.activeElement);
+  if (k >= 0 && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+    const n = (k + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length; showTab(n); tabs[n].focus(); e.preventDefault();
+  }
+  if (e.key === 'Tab') {
+    const f = [...sheetEl.querySelectorAll('button, a[href]')].filter(el => el.offsetParent && el.tabIndex >= 0);
+    if (e.shiftKey && document.activeElement === f[0]) { f[f.length - 1].focus(); e.preventDefault(); }
+    else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { f[0].focus(); e.preventDefault(); }
+  }
+  e.stopPropagation();
+});
 addEventListener('keydown', e => {
+  if (!sheetEl.hidden) return;
   if (e.target.closest && e.target.closest('input')) return;
   if (e.key === 'ArrowRight') go(cur + 1);
   if (e.key === 'ArrowLeft') go(cur - 1);
@@ -1394,7 +1442,7 @@ function targets() {
   if (id === 'swing') return [{ obj: SW.bob, drag: true }];
   if (id === 'slide') return [{ obj: SL.sled, tap: () => SIM.slide.go() }];
   if (id === 'torch') return [{ obj: TO.m.t, tap: () => SIM.torch.toggle() }];
-  if (id === 'end') return BA.pans.map(p => ({ obj: p, tap: () => { BA.tv += p.userData.s * 1.6; clink(); } }));
+  if (id === 'end') return BA.pans.map(p => ({ obj: p, tap: () => { BA.tv += p.userData.s * 1.6; sample(['collide'], 0.5) || clink(); } }));
   return [];
 }
 function hit(e) {
@@ -1475,5 +1523,5 @@ if (startAt > 0) { cur = 0; renderCard(0); await go(startAt, true); }
 else { cur = -1; await go(0, true); }
 fitCamera(cur, 0);
 requestAnimationFrame(t => { last = t; frame(t); document.documentElement.dataset.ready = '1'; });
-window.__book = { go, SIM, get cur() { return cur; }, get busy() { return busy; }, user, cam };
+window.__book = { go, SIM, get cur() { return cur; }, get busy() { return busy; }, user, cam, sounds: () => Object.keys(SFX).length };
 })();
