@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Energy Ledger</title>
+<meta name="description" content="An interactive pop-up notebook about energy stores: count the coins and check that the total never changes.">
+<style>
+/*CSS*/
+</style>
+</head>
+<body>
+<canvas id="gl" tabindex="0" aria-label="3D pop-up notebook. Drag to look around."></canvas>
+<div id="labels" aria-hidden="true"></div>
+<aside id="card" aria-live="polite">
+  <header>
+    <span id="kick"></span>
+    <span id="dots" aria-hidden="true"></span>
+    <button id="fold" aria-label="Hide or show the text" aria-expanded="true">▾</button>
+  </header>
+  <div id="cbody"></div>
+  <footer>
+    <button id="prev" aria-label="Previous page">‹ Back</button>
+    <button id="snd" aria-pressed="true" aria-label="Sound">♪ On</button>
+    <button id="next" class="primary">Next ›</button>
+  </footer>
+</aside>
+<div id="loading">Opening the notebook…</div>
+<div id="nogl">This notebook draws in 3D and needs WebGL. Try Chrome or Firefox with hardware acceleration turned on.</div>
+<!--LIBS-->
+<script>
+/*APP*/
+</script>
+</body>
+</html>
