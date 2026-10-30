@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rate Limiter Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0B0F17; --text:#E8ECF2; --text2:#9AA3B2; --slate:#3A4250; --accent:#B7A6F5; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:#06080D; color:var(--text); overflow-x:hidden;
+    font-family:'Space Grotesk',system-ui,sans-serif; }
+  #app { min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px 0; }
+  #stage { position:relative; background:var(--bg); border-radius:10px; overflow:hidden; box-shadow:0 0 0 1px #1a2130; }
+  canvas { display:block; width:100%; height:100%; }
+  #bigplay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(11,15,23,.35);
+    border:0; cursor:pointer; color:var(--text); }
+  #bigplay span { width:96px; height:96px; border-radius:50%; border:2px solid var(--accent); display:flex; align-items:center;
+    justify-content:center; box-shadow:0 0 24px rgba(183,166,245,.45); background:rgba(11,15,23,.6); }
+  #bigplay svg { margin-left:6px; }
+  #bar { display:flex; align-items:center; gap:10px; padding:10px 4px 0; font:12px 'JetBrains Mono',monospace; color:var(--text2); }
+  #bar button { background:none; border:1px solid var(--slate); color:var(--text); border-radius:6px; height:30px; min-width:34px;
+    font:inherit; cursor:pointer; padding:0 8px; }
+  #bar button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
+  #bar button:disabled { opacity:.4; cursor:default; }
+  #scrub { flex:1; accent-color:#B7A6F5; min-width:60px; }
+  #time { min-width:84px; text-align:right; letter-spacing:.05em; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <button id="bigplay" aria-label="Play"><span><svg width="34" height="38" viewBox="0 0 34 38"><path d="M2 2 L32 19 L2 36 Z" fill="none" stroke="#E8ECF2" stroke-width="3" stroke-linejoin="round"/></svg></span></button>
+  </div>
+  <div id="bar">
+    <button id="play" aria-label="Play or pause">▶</button>
+    <input id="scrub" type="range" min="0" max="57000" step="1" value="0" aria-label="Scrub">
+    <span id="time">0:00.0 / 0:57</span>
+    <button id="snd" aria-pressed="true" aria-label="Sound">SND</button>
+    <button id="loop" aria-pressed="true" aria-label="Loop">LOOP</button>
+  </div>
+</div>
+<script>
+// =====================================================================
+// CONFIG: topic strings, colours, timing, captions, camera, slow motion.
+// Times marked "story" are in story seconds (before slow motion).
+// =====================================================================
+const config = {
+  topic: 'Rate limiter',
+  handle: '@kumarraj',
+  title: [{ text: 'Rate ', color: 'text' }, { text: 'Limiter', color: 'turn' }],
+  subtitle: 'How APIs stop bots, not people',
+  hook: 'How do you stop a bot flood?',
+  footer: ['ONE KEY · ONE BUCKET · EXTRA REQUESTS GET 429', 'SIMPLIFIED · nginx limit_req · API Gateway throttling'],
+  duration: 57,          // video seconds
+  seed: 20261030,
+  world: { w: 1080, h: 1920 },
+  colors: {
+    bg: '#0B0F17', good: '#7DB4F0', bad: '#F0738F', main: '#F2B544', turn: '#B7A6F5', dest: '#6FD6B4',
+    slate: '#3A4250', slateLine: '#5A6476', text: '#E8ECF2', text2: '#9AA3B2'
+  },
+  items: {
+    user: { color: 'good', icon: 'stripe', key: 'KEY · u_ana' },
+    bot:  { color: 'bad',  icon: 'bug',    key: 'KEY · bot_7f' }
+  },
+  sources: {
+    user: { x: 330, label: 'USERS', sub: 'real people', every: 1.8, start: 0.15 },
+    bot:  { x: 750, label: 'BOTS',  sub: 'one script',  every: 0.6, start: 0.45 }
+  },
+  counters: [
+    { id: 'usersServed', label: 'USERS SERVED', color: 'good', side: 'left' },
+    { id: 'botsIn',      label: 'BOTS IN',      color: 'bad',  side: 'right' }
+  ],
+  main: { label: 'API SERVER', sub: 'answers every request' },
+  turn: { label: 'RATE LIMITER', sub: 'token bucket per key', buckets: [['USER KEY', 'good', 5], ['BOT KEY', 'bad', 0]] },
+  dest: { label: 'DATABASE', sub: 'reads + writes' },
+  bin:  { label: '429 · TOO MANY', sub: 'rejected' },
+  geo: {
+    mouthY: 700, chuteY: 770, mergeX: 540, mergeY: 840, gateY: 945, headY: 1090, slot: 36,
+    server: { x: 540, y: 1170, r: 58 }, dbTop: 1392, ground: 1480,
+    rejectKick: [585, 962], chuteEnd: [800, 1292], binX: 770, binW: 200, binTop: 1300,
+    itemR: 16.5
+  },
+  sim: {
+    v: 430, g: 2200, serviceTime: 0.4, minGap: 0.17, jitter: 0.12,
+    landAt: 24.6,          // story time the limiter touches down
+    dropDur: 0.6,          // story seconds of the fall
+    spawnUntil: 54
+  },
+  captions: [ // at/end in story seconds; {users}/{bots} = counter at caption start, {botsFinal} = final
+    { at: 0.3,  end: 4.9,  text: '3 BOTS FOR EVERY USER?', word: 'BOTS', color: 'bad' },
+    { at: 5.2,  end: 9.4,  text: 'One ball = one request.', word: 'request', color: 'good',
+      focus: { event: 'spawn:user', near: 5.9, tag: '1 REQUEST' } },
+    { at: 9.7,  end: 13.8, text: 'Every request carries an API key.', word: 'key', color: 'bad',
+      focus: { event: 'spawn:bot', near: 10.3, tag: 'key' } },
+    { at: 14.2, end: 18.1, text: 'The server answers every request.', word: 'server', color: 'main' },
+    { at: 18.5, end: 21.6, text: '{bots} bots are in, and climbing.', word: 'bots', color: 'bad' },
+    { at: 21.9, end: 23.7, text: 'Time for a gatekeeper.', word: 'gatekeeper', color: 'turn' },
+    { at: 23.5, end: 24.75, text: 'A rate limiter drops in.', word: 'rate limiter', color: 'turn' },
+    { at: 24.85, end: 27.0, text: 'Bots already inside still finish.', word: 'inside', color: 'bad' },
+    { at: 27.3, end: 29.8, text: 'Now every key gets checked.', word: 'checked', color: 'turn' },
+    { at: 30.1, end: 33.6, text: 'Key over its limit? 429. Bounced.', word: '429', color: 'bad',
+      focus: { event: 'reject', near: 31.2, tag: 'key' } },
+    { at: 34.0, end: 37.0, text: 'Bots keep trying. The bin fills.', word: 'bin', color: 'bad' },
+    { at: 37.3, end: 41.6, text: 'Key with tokens left? Let in.', word: 'Let in', color: 'good',
+      focus: { event: 'accept', near: 39.6, tag: 'key' } },
+    { at: 42.0, end: 46.6, text: '{botsFinal} bots got in. Then zero.', word: 'zero', color: 'turn' },
+    { at: 46.9, end: 99,   text: 'Limit each key. Users stay served.', word: 'each key', color: 'turn' }
+  ],
+  shots: [ // at = story seconds, or {event, near, lead(video s)}; dur in video seconds
+    { at: 0,    x: 540, y: 960,  z: 1,    why: 'the whole system: two sources, one server' },
+    { event: 'spawn:user', near: 5.9, lead: 0.35, dur: 0.7, x: 440, y: 800, z: 1.8, why: 'one ball is one request' },
+    { event: 'spawn:bot', near: 10.3, lead: 0.35, dur: 0.7, x: 650, y: 800, z: 1.8, why: 'requests differ by key' },
+    { at: 14.0, dur: 0.8, x: 540, y: 960, z: 1,  why: 'everything lands on the server' },
+    { at: 18.3, dur: 0.7, x: 720, y: 860, z: 1.45, why: 'server output drives the bots counter' },
+    { at: 21.7, dur: 0.7, x: 540, y: 960, z: 1,  why: 'see the map before the fix' },
+    { event: 'drop', near: 24, lead: 0.3, dur: 0.7, x: 540, y: 1000, z: 1.7, why: 'the new gate lands on the track' },
+    { at: 27.1, dur: 0.7, x: 540, y: 960, z: 1,  why: 'back to the map: the gate now guards the track' },
+    { event: 'reject', near: 31.2, lead: 0.35, dur: 0.7, x: 680, y: 1090, z: 1.75, why: 'a key over its limit is bounced' },
+    { at: 33.8, dur: 0.7, x: 540, y: 960, z: 1,  why: 'bots keep trying, bin fills' },
+    { event: 'accept', near: 39.6, lead: 0.35, dur: 0.7, x: 540, y: 1010, z: 1.8, why: 'a key with tokens passes' },
+    { at: 41.8, dur: 0.8, x: 540, y: 960, z: 1,  why: 'nothing more gets in: the counter holds' }
+  ],
+  slowmo: [ // before/after/ramp in story seconds
+    { event: 'land',   near: 24.6, before: 0.1, after: 0.9, speed: 0.4, ramp: 0.15 },
+    { event: 'reject', near: 31.2, before: 0.1, after: 0.9, speed: 0.4, ramp: 0.15 },
+    { event: 'accept', near: 39.6, before: 0.1, after: 0.9, speed: 0.4, ramp: 0.15 }
+  ]
+};
+
+// =====================================================================
+// Utilities
+// =====================================================================
+const C = config.colors, G = config.geo, SIM = config.sim, W = config.world;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const smooth = k => { k = clamp(k, 0, 1); return k * k * (3 - 2 * k); };
+const easeIO = k => { k = clamp(k, 0, 1); return k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; };
+const easeOut = k => 1 - Math.pow(1 - clamp(k, 0, 1), 3);
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const hex = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const mix = (a, b, k) => { const A = hex(a), B = hex(b); return 'rgb(' + A.map((v, i) => Math.round(lerp(v, B[i], k))).join(',') + ')'; };
+const rgba = (h, a) => { const A = hex(h); return `rgba(${A[0]},${A[1]},${A[2]},${a})`; };
+const col = name => C[name] || name;
+function bsearchLE(arr, v) { let lo = 0, hi = arr.length - 1, r = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (arr[m] <= v) { r = m; lo = m + 1; } else hi = m - 1; } return r; }
+
+// =====================================================================
+// SCRIPTED RUN: every item's path and event times, precomputed
+// =====================================================================
+function buildRun() {
+  const rng = mulberry32(config.seed);
+  const items = [];
+  for (const kind of ['user', 'bot']) {
+    const src = config.sources[kind];
+    let t = src.start;
+    while (t < SIM.spawnUntil) { items.push({ kind, sx: src.x, t0: t }); t += src.every * (1 + SIM.jitter * (rng() * 2 - 1)); }
+  }
+  const fallT = Math.sqrt(2 * (G.chuteY - G.mouthY) / SIM.g), bounceT = 0.14;
+  const chuteLen = it => Math.hypot(G.mergeX - it.sx, G.mergeY - G.chuteY);
+  const mergeT = it => it.t0 + fallT + bounceT + chuteLen(it) / SIM.v;
+  items.sort((a, b) => mergeT(a) - mergeT(b));
+  let lastM = -9;
+  for (const it of items) { // keep a minimum gap on the shared track
+    let m = mergeT(it); if (m < lastM + SIM.minGap) { it.t0 += lastM + SIM.minGap - m; m = mergeT(it); } lastM = m;
+    it.tf = it.t0 + fallT; it.tb = it.tf + bounceT; it.tm = m;
+    it.tg = m + (G.gateY - G.mergeY) / SIM.v;
+    it.d1 = G.chuteY - G.mouthY; it.d2 = it.d1 + chuteLen(it); it.d3 = it.d2 + (G.gateY - G.mergeY);
+  }
+  const land = SIM.landAt;
+  const admitted = [], rejected = [];
+  let prevSe = -9;
+  for (const it of items) {
+    it.rejected = it.kind === 'bot' && it.tg >= land;
+    if (it.rejected) {
+      it.rIdx = rejected.length; rejected.push(it);
+      const [kx, ky] = G.rejectKick, [cx, cy] = G.chuteEnd;
+      it.tk = it.tg + 0.1; it.tc = it.tk + Math.hypot(cx - kx, cy - ky) / SIM.v;
+      const k = it.rIdx, cols = 8;
+      it.px = G.binX + 20 + (k % cols) * 22.5 + ((Math.floor(k / cols) % 2) ? 8 : 0);
+      it.py = G.ground - 13 - Math.floor(k / cols) * 21;
+      it.tp = it.tc + Math.sqrt(2 * Math.max(4, it.py - cy) / SIM.g);
+      it.tEnd = Infinity;
+    } else {
+      it.qIdx = admitted.length; admitted.push(it);
+      const tHead = it.tg + (G.headY - G.gateY) / SIM.v;
+      it.ss = Math.max(tHead, prevSe); it.se = it.ss + SIM.serviceTime; prevSe = it.se;
+      it.tdb = it.se + (G.dbTop - G.server.y) / (SIM.v * 1.15);
+      it.tEnd = it.tdb + 0.18;
+    }
+  }
+  // queue depth check (slots between gate and head)
+  let maxQ = 0;
+  for (const it of admitted) { let q = 0; for (const j of admitted) if (j.tg <= it.tg && j.ss > it.tg && j !== it) q++; maxQ = Math.max(maxQ, q); }
+  // event lists (story time)
+  const ev = [];
+  for (const it of items) {
+    ev.push({ type: 'spawn:' + it.kind, s: it.t0, it, x: it.sx });
+    ev.push({ type: 'merge', s: it.tm, it, x: G.mergeX });
+    if (it.tg >= land) ev.push({ type: it.rejected ? 'reject' : 'accept', s: it.tg, it, x: G.mergeX });
+    if (it.rejected) ev.push({ type: 'bin', s: it.tc, it, x: G.chuteEnd[0] });
+    else { ev.push({ type: 'serve', s: it.ss, it, x: G.server.x }); ev.push({ type: 'served:' + it.kind, s: it.se, it, x: G.server.x });
+      ev.push({ type: 'db', s: it.tdb, it, x: G.mergeX }); }
+  }
+  ev.push({ type: 'drop', s: land - SIM.dropDur, x: G.mergeX }, { type: 'land', s: land, x: G.mergeX });
+  ev.sort((a, b) => a.s - b.s);
+  const times = type => ev.filter(e => e.type === type).map(e => e.s);
+  const run = { items, admitted, rejected, ev, maxQ, land,
+    usersServed: times('served:user'), botsIn: times('served:bot'), binIn: times('bin'),
+    dbIn: ev.filter(e => e.type === 'db'), accepts: times('accept'), rejects: times('reject'), served: times('serve'),
+    gatePass: ev.filter(e => e.type === 'accept' || e.type === 'reject') };
+  run.find = (type, near) => { let best = null; for (const e of ev) if (e.type === type && (!best || Math.abs(e.s - near) < Math.abs(best.s - near))) best = e; return best; };
+  return run;
+}
+const RUN = buildRun();
+
+// =====================================================================
+// TIME REMAP: s = warp(t), 1 ms table built once
+// =====================================================================
+const SLOW = config.slowmo.map(w => { const e = RUN.find(w.event, w.near); return { ...w, a: e.s - w.before, b: e.s + w.after }; });
+function speedAtStory(s) {
+  let sp = 1;
+  for (const w of SLOW) {
+    let k = 0;
+    if (s >= w.a && s <= w.b) k = 1;
+    else if (s > w.a - w.ramp && s < w.a) k = smooth((s - (w.a - w.ramp)) / w.ramp);
+    else if (s > w.b && s < w.b + w.ramp) k = 1 - smooth((s - w.b) / w.ramp);
+    sp = Math.min(sp, lerp(1, w.speed, k));
+  }
+  return sp;
+}
+const DT = 0.001, NT = Math.round(config.duration / DT) + 1;
+const WARP = new Float64Array(NT);
+{ let s = 0; for (let i = 0; i < NT; i++) { WARP[i] = s; s += speedAtStory(s) * DT; } }
+function warp(t) { const f = clamp(t, 0, config.duration) / DT, i = Math.min(NT - 2, Math.floor(f)); return lerp(WARP[i], WARP[i + 1], f - i); }
+function vt(s) { // inverse: video time of story time s
+  if (s <= 0) return s; let lo = 0, hi = NT - 1;
+  if (s >= WARP[hi]) return config.duration + (s - WARP[hi]);
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (WARP[m] <= s) lo = m; else hi = m; }
+  return (lo + (s - WARP[lo]) / (WARP[hi] - WARP[lo])) * DT;
+}
+const speedAt = t => speedAtStory(warp(t));
+const STORY_END = warp(config.duration);
+const countAt = (arr, s) => bsearchLE(arr, s) + 1;
+
+// captions: resolve templates and video times
+const CAPS = config.captions.map(c => {
+  const sAt = c.at;
+  const text = c.text.replace('{bots}', countAt(RUN.botsIn, sAt)).replace('{users}', countAt(RUN.usersServed, sAt))
+    .replace('{botsFinal}', RUN.botsIn.length);
+  const focus = c.focus ? RUN.find(c.focus.event, c.focus.near) : null;
+  return { ...c, text, t0: vt(c.at), t1: Math.min(vt(c.end), config.duration - 0.05), focusItem: focus && focus.it, tag: c.focus && c.focus.tag };
+});
+// camera shots: resolve event anchors
+const SHOTS = config.shots.map(sh => {
+  let t0;
+  const dur = sh.dur || 0;
+  if (sh.event) { const e = RUN.find(sh.event, sh.near); sh.eventS = e.s; t0 = vt(e.s) - sh.lead - dur; }
+  else t0 = vt(sh.at);
+  return { ...sh, t0, t1: t0 + dur };
+}).sort((a, b) => a.t0 - b.t0);
+const clampCam = c => { const hw = W.w / 2 / c.z, hh = W.h / 2 / c.z;
+  return { x: clamp(c.x, hw, W.w - hw), y: clamp(c.y, hh, W.h - hh), z: c.z }; };
+function camAt(t) {
+  let cur = clampCam(SHOTS[0]);
+  for (let i = 1; i < SHOTS.length; i++) {
+    const sh = SHOTS[i]; if (t < sh.t0) break;
+    const to = clampCam(sh), k = sh.t1 > sh.t0 ? easeIO((t - sh.t0) / (sh.t1 - sh.t0)) : 1;
+    cur = { x: lerp(cur.x, to.x, k), y: lerp(cur.y, to.y, k), z: Math.exp(lerp(Math.log(cur.z), Math.log(to.z), k)) };
+  }
+  return cur;
+}
+
+// =====================================================================
+// ITEM STATE at story time s (pure)
+// =====================================================================
+function queueTargetY(it, s) {
+  let off = 0;
+  for (let j = it.qIdx - 1; j >= 0 && j >= it.qIdx - 12; j--) {
+    const o = RUN.admitted[j];
+    if (o.ss + 0.22 < s) break;
+    off += 1 - easeIO((s - o.ss) / 0.22);
+  }
+  return G.headY - G.slot * off;
+}
+function itemState(it, s) {
+  if (s < it.t0 || s > it.tEnd) return null;
+  const r = G.itemR;
+  let x, y, d, a = 1, sc = 1;
+  if (s < it.tf) { const tau = s - it.t0; x = it.sx; y = G.mouthY + 0.5 * SIM.g * tau * tau; d = y - G.mouthY; sc = easeOut(tau / 0.1); }
+  else if (s < it.tb) { const k = (s - it.tf) / (it.tb - it.tf); x = it.sx; y = G.chuteY - 10 * 4 * k * (1 - k); d = it.d1; }
+  else if (s < it.tm) { const k = (s - it.tb) / (it.tm - it.tb); x = lerp(it.sx, G.mergeX, k); y = lerp(G.chuteY, G.mergeY, k); d = lerp(it.d1, it.d2, k); }
+  else if (s < it.tg) { const k = (s - it.tm) / (it.tg - it.tm); x = G.mergeX; y = lerp(G.mergeY, G.gateY, k); d = lerp(it.d2, it.d3, k); }
+  else if (it.rejected) {
+    const [kx, ky] = G.rejectKick, [cx, cy] = G.chuteEnd;
+    if (s < it.tk) { const k = easeOut((s - it.tg) / (it.tk - it.tg)); x = lerp(G.mergeX, kx, k); y = lerp(G.gateY, ky, k); d = it.d3 + k * 46; }
+    else if (s < it.tc) { const k = (s - it.tk) / (it.tc - it.tk); x = lerp(kx, cx, k); y = lerp(ky, cy, k); d = it.d3 + 46 + k * 389; }
+    else { const tau = Math.min(s, it.tp) - it.tc, k = clamp((s - it.tc) / (it.tp - it.tc), 0, 1);
+      x = lerp(cx, it.px, easeOut(k)); y = Math.min(it.py, cy + 0.5 * SIM.g * tau * tau);
+      if (s > it.tp) y = it.py - 6 * Math.max(0, Math.sin(clamp((s - it.tp) / 0.12, 0, 1) * Math.PI));
+      d = it.d3 + 435 + (y - cy) + Math.abs(x - cx); }
+  } else if (s < it.ss) {
+    const yf = G.gateY + SIM.v * (s - it.tg); y = Math.min(yf, queueTargetY(it, s)); x = G.mergeX; d = it.d3 + (y - G.gateY);
+  } else if (s < it.se) {
+    const k = easeIO((s - it.ss) / 0.14); x = G.mergeX; y = lerp(G.headY, G.server.y, k);
+    d = it.d3 + (G.headY - G.gateY) + k * 80 + Math.max(0, s - it.ss - 0.14) * 300;
+  } else {
+    const k = (s - it.se) / (it.tdb - it.se); x = G.mergeX; y = Math.min(G.dbTop + 20, lerp(G.server.y, G.dbTop, k) + (k > 1 ? (s - it.tdb) * 120 : 0));
+    d = it.d3 + 400 + y; a = s > it.tdb ? 1 - (s - it.tdb) / 0.18 : 1;
+  }
+  return { x, y, rot: d / r, a: clamp(a, 0, 1), sc };
+}
+
+// =====================================================================
+// RENDERING
+// =====================================================================
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let CW = 360, CH = 640, DPR = 1;
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const DUST = (() => { const r = mulberry32(99); return Array.from({ length: 70 }, () => ({ x: r() * W.w, y: r() * W.h, vx: (r() - .5) * 6, vy: -2 - r() * 6, s: 1 + r() * 2.2, a: .05 + r() * .12 })); })();
+const LW = 3; // world line width (about 2 px at 720 wide)
+const F_SANS = '"Space Grotesk", system-ui, sans-serif', F_MONO = '"JetBrains Mono", ui-monospace, monospace';
+let VIEW = null; // current camera, for label visibility
+
+function glow(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur * (CW / 720) * (VIEW ? VIEW.z : 1); }
+function noGlow() { ctx.shadowBlur = 0; }
+function strokeShape(path, color, fillA = 0.08, lw = LW, blur = 10) {
+  ctx.beginPath(); path(); ctx.fillStyle = rgba(color.startsWith('#') ? color : '#ffffff', fillA);
+  if (fillA > 0) ctx.fill();
+  glow(color, blur); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.stroke(); noGlow();
+}
+function monoText(txt, x, y, size, color, align = 'left', spacing = 0.18, alpha = 1) {
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.font = `600 ${size}px ${F_MONO}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = 'alphabetic';
+  try { ctx.letterSpacing = (size * spacing).toFixed(1) + 'px'; } catch (e) {}
+  ctx.fillText(txt, x, y); ctx.restore();
+}
+// labels are fully in frame or faded out
+function labelAlpha(x0, y0, x1, y1) {
+  const hw = W.w / 2 / VIEW.z, hh = W.h / 2 / VIEW.z;
+  const vx0 = VIEW.x - hw, vx1 = VIEW.x + hw, vy0 = VIEW.y - hh, vy1 = VIEW.y + hh;
+  const ix = Math.max(0, Math.min(x1, vx1) - Math.max(x0, vx0)), iy = Math.max(0, Math.min(y1, vy1) - Math.max(y0, vy0));
+  const f = ix * iy / ((x1 - x0) * (y1 - y0));
+  return f > 0.995 ? 1 : Math.pow(f, 40);
+}
+function compLabel(x, y, title, sub, color, align) {
+  ctx.save(); ctx.font = `600 24px ${F_MONO}`;
+  const w = 290, x0 = align === 'right' ? x - w : x, a = labelAlpha(x0, y - 26, x0 + w, y + 34);
+  monoText(title, x, y, 24, color, align, 0.16, a);
+  ctx.globalAlpha = a; ctx.font = `500 24px ${F_SANS}`; ctx.fillStyle = C.text2; ctx.textAlign = align; ctx.fillText(sub, x, y + 32);
+  ctx.restore();
+}
+
+function drawItem(it, st, s, focus) {
+  const cfg = config.items[it.kind], color = col(cfg.color), r = G.itemR * st.sc;
+  ctx.save(); ctx.globalAlpha *= st.a; ctx.translate(st.x, st.y);
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = rgba(color, 0.22); ctx.fill();
+  glow(color, 12); ctx.strokeStyle = color; ctx.lineWidth = LW; ctx.stroke(); noGlow();
+  ctx.rotate(st.rot); ctx.strokeStyle = color; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+  ctx.beginPath();
+  if (cfg.icon === 'stripe') { ctx.moveTo(-r * .5, 0); ctx.lineTo(r * .5, 0); ctx.moveTo(-r * .3, -r * .38); ctx.lineTo(r * .3, -r * .38); }
+  else { ctx.ellipse(0, 1, r * .26, r * .36, 0, 0, Math.PI * 2);
+    for (const sy of [-1, 1]) { ctx.moveTo(-r * .26, sy * r * .15); ctx.lineTo(-r * .55, sy * r * .35); ctx.moveTo(r * .26, sy * r * .15); ctx.lineTo(r * .55, sy * r * .35); }
+    ctx.moveTo(-r * .1, -r * .32); ctx.lineTo(-r * .25, -r * .58); ctx.moveTo(r * .1, -r * .32); ctx.lineTo(r * .25, -r * .58); }
+  ctx.stroke(); ctx.restore();
+}
+
+function drawFrameWorld(t, s) {
+  const cam = VIEW, sp = speedAt(t);
+  // dust (story-time drift)
+  ctx.save();
+  for (const d of DUST) {
+    const dx = reduced ? 0 : d.vx * s, dy = reduced ? 0 : d.vy * s;
+    const x = ((d.x + dx) % W.w + W.w) % W.w, y = ((d.y + dy) % W.h + W.h) % W.h;
+    ctx.fillStyle = `rgba(200,210,230,${d.a})`; ctx.beginPath(); ctx.arc(x, y, d.s, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+
+  // ---------- header (fully in frame or faded out) ----------
+  ctx.save(); ctx.globalAlpha = labelAlpha(140, 160, 940, 425); ctx.textAlign = 'center';
+  monoText(config.handle.toUpperCase(), 540, 190, 22, C.text2, 'center', 0.25);
+  ctx.font = `700 92px ${F_SANS}`; const parts = config.title, widths = parts.map(p => ctx.measureText(p.text).width);
+  let tx = 540 - widths.reduce((a, b) => a + b, 0) / 2; ctx.textAlign = 'left';
+  parts.forEach((p, i) => { ctx.fillStyle = col(p.color); if (p.color !== 'text') glow(col(p.color), 14); ctx.fillText(p.text, tx, 285); noGlow(); tx += widths[i]; });
+  ctx.textAlign = 'center'; ctx.font = `500 34px ${F_SANS}`; ctx.fillStyle = C.text2; ctx.fillText(config.subtitle, 540, 340);
+  ctx.font = `500 28px ${F_SANS}`; const pw = ctx.measureText(config.hook).width + 56;
+  ctx.beginPath(); ctx.roundRect(540 - pw / 2, 368, pw, 52, 26); ctx.fillStyle = '#131A26'; ctx.fill(); ctx.strokeStyle = '#2A3242'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = C.text; ctx.fillText(config.hook, 540, 403);
+  ctx.restore();
+
+  // ---------- counters ----------
+  for (const c of config.counters) {
+    const arr = RUN[c.id], n = countAt(arr, s), color = col(c.color);
+    const last = n > 0 ? vt(arr[n - 1]) : -9, k = (t - last) / 0.15, pop = k >= 0 && k < 1 ? 1 + 0.15 * Math.sin(k * Math.PI) : 1;
+    const left = c.side === 'left', x = left ? 80 : 1000, x0 = left ? 80 : 760;
+    const a = labelAlpha(x0, 465, x0 + 240, 600);
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.strokeStyle = color; ctx.lineWidth = 3; glow(color, 8); ctx.beginPath(); ctx.moveTo(x0, 470); ctx.lineTo(x0 + 240, 470); ctx.stroke(); noGlow();
+    monoText(c.label, x, 504, 20, color, left ? 'left' : 'right', 0.2);
+    ctx.translate(x, 580); ctx.scale(pop, pop); ctx.font = `600 76px ${F_MONO}`; ctx.fillStyle = C.text; ctx.textAlign = left ? 'left' : 'right';
+    ctx.fillText(String(n), 0, 0); ctx.restore();
+  }
+
+  // ---------- sources (hoppers) ----------
+  for (const kind of ['user', 'bot']) {
+    const src = config.sources[kind], color = col(config.items[kind].color);
+    const lastSpawn = RUN.ev.filter(e => e.type === 'spawn:' + kind && e.s <= s).pop();
+    const act = lastSpawn ? Math.max(0, 1 - (s - lastSpawn.s) / 0.3) : 0;
+    const x = src.x;
+    strokeShape(() => { ctx.moveTo(x - 48, 625); ctx.lineTo(x + 48, 625); ctx.lineTo(x + 20, 690); ctx.lineTo(x - 20, 690); ctx.closePath(); },
+      mix(C.slateLine, color, 0.55 + 0.45 * act), 0.06 + 0.1 * act, LW, 6 + 10 * act);
+    const left = kind === 'user';
+    compLabel(left ? x - 70 : x + 70, 655, src.label, src.sub, color, left ? 'right' : 'left');
+  }
+
+  // ---------- tracks ----------
+  ctx.save(); ctx.strokeStyle = C.slateLine; ctx.lineWidth = LW; ctx.lineCap = 'round';
+  const rr = G.itemR + 3;
+  for (const kind of ['user', 'bot']) { const x = config.sources[kind].x;
+    ctx.beginPath(); ctx.moveTo(x, G.chuteY + rr); ctx.lineTo(G.mergeX, G.mergeY + rr); ctx.stroke(); }
+  for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(G.mergeX + sx * rr, G.mergeY + 8); ctx.lineTo(G.mergeX + sx * rr, G.server.y - G.server.r + 4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(G.mergeX + sx * rr, G.server.y + G.server.r - 4); ctx.lineTo(G.mergeX + sx * rr, G.dbTop); ctx.stroke(); }
+  // reject chute (only meaningful after landing)
+  const [kx, ky] = G.rejectKick, [cx, cy] = G.chuteEnd, la = smooth((s - RUN.land) / 0.4);
+  ctx.globalAlpha = 0.35 + 0.65 * la; ctx.beginPath(); ctx.moveTo(kx, ky + rr); ctx.lineTo(cx, cy + rr); ctx.stroke();
+  ctx.restore();
+  // merge switch tick
+  const lm = RUN.ev.filter(e => e.type === 'merge' && e.s <= s).pop(), ma = lm ? Math.max(0, 1 - (s - lm.s) / 0.2) : 0;
+  strokeShape(() => ctx.arc(G.mergeX, G.mergeY, 9, 0, 7), mix(C.slateLine, lm ? col(config.items[lm.it.kind].color) : C.slateLine, ma), 0.1, 2.5, 4 + 10 * ma);
+
+  // ---------- server ----------
+  const sv = G.server, cur = RUN.admitted.find(o => o.ss <= s && o.se > s);
+  const lastSe = RUN.served[Math.max(0, countAt(RUN.served, s) - 1)];
+  const nServed = countAt(RUN.served, s);
+  const act = cur ? 1 : (lastSe !== undefined ? Math.max(0, 1 - (s - lastSe - SIM.serviceTime) / 0.4) : 0);
+  const sCol = mix(C.slateLine, C.main, 0.45 + 0.55 * act);
+  const notch = (nServed - 1 + (cur ? easeIO((s - cur.ss) / 0.2) : 1)) * Math.PI / 6;
+  ctx.save(); ctx.translate(sv.x, sv.y); ctx.rotate(Math.max(0, notch));
+  strokeShape(() => { for (let i = 0; i < 12; i++) { const a0 = i * Math.PI / 6, a1 = a0 + Math.PI / 12;
+      ctx.lineTo(Math.cos(a0) * sv.r, Math.sin(a0) * sv.r); ctx.lineTo(Math.cos(a0 + .05) * (sv.r + 12), Math.sin(a0 + .05) * (sv.r + 12));
+      ctx.lineTo(Math.cos(a1 - .05) * (sv.r + 12), Math.sin(a1 - .05) * (sv.r + 12)); ctx.lineTo(Math.cos(a1) * sv.r, Math.sin(a1) * sv.r); } ctx.closePath(); },
+    sCol, 0.06 + 0.06 * act, LW, 6 + 14 * act);
+  ctx.restore();
+  if (cur) { const c2 = col(config.items[cur.kind].color); ctx.save(); ctx.globalAlpha = 0.5; strokeShape(() => ctx.arc(sv.x, sv.y, sv.r - 14, 0, 7), c2, 0.08, 2, 16); ctx.restore(); }
+  compLabel(sv.x - sv.r - 40, sv.y - 8, config.main.label, config.main.sub, C.main, 'right');
+
+  // ---------- database ----------
+  const dbIdx = bsearchLE(RUN.dbIn.map(e => e.s), s), lastDb = dbIdx >= 0 ? RUN.dbIn[dbIdx] : null;
+  const da = lastDb ? Math.max(0, 1 - (s - lastDb.s) / 0.35) : 0, dCol = mix(C.slateLine, C.dest, 0.6 + 0.4 * da);
+  const dx = 540, dw = 150, top = G.dbTop + 6;
+  strokeShape(() => { ctx.ellipse(dx, top, dw / 2, 16, 0, Math.PI, 0); ctx.lineTo(dx + dw / 2, G.ground - 14); ctx.ellipse(dx, G.ground - 14, dw / 2, 14, 0, 0, Math.PI); ctx.closePath(); }, dCol, 0.06 + 0.08 * da, LW, 6 + 12 * da);
+  strokeShape(() => { ctx.ellipse(dx, top, dw / 2, 16, 0, 0, Math.PI); ctx.moveTo(dx - dw / 2, top + 30); ctx.ellipse(dx, top + 30, dw / 2, 16, 0, Math.PI, 0, true); }, dCol, 0, 2, 4);
+  compLabel(dx - dw / 2 - 30, G.dbTop + 30, config.dest.label, config.dest.sub, C.dest, 'right');
+
+  // ---------- reject bin ----------
+  const nBin = countAt(RUN.binIn, s), lb = nBin ? vt(RUN.binIn[nBin - 1]) : -9, ba = Math.max(0, 1 - (t - lb) / 0.3);
+  strokeShape(() => { ctx.moveTo(G.binX, G.binTop); ctx.lineTo(G.binX + 10, G.ground); ctx.lineTo(G.binX + G.binW - 10, G.ground); ctx.lineTo(G.binX + G.binW, G.binTop); },
+    mix(C.slateLine, C.bad, 0.25 * la + 0.35 * ba), 0.04, LW, 4 + 10 * ba);
+  {
+    const a = labelAlpha(G.binX - 10, G.binTop - 92, G.binX + G.binW + 10, G.binTop - 18) * (0.4 + 0.6 * la);
+    monoText(config.bin.label, G.binX + G.binW / 2, G.binTop - 54, 22, C.bad, 'center', 0.14, a);
+    ctx.save(); ctx.globalAlpha = a; ctx.font = `500 22px ${F_SANS}`; ctx.fillStyle = C.text2; ctx.textAlign = 'center';
+    const k = (t - lb) / 0.15, pop = k >= 0 && k < 1 ? 1 + 0.15 * Math.sin(k * Math.PI) : 1;
+    ctx.translate(G.binX + G.binW / 2, G.binTop - 24); ctx.scale(pop, pop); ctx.fillText(`${config.bin.sub} · ${nBin}`, 0, 0); ctx.restore();
+  }
+  // ground + logs
+  ctx.save(); ctx.strokeStyle = C.slate; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(60, G.ground); ctx.lineTo(1020, G.ground); ctx.stroke(); ctx.restore();
+  drawLog(dx - 150, G.ground + 22, 300, 24, RUN.dbIn.slice(0, dbIdx + 1).map(e => col(config.items[e.it.kind].color)));
+  drawLog(G.binX, G.ground + 22, G.binW, 16, Array(nBin).fill(C.bad));
+
+  // ---------- limiter (turning point) ----------
+  const dropS = RUN.land - SIM.dropDur;
+  if (s >= dropS) {
+    const k = (s - dropS) / SIM.dropDur;
+    let yOff = k < 1 ? -(1 - k * k) * 700 : -10 * Math.exp(-(s - RUN.land) * 9) * Math.abs(Math.sin((s - RUN.land) * 22));
+    const gp = RUN.gatePass[bsearchLE(RUN.gatePass.map(e => e.s), s)];
+    const ga = gp ? Math.max(0, 1 - (s - gp.s) / 0.4) : 0, gCol = gp && ga > 0 ? (gp.type === 'accept' ? C.good : C.bad) : C.turn;
+    const landGlow = Math.max(0, 1 - Math.abs(s - RUN.land) / 0.5);
+    ctx.save(); ctx.translate(0, yOff);
+    const gx = G.mergeX, gy = G.gateY;
+    strokeShape(() => ctx.roundRect(gx - 50, gy - 26, 100, 20, 6), C.turn, 0.12, LW, 10 + 16 * landGlow);
+    strokeShape(() => { ctx.moveTo(gx - 50, gy - 16); ctx.lineTo(gx - 70, gy - 16); ctx.moveTo(gx + 50, gy - 16); ctx.lineTo(gx + 70, gy - 16); }, C.turn, 0, LW, 6);
+    if (ga > 0) { ctx.save(); ctx.globalAlpha = ga; ctx.translate(gx + 84, gy - 50);
+      strokeShape(() => ctx.arc(0, 0, 18, 0, 7), gCol, 0.15, 2.5, 12);
+      ctx.beginPath(); if (gp.type === 'accept') { ctx.moveTo(-8, 0); ctx.lineTo(-2, 7); ctx.lineTo(9, -7); } else { ctx.moveTo(-7, -7); ctx.lineTo(7, 7); ctx.moveTo(7, -7); ctx.lineTo(-7, 7); }
+      ctx.strokeStyle = gCol; ctx.lineWidth = 3; ctx.stroke(); ctx.restore(); }
+    // label + buckets on the left
+    compLabel(gx - 90, gy - 40, config.turn.label, config.turn.sub, C.turn, 'right');
+    const lastAcc = RUN.accepts[countAt(RUN.accepts, s) - 1];
+    const lastRej = RUN.rejects[countAt(RUN.rejects, s) - 1];
+    config.turn.buckets.forEach(([lbl, c, full], i) => {
+      const by = gy + 34 + i * 34, bx = 220, a = labelAlpha(bx - 10, by - 22, gx - 70, by + 12);
+      ctx.save(); ctx.globalAlpha = a;
+      monoText(lbl, bx, by, 16, col(c), 'left', 0.12);
+      const spent = c === 'good' && lastAcc !== undefined && s - lastAcc < 0.8 ? 1 : 0;
+      for (let d = 0; d < 5; d++) { const filled = d < full - spent;
+        ctx.beginPath(); ctx.arc(bx + 130 + d * 22, by - 6, 7, 0, 7);
+        if (filled) { ctx.fillStyle = rgba(C.turn, 0.85); glow(C.turn, 8); ctx.fill(); noGlow(); }
+        else { ctx.strokeStyle = (c === 'bad' && lastRej !== undefined && s - lastRej < 0.4) ? C.bad : C.slateLine; ctx.lineWidth = 2; ctx.stroke(); } }
+      ctx.restore();
+    });
+    ctx.restore();
+  }
+
+  // ---------- items (with trails) ----------
+  const trailN = reduced ? 0 : 6, trailStep = 0.018 * (sp < 0.9 ? 2 / Math.max(sp, 0.4) * 0.4 + 1 : 1);
+  for (const it of RUN.items) {
+    if (s < it.t0 || s > it.tEnd) continue;
+    const st = itemState(it, s); if (!st) continue;
+    const color = col(config.items[it.kind].color);
+    for (let k = trailN; k >= 1; k--) {
+      const p = itemState(it, s - k * trailStep); if (!p) continue;
+      if (Math.hypot(p.x - st.x, p.y - st.y) < 2) continue;
+      ctx.beginPath(); ctx.arc(p.x, p.y, G.itemR * (1 - k / (trailN + 2)), 0, 7); ctx.fillStyle = rgba(color, 0.07 * (1 - k / (trailN + 1)) * st.a); ctx.fill();
+    }
+    drawItem(it, st, s);
+  }
+  // focus ring + tag
+  for (const c of CAPS) {
+    if (!c.focusItem || t < c.t0 || t > c.t1) continue;
+    const st = itemState(c.focusItem, s); if (!st) continue;
+    const a = Math.min(smooth((t - c.t0) / 0.25), smooth((c.t1 - t) / 0.2)) * st.a, color = col(config.items[c.focusItem.kind].color);
+    const tag = c.tag === 'key' ? config.items[c.focusItem.kind].key : c.tag;
+    ctx.save(); ctx.globalAlpha = a; ctx.setLineDash([6, 5]); strokeShape(() => ctx.arc(st.x, st.y, G.itemR + 11, 0, 7), C.text, 0, 2, 6); ctx.setLineDash([]);
+    ctx.font = `600 15px ${F_MONO}`; const tw = ctx.measureText(tag).width + tag.length * 2.5 + 20;
+    const tx2 = st.x + 34, ty2 = st.y - 46;
+    ctx.beginPath(); ctx.roundRect(tx2, ty2, tw, 28, 6); ctx.fillStyle = 'rgba(11,15,23,.85)'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+    monoText(tag, tx2 + 10, ty2 + 19, 15, color, 'left', 0.15);
+    ctx.restore();
+  }
+}
+function drawLog(x, y, w, n, colors) {
+  const gap = 3, sw = (w - gap * (n - 1)) / n, start = Math.max(0, colors.length - n);
+  for (let i = 0; i < n; i++) {
+    const c = colors[start + i];
+    ctx.fillStyle = c ? rgba(c, 0.85) : 'rgba(58,66,80,.45)'; ctx.fillRect(x + i * (sw + gap), y, sw, 7);
+  }
+}
+
+// screen-space overlays: captions, footer, slow-mo chip, vignette
+function drawOverlay(t) {
+  const k = CW / W.w; // screen scale (world-sized units)
+  ctx.save(); ctx.scale(k, k);
+  const sp = speedAt(t), slowK = clamp((1 - sp) / 0.6, 0, 1);
+  if (slowK > 0) {
+    const g = ctx.createRadialGradient(540, 960, 500, 540, 960, 1150); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${0.45 * slowK})`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W.w, W.h);
+    ctx.globalAlpha = slowK; ctx.beginPath(); ctx.roundRect(900, 170, 110, 44, 22); ctx.fillStyle = 'rgba(19,26,38,.9)'; ctx.fill();
+    ctx.strokeStyle = C.turn; ctx.lineWidth = 2; ctx.stroke(); monoText(sp.toFixed(1) + 'x', 955, 200, 20, C.turn, 'center', 0.1); ctx.globalAlpha = 1;
+  }
+  // caption band at 80-88 %, on a soft scrim so world labels never collide with it
+  const capOn = CAPS.reduce((m, c) => Math.max(m, clamp(Math.min((t - c.t0) / 0.25, (c.t1 + 0.2 - t) / 0.2), 0, 1)), 0);
+  if (capOn > 0) { const g = ctx.createLinearGradient(0, W.h * 0.74, 0, W.h * 0.93);
+    g.addColorStop(0, 'rgba(11,15,23,0)'); g.addColorStop(0.3, 'rgba(11,15,23,.88)'); g.addColorStop(0.75, 'rgba(11,15,23,.88)'); g.addColorStop(1, 'rgba(11,15,23,0)');
+    ctx.globalAlpha = capOn; ctx.fillStyle = g; ctx.fillRect(0, W.h * 0.74, W.w, W.h * 0.19); ctx.globalAlpha = 1; }
+  for (const c of CAPS) {
+    if (t < c.t0 || t > c.t1 + 0.2) continue;
+    const ain = clamp((t - c.t0) / 0.25, 0, 1), aout = t > c.t1 ? 1 - clamp((t - c.t1) / 0.2, 0, 1) : 1, a = easeOut(ain) * aout;
+    const slide = (1 - easeOut(ain)) * 18;
+    let size = 56, lines;
+    const maxW = 940;
+    for (; size >= 46; size -= 2) { ctx.font = `600 ${size}px ${F_SANS}`; if (ctx.measureText(c.text).width <= maxW) break; }
+    ctx.font = `600 ${Math.max(size, 46)}px ${F_SANS}`; size = Math.max(size, 46);
+    if (ctx.measureText(c.text).width <= maxW) lines = [c.text];
+    else { const words = c.text.split(' '); let best = 1, bd = 1e9;
+      for (let i = 1; i < words.length; i++) { const d = Math.abs(ctx.measureText(words.slice(0, i).join(' ')).width - ctx.measureText(words.slice(i).join(' ')).width); if (d < bd) { bd = d; best = i; } }
+      lines = [words.slice(0, best).join(' '), words.slice(best).join(' ')]; }
+    const lh = size * 1.18, baseY = W.h * 0.84 - (lines.length - 1) * lh / 2 + size * 0.35 + slide;
+    ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = C.text; ctx.textAlign = 'left';
+    ctx.shadowColor = 'rgba(0,0,0,.8)'; ctx.shadowBlur = 18;
+    lines.forEach((ln, i) => {
+      const lw = ctx.measureText(ln).width, x0 = 540 - lw / 2, y = baseY + i * lh;
+      ctx.fillText(ln, x0, y);
+      const wi = ln.indexOf(c.word);
+      if (wi >= 0) { const ux = x0 + ctx.measureText(ln.slice(0, wi)).width, uw = ctx.measureText(c.word).width, uk = easeIO((t - c.t0 - 0.2) / 0.45);
+        if (uk > 0) { ctx.save(); ctx.shadowBlur = 10; ctx.shadowColor = col(c.color); ctx.strokeStyle = col(c.color); ctx.lineWidth = 5; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(ux, y + 12); ctx.lineTo(ux + uw * uk, y + 12); ctx.stroke(); ctx.restore(); } }
+    });
+    ctx.restore();
+  }
+  // footer (fades in for the summary)
+  const fa = smooth((t - CAPS[CAPS.length - 1].t0) / 0.6);
+  if (fa > 0) { monoText(config.footer[0], 540, 1750, 19, C.text, 'center', 0.14, fa); monoText(config.footer[1], 540, 1784, 15, C.text2, 'center', 0.12, fa * 0.9); }
+  ctx.restore();
+}
+
+function renderAt(t) {
+  t = clamp(t, 0, config.duration);
+  const s = warp(t);
+  VIEW = camAt(t);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, CW, CH);
+  const k = CW / W.w * VIEW.z;
+  ctx.save(); ctx.translate(CW / 2, CH / 2); ctx.scale(k, k); ctx.translate(-VIEW.x, -VIEW.y);
+  drawFrameWorld(t, s);
+  ctx.restore();
+  drawOverlay(t);
+}
+// pure frame draw + loop dissolve into frame 0
+let frame0 = null;
+function drawFrame(t) {
+  renderAt(t);
+  const dz = config.duration - 0.5;
+  if (t > dz) {
+    if (!frame0) { const snap = document.createElement('canvas'); snap.width = cv.width; snap.height = cv.height;
+      const keep = ctx.getImageData(0, 0, cv.width, cv.height); renderAt(0); snap.getContext('2d').drawImage(cv, 0, 0); ctx.putImageData(keep, 0, 0); frame0 = snap; }
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = smooth((t - dz) / 0.5); ctx.drawImage(frame0, 0, 0); ctx.restore();
+  }
+}
+window.seek = t => { player.t = clamp(t, 0, config.duration); drawFrame(player.t); syncUI(); };
+
+// =====================================================================
+// AUDIO: one-shots rendered once, mixed at event times, pad, normalise
+// =====================================================================
+const SR = 44100;
+const SFX = {
+  thump:  (c, f, o) => tone(c, o, 'sine', 120 * f, 48 * f, 0.18 / f, 0.9),
+  clack:  (c, f, o) => noise(c, o, 2600 * f, 8, 0.04 / f, 0.6),
+  tick:   (c, f, o) => tone(c, o, 'square', 3200 * f, 3000 * f, 0.018 / f, 0.25),
+  ratchet:(c, f, o) => { for (let i = 0; i < 3; i++) noise(c, o, 1800 * f, 10, 0.02 / f, 0.5, i * 0.035 / f); },
+  chime:  (c, f, o) => { tone(c, o, 'sine', 1318 * f, 1318 * f, 0.6 / f, 0.5); tone(c, o, 'triangle', 1976 * f, 1976 * f, 0.45 / f, 0.25, 0.04 / f); },
+  buzz:   (c, f, o) => tone(c, o, 'sawtooth', 110 * f, 100 * f, 0.26 / f, 0.35, 0, 900 * f),
+  thunk:  (c, f, o) => { tone(c, o, 'sine', 170 * f, 70 * f, 0.2 / f, 0.9); noise(c, o, 400 * f, 1, 0.08 / f, 0.5); },
+  pop:    (c, f, o) => tone(c, o, 'sine', 900 * f, 1400 * f, 0.05 / f, 0.5),
+  whoosh: (c, f, o) => { const n = noiseSrc(c, 1.0); const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(300, 0); bp.frequency.exponentialRampToValueAtTime(2600, 0.6); bp.frequency.exponentialRampToValueAtTime(500, 0.95);
+    const g = c.createGain(); g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(0.8, 0.55); g.gain.linearRampToValueAtTime(0, 0.98);
+    n.connect(bp).connect(g).connect(o); n.start(0); },
+  land:   (c, f, o) => { tone(c, o, 'sine', 75 * f, 45 * f, 0.6 / f, 1); noise(c, o, 300 * f, 0.7, 0.3 / f, 0.6); }
+};
+function noiseSrc(c, dur) { const b = c.createBuffer(1, Math.ceil(dur * c.sampleRate), c.sampleRate), d = b.getChannelData(0), r = mulberry32(5);
+  for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; const s = c.createBufferSource(); s.buffer = b; return s; }
+function tone(c, o, type, f0, f1, dur, vol, at = 0, lp) {
+  const os = c.createOscillator(), g = c.createGain(); os.type = type; os.frequency.setValueAtTime(f0, at); os.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + dur);
+  g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol, at + 0.004); g.gain.exponentialRampToValueAtTime(0.0008, at + dur);
+  let n = os; if (lp) { const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; os.connect(f); n = f; }
+  n.connect(g).connect(o); os.start(at); os.stop(at + dur + 0.05);
+}
+function noise(c, o, freq, q, dur, vol, at = 0) {
+  const n = noiseSrc(c, dur + 0.05), bp = c.createBiquadFilter(), g = c.createGain(); bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = q;
+  g.gain.setValueAtTime(vol, at); g.gain.exponentialRampToValueAtTime(0.0008, at + dur); n.connect(bp).connect(g).connect(o); n.start(at); n.stop(at + dur + 0.05);
+}
+async function renderShot(name, slow) {
+  const f = slow ? 0.62 : 1, len = Math.ceil((name === 'whoosh' ? 1.1 : 1.0) / (slow ? 0.55 : 1) * SR);
+  const c = new OfflineAudioContext(1, len, SR); SFX[name](c, f, c.destination);
+  return (await c.startRendering()).getChannelData(0);
+}
+async function renderPad(dur) {
+  const c = new OfflineAudioContext(2, Math.ceil(dur * SR), SR), lp = c.createBiquadFilter(), g = c.createGain();
+  lp.type = 'lowpass'; lp.frequency.value = 800; g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(1, 3); g.gain.setValueAtTime(1, dur - 2); g.gain.linearRampToValueAtTime(0.4, dur);
+  lp.connect(g).connect(c.destination);
+  const chords = [[130.81, 196.0, 246.94, 329.63], [110.0, 164.81, 220.0, 261.63]];
+  for (let ci = 0; ci * 8 < dur; ci++) {
+    const at = ci * 8, ch = chords[ci % 2];
+    ch.forEach((fr, i) => { for (const det of [-3, 3]) {
+      const o = c.createOscillator(), v = c.createGain(), p = c.createStereoPanner(); o.type = 'triangle'; o.frequency.value = fr; o.detune.value = det;
+      p.pan.value = det > 0 ? 0.4 : -0.4; v.gain.setValueAtTime(0, at); v.gain.linearRampToValueAtTime(0.022, at + 2.5); v.gain.setValueAtTime(0.022, at + 6.5); v.gain.linearRampToValueAtTime(0, at + 9.5);
+      o.connect(v).connect(p).connect(lp); o.start(at); o.stop(Math.min(dur, at + 9.6)); } });
+  }
+  return await c.startRendering();
+}
+function audioEvents() {
+  const out = [], add = (name, s, x, vol) => out.push({ name, s, x, vol });
+  for (const e of RUN.ev) {
+    switch (e.type) {
+      case 'spawn:user': case 'spawn:bot': add('thump', e.s, e.x, 0.22); break;
+      case 'merge': add('clack', e.s, e.x, 0.18); break;
+      case 'accept': add('tick', e.s, e.x, 0.3); add('chime', e.s + 0.02, e.x, 0.32); break;
+      case 'reject': add('tick', e.s, e.x, 0.3); add('buzz', e.s + 0.02, e.x + 60, 0.3); break;
+      case 'bin': add('thunk', e.s, e.x, 0.4); add('pop', e.s, 900, 0.18); break;
+      case 'serve': add('ratchet', e.s, e.x, 0.22); break;
+      case 'served:user': add('pop', e.s, 160, 0.22); break;
+      case 'served:bot': add('pop', e.s, 920, 0.22); break;
+      case 'drop': add('whoosh', e.s - 0.3, e.x, 0.55); break;
+      case 'land': add('land', e.s, e.x, 0.9); break;
+    }
+  }
+  return out;
+}
+async function buildAudio() {
+  const D = config.duration, N = Math.ceil(D * SR), L = new Float32Array(N), R = new Float32Array(N);
+  const shots = {};
+  for (const n of Object.keys(SFX)) { shots[n + '0'] = await renderShot(n, 0); shots[n + '1'] = await renderShot(n, 1); }
+  const pad = await renderPad(D), pl = pad.getChannelData(0), pr = pad.getChannelData(1);
+  for (let i = 0; i < N; i++) { L[i] = pl[i]; R[i] = pr[i]; }
+  for (const e of audioEvents()) {
+    const t = vt(e.s); if (t < 0 || t >= D) continue;
+    const slow = speedAt(t) < 0.9 ? 1 : 0, buf = shots[e.name + slow];
+    const cam = camAt(t), sx = (e.x - cam.x) * cam.z / W.w; // -0.5..0.5 on screen
+    const pan = clamp(sx * 1.4, -0.8, 0.8), gl = Math.cos((pan + 1) * Math.PI / 4) * e.vol, gr = Math.sin((pan + 1) * Math.PI / 4) * e.vol;
+    const i0 = Math.round(t * SR);
+    for (let i = 0; i < buf.length && i0 + i < N; i++) { L[i0 + i] += buf[i] * gl; R[i0 + i] += buf[i] * gr; }
+  }
+  // loudness: RMS target about -18 dBFS (approximates -18 LUFS for this material), then soft limiter
+  let sum = 0; for (let i = 0; i < N; i++) sum += L[i] * L[i] + R[i] * R[i];
+  const rms = Math.sqrt(sum / (2 * N)), gain = Math.pow(10, -18 / 20) / Math.max(rms, 1e-6);
+  const lim = x => { x *= gain; const a = Math.abs(x); return a < 0.7 ? x : Math.sign(x) * (0.7 + 0.29 * Math.tanh((a - 0.7) / 0.29)); };
+  for (let i = 0; i < N; i++) { L[i] = lim(L[i]); R[i] = lim(R[i]); }
+  // short fades so the loop point is clean
+  const fN = Math.round(0.3 * SR); for (let i = 0; i < fN; i++) { const k = i / fN; L[N - 1 - i] *= k; R[N - 1 - i] *= k; }
+  return { L, R, N };
+}
+
+// =====================================================================
+// PLAYER
+// =====================================================================
+const player = { t: 0, playing: false, sound: true, loop: true, started: false, wallStart: 0, actx: null, buf: null, src: null, ctxStart: 0, audioReady: null };
+const $ = id => document.getElementById(id);
+const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+function syncUI() {
+  $('play').textContent = player.playing ? '❚❚' : '▶';
+  $('scrub').value = Math.round(player.t * 1000);
+  $('time').textContent = `${fmt(player.t)} / ${fmt(config.duration).replace(/\.0$/, '')}`;
+  $('snd').setAttribute('aria-pressed', player.sound); $('loop').setAttribute('aria-pressed', player.loop);
+}
+function stopSource() { if (player.src) { try { player.src.stop(); } catch (e) {} player.src.disconnect(); player.src = null; } }
+function startSource() {
+  stopSource();
+  if (!player.sound || !player.buf || !player.playing) return;
+  const s = player.actx.createBufferSource(); s.buffer = player.buf; s.connect(player.actx.destination);
+  player.ctxStart = player.actx.currentTime - player.t; s.start(0, player.t); player.src = s;
+}
+function ensureAudio() {
+  if (player.audioReady) return player.audioReady;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC || !window.OfflineAudioContext) { $('snd').disabled = true; player.sound = false; return (player.audioReady = Promise.resolve()); }
+  player.actx = new AC();
+  player.audioReady = buildAudio().then(({ L, R, N }) => {
+    const b = player.actx.createBuffer(2, N, SR); b.copyToChannel(L, 0); b.copyToChannel(R, 1); player.buf = b;
+    if (player.playing) { player.wallClockT = player.t; startSource(); }
+  }).catch(err => { console.warn('audio disabled', err); $('snd').disabled = true; player.sound = false; });
+  return player.audioReady;
+}
+function play() {
+  if (player.t >= config.duration - 0.01) player.t = 0;
+  player.playing = true; player.started = true; $('bigplay').style.display = 'none';
+  player.wallStart = performance.now() / 1000 - player.t;
+  if (player.actx && player.actx.state === 'suspended') player.actx.resume();
+  ensureAudio(); startSource(); syncUI();
+}
+function pause() { player.playing = false; stopSource(); syncUI(); }
+function toggle() { player.playing ? pause() : play(); }
+function seekTo(t) { player.t = clamp(t, 0, config.duration); player.wallStart = performance.now() / 1000 - player.t; if (player.playing) startSource(); drawFrame(player.t); syncUI(); }
+function tick() {
+  if (player.playing) {
+    // audio clock is master while sound plays
+    if (player.src && player.sound) player.t = player.actx.currentTime - player.ctxStart;
+    else player.t = performance.now() / 1000 - player.wallStart;
+    if (player.t >= config.duration) {
+      if (player.loop) { player.t = 0; player.wallStart = performance.now() / 1000; startSource(); }
+      else { player.t = config.duration; pause(); }
+    }
+    drawFrame(player.t); syncUI();
+  }
+  requestAnimationFrame(tick);
+}
+$('bigplay').onclick = play; $('play').onclick = toggle;
+$('scrub').oninput = e => seekTo(e.target.value / 1000);
+$('snd').onclick = () => { player.sound = !player.sound; if (player.sound) { ensureAudio(); if (player.playing) startSource(); } else { stopSource(); player.wallStart = performance.now() / 1000 - player.t; } syncUI(); };
+$('loop').onclick = () => { player.loop = !player.loop; syncUI(); };
+addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); toggle(); }
+  else if (e.code === 'ArrowRight') { e.preventDefault(); seekTo(player.t + 2); }
+  else if (e.code === 'ArrowLeft') { e.preventDefault(); seekTo(player.t - 2); }
+});
+function layout() {
+  const barH = 52, availH = innerHeight - barH - 16, availW = Math.min(innerWidth - 16, 1080);
+  let h = availH, w = h * 9 / 16; if (w > availW) { w = availW; h = w * 16 / 9; }
+  w = Math.floor(w); h = Math.floor(w * 16 / 9);
+  const st = $('stage'); st.style.width = w + 'px'; st.style.height = h + 'px'; $('bar').style.width = w + 'px';
+  DPR = Math.min(2, window.devicePixelRatio || 1); CW = w; CH = h; cv.width = Math.round(w * DPR); cv.height = Math.round(h * DPR);
+  frame0 = null; drawFrame(player.t);
+}
+addEventListener('resize', layout);
+window.__debug = { RUN, warp, vt, speedAt, camAt, CAPS, SHOTS, SLOW, countAt, STORY_END };
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(() => { layout(); syncUI(); requestAnimationFrame(tick); });
+layout();
+</script>
+</body>
+</html>
