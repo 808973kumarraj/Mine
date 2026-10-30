@@ -1,0 +1,40 @@
+{
+  "rss_feeds": {
+    "36kr": {
+      "url": "https://36kr.com/feed",
+      "name": "36氪",
+      "category": "科技财经"
+    },
+    "huxiu": {
+      "url": "https://www.huxiu.com/rss/0.xml",
+      "name": "虎嗅",
+      "category": "商业观察"
+    },
+    "xueqiu": {
+      "url": "https://xueqiu.com/hots/topic/rss",
+      "name": "雪球",
+      "category": "投资者社区"
+    },
+    "ftchinese": {
+      "url": "https://www.ftchinese.com/rss/feed",
+      "name": "FT中文网",
+      "category": "市场分析"
+    },
+    "cnbc": {
+      "url": "https://www.cnbc.com/id/100003114/device/rss/rss.html",
+      "name": "CNBC",
+      "category": "美股聚焦"
+    }
+  },
+  "claude": {
+    "model": "glm-4-plus",
+    "max_tokens": 8192,
+    "temperature": 0.3,
+    "base_url": "https://open.bigmodel.cn/api/anthropic"
+  },
+  "output": {
+    "digests_dir": "digests",
+    "date_format": "%Y-%m-%d",
+    "enable_risk_warning": true
+  }
+}

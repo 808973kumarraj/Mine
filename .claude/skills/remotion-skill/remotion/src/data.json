@@ -1,0 +1,266 @@
+{
+  "meta": {
+    "topic": "期货",
+    "title": "期货到底是个啥？为啥有人一夜暴富有人倾家荡产？",
+    "fps": 30,
+    "width": 1080,
+    "height": 1440
+  },
+  "scenes": [
+    {
+      "id": "scene_01",
+      "type": "hook",
+      "text": "你敢信吗？有人用5万块，一天就赚了50万！但也有人一夜之间反而倒欠交易所几十万！这究竟是啥操作？",
+      "duration": 8.039,
+      "character": {
+        "type": "surprised",
+        "path": null
+      },
+      "icon": {
+        "name": "profit",
+        "path": "assets/icons/盈余_白板手绘.png"
+      },
+      "visual_action": "highlight",
+      "audio": {
+        "path": "audio/scene_01.mp3",
+        "duration_ms": 8039,
+        "word_timestamps": null
+      }
+    },
+    {
+      "id": "scene_02",
+      "type": "title",
+      "text": "今天咱们就来聊聊金融市场里，又刺激又危险的品种——期货！",
+      "duration": 4.392,
+      "character": {
+        "type": "pointing",
+        "path": null
+      },
+      "icon": {
+        "name": "期货合约",
+        "path": "assets/icons/期货合约_白板手绘.png"
+      },
+      "visual_action": "underline",
+      "audio": {
+        "path": "audio/scene_02.mp3",
+        "duration_ms": 4392,
+        "word_timestamps": null
+      }
+    },
+    {
+      "id": "scene_03",
+      "type": "question",
+      "text": "期货到底是个啥？为什么有人说它是暴富神器，也有人说它是财富绞肉机？它跟咱们普通人到底有什么关系呢？",
+      "duration": 8.208,
+      "character": {
+        "type": "thinking",
+        "path": null
+      },
+      "icon": {
+        "name": "天平秤",
+        "path": "assets/icons/天平秤_白板手绘.png"
+      },
+      "visual_action": "circle",
+      "audio": {
+        "path": "audio/scene_03.mp3",
+        "duration_ms": 8208,
+        "word_timestamps": null
+      }
+    },
+    {
+      "id": "scene_04",
+      "type": "analogy",
+      "text": "打个比方，你是个奶茶店老板，特别担心冬天白糖会涨价。于是你提前跟糖厂签个合同：三个月后，不管糖价怎么变，都按每吨五千块成交。这种提前锁定未来价格的合同，就是期货的雏形！",
+      "duration": 13.872,
+      "character": {
+        "type": "pointing",
+        "path": null
+      },
+      "icon": {
+        "name": "contract",
+        "path": "assets/icons/合同文件_白板手绘.png"
+      },
+      "visual_action": "arrow",
+      "audio": {
+        "path": "audio/scene_04.mp3",
+        "duration_ms": 13872,
+        "word_timestamps": null
+      }
+    },
+    {
+      "id": "scene_05",
+      "type": "explain",
+      "text": "不过真正的期货，是在交易所里标准化交易的合约。最最关键的是——它有杠杆！你不用付全款，只需要交百分之五到百分之十五的保证金，就能撬动一整份合约的价值。就像你用十万的首付，控制了一百万的资产！",
+      "duration": 15.312,
+      "character": {
+        "type": "pointing",
+        "path": null
+      },
+      "icon": {
+        "name": "exchange",
+        "path": "assets/icons/纽交所_白板手绘.png"
+      },
+      "visual_action": "circle",
+      "audio": {
+        "path": "audio/scene_05.mp3",
+        "duration_ms": 15312,
+        "word_timestamps": null
+      }
+    },
+    {
+      "id": "scene_06",
+      "type": "example",
+      "text": "举个真实的例子。一手螺纹钢期货价值十万块，保证金百分之十，你只要一万就能做。涨了百分之五，你赚五千，本金收益率百分之五十！但反过来跌百分之五，你也亏掉了一半本金！杠杆就是这么刺激。",
+      "duration": 14.616,
+      "character": {
+        "type": "surprised",
+        "path": null
+      },
+      "icon": {
+        "name": "chart",
+        "path": "assets/icons/K线图_白板手绘.png"
+      },
+      "visual_action": "highlight",
+      "audio": {
+        "path": "audio/scene_06.mp3",
+        "duration_ms": 14616,
+        "word_timestamps": null
+      }
+    },
+    {
+      "id": "scene_07",
+      "type": "comparison",
+      "text": "那期货和股票有啥不同呢？第一，期货能做空，跌了也能赚钱。第二，T加零交易，当天随时买卖。第三，期货有到期日，不能像股票那样一直拿着不动。灵活性更高，但风险也更大！",
+      "duration": 14.376,
+      "character": {
+        "type": "pointing",
+        "path": null
+      },
+      "icon": {
+        "name": "stock",
+        "path": "assets/icons/股票投资_白板手绘.png"
+      },
+      "visual_action": "checkmark",
+      "audio": {
+        "path": "audio/scene_07.mp3",
+        "duration_ms": 14376,
+        "word_timestamps": null
+      }
+    },
+    {
+      "id": "scene_08",
+      "type": "explain",
+      "text": "还有一个可怕的机制，叫做强制平仓。当你的保证金亏到不够的时候，交易所会直接帮你强制卖掉！说白了就是系统替你认赔出场。严重的时候本金都不够亏，还会倒欠钱，这就叫——穿仓！",
+      "duration": 13.416,
+      "character": {
+        "type": "confused",
+        "path": null
+      },
+      "icon": {
+        "name": "loss",
+        "path": "assets/icons/赤字_白板手绘.png"
+      },
+      "visual_action": "bracket",
+      "audio": {
+        "path": "audio/scene_08.mp3",
+        "duration_ms": 13416,
+        "word_timestamps": null
+      }
+    },
+    {
+      "id": "scene_09",
+      "type": "summary",
+      "text": "最后帮你总结三个关键词。第一，标准化合约。第二，杠杆效应，盈亏都会被放大。第三，到期交割。记住了，期货是专业选手的工具，不是赌场！",
+      "duration": 11.52,
+      "character": {
+        "type": "happy",
+        "path": null
+      },
+      "icon": {
+        "name": "certificate",
+        "path": "assets/icons/证书文凭_白板手绘.png"
+      },
+      "visual_action": "checkmark",
+      "audio": {
+        "path": "audio/scene_09.mp3",
+        "duration_ms": 11520,
+        "word_timestamps": null
+      }
+    },
+    {
+      "id": "scene_10",
+      "type": "cta",
+      "text": "觉得有用的话点个赞收藏一下！关注秒懂金融，每天一个金融知识，咱们下期见啦！",
+      "duration": 5.736,
+      "character": {
+        "type": "waving",
+        "path": null
+      },
+      "icon": {
+        "name": "coin",
+        "path": "assets/icons/金币堆_白板手绘.png"
+      },
+      "visual_action": "none",
+      "audio": {
+        "path": "audio/scene_10.mp3",
+        "duration_ms": 5736,
+        "word_timestamps": null
+      }
+    }
+  ],
+  "audio": {
+    "files": {
+      "scene_01": {
+        "path": "audio/scene_01.mp3",
+        "duration_ms": 8039,
+        "word_timestamps": null
+      },
+      "scene_02": {
+        "path": "audio/scene_02.mp3",
+        "duration_ms": 4392,
+        "word_timestamps": null
+      },
+      "scene_03": {
+        "path": "audio/scene_03.mp3",
+        "duration_ms": 8208,
+        "word_timestamps": null
+      },
+      "scene_04": {
+        "path": "audio/scene_04.mp3",
+        "duration_ms": 13872,
+        "word_timestamps": null
+      },
+      "scene_05": {
+        "path": "audio/scene_05.mp3",
+        "duration_ms": 15312,
+        "word_timestamps": null
+      },
+      "scene_06": {
+        "path": "audio/scene_06.mp3",
+        "duration_ms": 14616,
+        "word_timestamps": null
+      },
+      "scene_07": {
+        "path": "audio/scene_07.mp3",
+        "duration_ms": 14376,
+        "word_timestamps": null
+      },
+      "scene_08": {
+        "path": "audio/scene_08.mp3",
+        "duration_ms": 13416,
+        "word_timestamps": null
+      },
+      "scene_09": {
+        "path": "audio/scene_09.mp3",
+        "duration_ms": 11520,
+        "word_timestamps": null
+      },
+      "scene_10": {
+        "path": "audio/scene_10.mp3",
+        "duration_ms": 5736,
+        "word_timestamps": null
+      }
+    },
+    "total_duration_ms": 109487
+  }
+}
