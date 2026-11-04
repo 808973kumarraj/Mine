@@ -52,89 +52,78 @@ const config = {
   topic: 'Delta Lake Change Data Feed',
   handle: '@kumarraj',
   title: [{ text: 'Change Data ', color: 'text' }, { text: 'Feed', color: 'turn' }],
-  subtitle: 'Delta Lake syncs only what changed',
-  hook: 'Why rescan the whole table?',
-  footer: ['CDF READS THE TRANSACTION LOG · ONLY CHANGED ROWS FLOW', 'SIMPLIFIED · Delta Lake readChangeFeed · table_changes()'],
-  duration: 57,          // video seconds
-  seed: 20261030,
-  world: { w: 1080, h: 1920 },
+  subtitle: 'Delta Lake · track row-level changes',
+  hook: 'What changed between v0 and v1?',
+  footer: ['CDF = ONLY THE CHANGED ROWS, READ FROM THE DELTA LOG', 'SIMPLIFIED · Delta Lake readChangeFeed · table_changes()'],
+  duration: 57, seed: 11, world: { w: 1080, h: 1920 },
   colors: {
     bg: '#0B0F17', good: '#7DB4F0', bad: '#F0738F', main: '#F2B544', turn: '#B7A6F5', dest: '#6FD6B4',
     slate: '#3A4250', slateLine: '#5A6476', text: '#E8ECF2', text2: '#9AA3B2'
   },
-  items: {
-    user: { color: 'good', icon: 'stripe', key: 'UPDATE · id 2' },
-    bot:  { color: 'bad',  icon: 'dot',    key: 'NO CHANGE' }
-  },
-  sources: {
-    user: { x: 330, label: 'CHANGED', sub: 'insert / update', every: 1.8, start: 0.15 },
-    bot:  { x: 750, label: 'UNCHANGED', sub: 'old rows',  every: 0.6, start: 0.45 }
-  },
-  counters: [
-    { id: 'usersServed', label: 'CHANGES SYNCED', color: 'good', side: 'left' },
-    { id: 'botsIn',      label: 'WASTED READS',      color: 'bad',  side: 'right' }
+  // meaning → colour: postimage/new value = good, preimage/old value = bad, Delta table = main, CDF = turn, insert = dest
+  table: { name: 'customers', cols: ['id', 'name', 'city'], widths: [130, 270, 360],
+    v0: [[1, 'Ravi', 'Hyderabad'], [2, 'John', 'Chennai'], [3, 'Priya', 'Bangalore']],
+    update: { row: 1, col: 2, to: 'Mumbai' }, insert: [4, 'Arun', 'Delhi'] },
+  cdfRows: [ // [_change_type, id, name, city, colour, source row in v1]
+    ['update_preimage', 2, 'John', 'Chennai', 'bad', 1],
+    ['update_postimage', 2, 'John', 'Mumbai', 'good', 1],
+    ['insert', 4, 'Arun', 'Delhi', 'dest', 3]
   ],
-  main: { label: 'SYNC JOB', sub: 'copies rows out' },
-  turn: { label: 'CHANGE DATA FEED', sub: 'reads the txn log', buckets: [['IN LOG', 'good', 5], ['NOT IN LOG', 'bad', 0]] },
-  dest: { label: 'SNOWFLAKE', sub: 'downstream copy' },
-  bin:  { label: 'SKIPPED', sub: 'no change' },
-  geo: {
-    mouthY: 700, chuteY: 770, mergeX: 540, mergeY: 840, gateY: 945, headY: 1090, slot: 36,
-    server: { x: 540, y: 1170, r: 58 }, dbTop: 1392, ground: 1480,
-    rejectKick: [585, 962], chuteEnd: [800, 1292], binX: 770, binW: 200, binTop: 1300,
-    itemR: 16.5
-  },
-  sim: {
-    v: 430, g: 2200, serviceTime: 0.4, minGap: 0.17, jitter: 0.12,
-    landAt: 24.6,          // story time the limiter touches down
-    dropDur: 0.6,          // story seconds of the fall
-    spawnUntil: 54
-  },
-  captions: [ // at/end in story seconds; {users}/{bots} = counter at caption start, {botsFinal} = final
-    { at: 0.3,  end: 4.9,  text: '3 OLD ROWS READ PER CHANGE?', word: 'OLD', color: 'bad' },
-    { at: 5.2,  end: 9.4,  text: 'One ball = one row.', word: 'row', color: 'good',
-      focus: { event: 'spawn:user', near: 5.9, tag: '1 ROW' } },
-    { at: 9.7,  end: 13.8, text: 'Most rows did not change at all.', word: 'not change', color: 'bad',
-      focus: { event: 'spawn:bot', near: 10.3, tag: 'key' } },
-    { at: 14.2, end: 18.1, text: 'A full scan re-reads every row.', word: 'full scan', color: 'main' },
-    { at: 18.5, end: 21.6, text: '{bots} old rows read, and climbing.', word: 'old rows', color: 'bad' },
-    { at: 21.9, end: 23.7, text: 'Read only the changes instead.', word: 'changes', color: 'turn' },
-    { at: 23.5, end: 24.75, text: 'Change Data Feed switches on.', word: 'Change Data Feed', color: 'turn' },
-    { at: 24.85, end: 27.0, text: 'Rows already read still finish.', word: 'already', color: 'bad' },
-    { at: 27.3, end: 29.8, text: 'Now the transaction log decides.', word: 'transaction log', color: 'turn' },
-    { at: 30.1, end: 33.6, text: 'Not in the log? Skipped.', word: 'Skipped', color: 'bad',
-      focus: { event: 'reject', near: 31.2, tag: 'key' } },
-    { at: 34.0, end: 37.0, text: 'Old rows keep coming. All skipped.', word: 'skipped', color: 'bad' },
-    { at: 37.3, end: 41.6, text: 'Changed in the log? Synced.', word: 'Synced', color: 'good',
-      focus: { event: 'accept', near: 39.6, tag: 'key' } },
-    { at: 42.0, end: 46.6, text: '{botsFinal} wasted reads. Then zero.', word: 'zero', color: 'turn' },
-    { at: 46.9, end: 99,   text: 'Sync only what changed.', word: 'only what changed', color: 'turn' }
+  scenes: [ // story seconds
+    { id: 'hook', a: 0, b: 4.6, chip: '' },
+    { id: 'example', a: 4.6, b: 12.6, chip: '1 · EXAMPLE' },
+    { id: 'how', a: 12.6, b: 20.6, chip: '2 · HOW IT WORKS' },
+    { id: 'output', a: 20.6, b: 30.6, chip: '3 · CDF OUTPUT' },
+    { id: 'enable', a: 30.6, b: 37.4, chip: '4 · ENABLE CDF' },
+    { id: 'read', a: 37.4, b: 43.2, chip: '5 · READ CHANGES' },
+    { id: 'why', a: 43.2, b: 47.6, chip: '6 · WHY IT MATTERS' },
+    { id: 'pitfalls', a: 47.6, b: 50.0, chip: '7 · CHALLENGES' },
+    { id: 'summary', a: 50.0, b: 99, chip: '' }
   ],
-  shots: [ // at = story seconds, or {event, near, lead(video s)}; dur in video seconds
-    { at: 0,    x: 540, y: 960,  z: 1,    why: 'the whole system: two sources, one server' },
-    { event: 'spawn:user', near: 5.9, lead: 0.35, dur: 0.7, x: 440, y: 800, z: 1.8, why: 'one ball is one request' },
-    { event: 'spawn:bot', near: 10.3, lead: 0.35, dur: 0.7, x: 650, y: 800, z: 1.8, why: 'requests differ by key' },
-    { at: 14.0, dur: 0.8, x: 540, y: 960, z: 1,  why: 'everything lands on the server' },
-    { at: 18.3, dur: 0.7, x: 720, y: 860, z: 1.45, why: 'server output drives the bots counter' },
-    { at: 21.7, dur: 0.7, x: 540, y: 960, z: 1,  why: 'see the map before the fix' },
-    { event: 'drop', near: 24, lead: 0.3, dur: 0.7, x: 540, y: 1000, z: 1.7, why: 'the new gate lands on the track' },
-    { at: 27.1, dur: 0.7, x: 540, y: 960, z: 1,  why: 'back to the map: the gate now guards the track' },
-    { event: 'reject', near: 31.2, lead: 0.35, dur: 0.7, x: 680, y: 1090, z: 1.75, why: 'a key over its limit is bounced' },
-    { at: 33.8, dur: 0.7, x: 540, y: 960, z: 1,  why: 'bots keep trying, bin fills' },
-    { event: 'accept', near: 39.6, lead: 0.35, dur: 0.7, x: 540, y: 1010, z: 1.8, why: 'a key with tokens passes' },
-    { at: 41.8, dur: 0.8, x: 540, y: 960, z: 1,  why: 'nothing more gets in: the counter holds' }
+  events: { flip: 8.6, insert: 10.2, commit: 15.0, cdfRead: 17.4, pre: 23.0, post: 24.6, ins: 26.4, toggle: 35.0 },
+  code: {
+    enable: 'ALTER TABLE customers\nSET TBLPROPERTIES (\n  delta.enableChangeDataFeed = true\n);',
+    sql: "SELECT * FROM\n  table_changes('customers', 0, 1);",
+    spark: 'spark.read.format("delta")\n  .option("readChangeFeed", "true")\n  .option("startingVersion", 0)\n  .option("endingVersion", 1)\n  .table("customers")'
+  },
+  why: ['Incremental ETL: process only changes', 'Sync to Snowflake / BigQuery', 'Audit and data lineage', 'SCD Type 2 dimensions', 'Event streams to Kafka'],
+  pitfalls: ['VACUUM can delete the history CDF needs', 'Checkpoint streams so no version is missed', 'Handle preimage + postimage and deletes'],
+  captions: [ // story seconds
+    { at: 0.3, end: 4.4, text: 'WHAT CHANGED? DON’T RESCAN IT ALL.', word: 'CHANGED', color: 'turn' },
+    { at: 4.8, end: 8.2, text: 'This is version 0 of a Delta table.', word: 'version 0', color: 'main' },
+    { at: 8.4, end: 12.4, text: 'One update and one insert make version 1.', word: 'version 1', color: 'good' },
+    { at: 12.8, end: 16.8, text: 'Every commit is written to the transaction log.', word: 'transaction log', color: 'main' },
+    { at: 17.0, end: 20.4, text: 'CDF reads that log, not the whole table.', word: 'CDF', color: 'turn' },
+    { at: 20.8, end: 22.7, text: 'CDF returns only the changed rows.', word: 'changed rows', color: 'turn' },
+    { at: 22.8, end: 26.2, text: 'An update gives two rows: before and after.', word: 'two rows', color: 'good' },
+    { at: 26.3, end: 30.4, text: 'An insert gives one row. 3 rows, not 4.', word: 'one row', color: 'dest' },
+    { at: 30.8, end: 37.2, text: 'Turn it on with one table property.', word: 'one table property', color: 'turn' },
+    { at: 37.6, end: 43.0, text: 'Read changes by version, in SQL or Spark.', word: 'by version', color: 'turn' },
+    { at: 43.4, end: 47.4, text: 'Process only what changed, not everything.', word: 'only what changed', color: 'good' },
+    { at: 47.8, end: 49.8, text: 'Watch out: keep enough history.', word: 'history', color: 'bad' },
+    { at: 50.2, end: 99, text: 'CDF: row-level changes from the Delta log.', word: 'row-level changes', color: 'turn' }
   ],
-  slowmo: [ // before/after/ramp in story seconds
-    { event: 'land',   near: 24.6, before: 0.1, after: 0.9, speed: 0.4, ramp: 0.15 },
-    { event: 'reject', near: 31.2, before: 0.1, after: 0.9, speed: 0.4, ramp: 0.15 },
-    { event: 'accept', near: 39.6, before: 0.1, after: 0.9, speed: 0.4, ramp: 0.15 }
+  shots: [ // at = story seconds or event anchor; dur in video seconds
+    { at: 0, x: 540, y: 960, z: 1, why: 'the question and the topic' },
+    { event: 'flip', near: 8.6, lead: 0.35, dur: 0.7, x: 545, y: 840, z: 1.4, why: 'watch one cell change' },
+    { at: 10.9, dur: 0.7, x: 540, y: 960, z: 1, why: 'the whole v1 table, with the insert' },
+    { event: 'commit', near: 15, lead: 0.35, dur: 0.7, x: 540, y: 1000, z: 1.3, why: 'the commit lands in the log' },
+    { at: 17.2, dur: 0.7, x: 540, y: 960, z: 1, why: 'table, log and CDF together' },
+    { event: 'pre', near: 23, lead: 0.35, dur: 0.7, x: 540, y: 1040, z: 1.25, why: 'rows land in the CDF output' },
+    { at: 27.8, dur: 0.8, x: 540, y: 960, z: 1, why: 'v1 table vs 3-row output' },
+    { at: 33.6, dur: 0.7, x: 540, y: 900, z: 1.15, why: 'the one property that matters' },
+    { at: 37.0, dur: 0.7, x: 540, y: 960, z: 1, why: 'two ways to read changes' }
+  ],
+  slowmo: [
+    { event: 'flip', near: 8.6, before: 0.1, after: 0.9, speed: 0.4, ramp: 0.15 },
+    { event: 'pre',  near: 23,  before: 0.1, after: 0.9, speed: 0.4, ramp: 0.15 }
   ]
 };
 
 // =====================================================================
 // Utilities
 // =====================================================================
-const C = config.colors, G = config.geo, SIM = config.sim, W = config.world;
+const C = config.colors, W = config.world;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, k) => a + (b - a) * k;
 const smooth = k => { k = clamp(k, 0, 1); return k * k * (3 - 2 * k); };
@@ -152,70 +141,23 @@ function bsearchLE(arr, v) { let lo = 0, hi = arr.length - 1, r = -1; while (lo 
 // SCRIPTED RUN: every item's path and event times, precomputed
 // =====================================================================
 function buildRun() {
-  const rng = mulberry32(config.seed);
-  const items = [];
-  for (const kind of ['user', 'bot']) {
-    const src = config.sources[kind];
-    let t = src.start;
-    while (t < SIM.spawnUntil) { items.push({ kind, sx: src.x, t0: t }); t += src.every * (1 + SIM.jitter * (rng() * 2 - 1)); }
-  }
-  const fallT = Math.sqrt(2 * (G.chuteY - G.mouthY) / SIM.g), bounceT = 0.14;
-  const chuteLen = it => Math.hypot(G.mergeX - it.sx, G.mergeY - G.chuteY);
-  const mergeT = it => it.t0 + fallT + bounceT + chuteLen(it) / SIM.v;
-  items.sort((a, b) => mergeT(a) - mergeT(b));
-  let lastM = -9;
-  for (const it of items) { // keep a minimum gap on the shared track
-    let m = mergeT(it); if (m < lastM + SIM.minGap) { it.t0 += lastM + SIM.minGap - m; m = mergeT(it); } lastM = m;
-    it.tf = it.t0 + fallT; it.tb = it.tf + bounceT; it.tm = m;
-    it.tg = m + (G.gateY - G.mergeY) / SIM.v;
-    it.d1 = G.chuteY - G.mouthY; it.d2 = it.d1 + chuteLen(it); it.d3 = it.d2 + (G.gateY - G.mergeY);
-  }
-  const land = SIM.landAt;
-  const admitted = [], rejected = [];
-  let prevSe = -9;
-  for (const it of items) {
-    it.rejected = it.kind === 'bot' && it.tg >= land;
-    if (it.rejected) {
-      it.rIdx = rejected.length; rejected.push(it);
-      const [kx, ky] = G.rejectKick, [cx, cy] = G.chuteEnd;
-      it.tk = it.tg + 0.1; it.tc = it.tk + Math.hypot(cx - kx, cy - ky) / SIM.v;
-      const k = it.rIdx, cols = 8;
-      it.px = G.binX + 20 + (k % cols) * 22.5 + ((Math.floor(k / cols) % 2) ? 8 : 0);
-      it.py = G.ground - 13 - Math.floor(k / cols) * 21;
-      it.tp = it.tc + Math.sqrt(2 * Math.max(4, it.py - cy) / SIM.g);
-      it.tEnd = Infinity;
-    } else {
-      it.qIdx = admitted.length; admitted.push(it);
-      const tHead = it.tg + (G.headY - G.gateY) / SIM.v;
-      it.ss = Math.max(tHead, prevSe); it.se = it.ss + SIM.serviceTime; prevSe = it.se;
-      it.tdb = it.se + (G.dbTop - G.server.y) / (SIM.v * 1.15);
-      it.tEnd = it.tdb + 0.18;
-    }
-  }
-  // queue depth check (slots between gate and head)
-  let maxQ = 0;
-  for (const it of admitted) { let q = 0; for (const j of admitted) if (j.tg <= it.tg && j.ss > it.tg && j !== it) q++; maxQ = Math.max(maxQ, q); }
-  // event lists (story time)
-  const ev = [];
-  for (const it of items) {
-    ev.push({ type: 'spawn:' + it.kind, s: it.t0, it, x: it.sx });
-    ev.push({ type: 'merge', s: it.tm, it, x: G.mergeX });
-    if (it.tg >= land) ev.push({ type: it.rejected ? 'reject' : 'accept', s: it.tg, it, x: G.mergeX });
-    if (it.rejected) ev.push({ type: 'bin', s: it.tc, it, x: G.chuteEnd[0] });
-    else { ev.push({ type: 'serve', s: it.ss, it, x: G.server.x }); ev.push({ type: 'served:' + it.kind, s: it.se, it, x: G.server.x });
-      ev.push({ type: 'db', s: it.tdb, it, x: G.mergeX }); }
-  }
-  ev.push({ type: 'drop', s: land - SIM.dropDur, x: G.mergeX }, { type: 'land', s: land, x: G.mergeX });
+  const E = config.events, ev = [];
+  for (const [type, s] of Object.entries(E)) ev.push({ type, s, x: 540 });
+  for (const sc of config.scenes) if (sc.a > 0) ev.push({ type: 'scene', s: sc.a, x: 540 });
+  const typeTicks = (s0, str, cps, x) => { for (let i = 0; i < str.length; i += 3) if (str[i] !== ' ' && str[i] !== '\n') ev.push({ type: 'key', s: s0 + i / cps, x }); };
+  typeTicks(T.enableA, config.code.enable, CPS, 540); typeTicks(T.sqlA, config.code.sql, CPS, 540); typeTicks(T.sparkA, config.code.spark, CPS * 1.6, 540);
+  config.why.forEach((_, i) => ev.push({ type: 'check', s: T.whyA + 1.4 + i * 0.6, x: 300 }));
+  config.pitfalls.forEach((_, i) => ev.push({ type: 'warn', s: T.pitA + 0.3 + i * 0.6, x: 300 }));
   ev.sort((a, b) => a.s - b.s);
-  const times = type => ev.filter(e => e.type === type).map(e => e.s);
-  const run = { items, admitted, rejected, ev, maxQ, land,
-    usersServed: times('served:user'), botsIn: times('served:bot'), binIn: times('bin'),
-    dbIn: ev.filter(e => e.type === 'db'), accepts: times('accept'), rejects: times('reject'), served: times('serve'),
-    gatePass: ev.filter(e => e.type === 'accept' || e.type === 'reject') };
+  const run = { ev, land: E.flip };
   run.find = (type, near) => { let best = null; for (const e of ev) if (e.type === type && (!best || Math.abs(e.s - near) < Math.abs(best.s - near))) best = e; return best; };
   return run;
 }
+const CPS = 26; // typing speed, chars per story second
+const T = (() => { const S = Object.fromEntries(config.scenes.map(s => [s.id, s]));
+  return { enableA: S.enable.a + 0.6, sqlA: S.read.a + 0.4, sparkA: S.read.a + 2.2, whyA: S.why.a, pitA: S.pitfalls.a, S }; })();
 const RUN = buildRun();
+
 
 // =====================================================================
 // TIME REMAP: s = warp(t), 1 ms table built once
@@ -249,9 +191,8 @@ const countAt = (arr, s) => bsearchLE(arr, s) + 1;
 // captions: resolve templates and video times
 const CAPS = config.captions.map(c => {
   const sAt = c.at;
-  const text = c.text.replace('{bots}', countAt(RUN.botsIn, sAt)).replace('{users}', countAt(RUN.usersServed, sAt))
-    .replace('{botsFinal}', RUN.botsIn.length);
-  const focus = c.focus ? RUN.find(c.focus.event, c.focus.near) : null;
+  const text = c.text;
+  const focus = null;
   return { ...c, text, t0: vt(c.at), t1: Math.min(vt(c.end), config.duration - 0.05), focusItem: focus && focus.it, tag: c.focus && c.focus.tag };
 });
 // camera shots: resolve event anchors
@@ -277,43 +218,6 @@ function camAt(t) {
 // =====================================================================
 // ITEM STATE at story time s (pure)
 // =====================================================================
-function queueTargetY(it, s) {
-  let off = 0;
-  for (let j = it.qIdx - 1; j >= 0 && j >= it.qIdx - 12; j--) {
-    const o = RUN.admitted[j];
-    if (o.ss + 0.22 < s) break;
-    off += 1 - easeIO((s - o.ss) / 0.22);
-  }
-  return G.headY - G.slot * off;
-}
-function itemState(it, s) {
-  if (s < it.t0 || s > it.tEnd) return null;
-  const r = G.itemR;
-  let x, y, d, a = 1, sc = 1;
-  if (s < it.tf) { const tau = s - it.t0; x = it.sx; y = G.mouthY + 0.5 * SIM.g * tau * tau; d = y - G.mouthY; sc = easeOut(tau / 0.1); }
-  else if (s < it.tb) { const k = (s - it.tf) / (it.tb - it.tf); x = it.sx; y = G.chuteY - 10 * 4 * k * (1 - k); d = it.d1; }
-  else if (s < it.tm) { const k = (s - it.tb) / (it.tm - it.tb); x = lerp(it.sx, G.mergeX, k); y = lerp(G.chuteY, G.mergeY, k); d = lerp(it.d1, it.d2, k); }
-  else if (s < it.tg) { const k = (s - it.tm) / (it.tg - it.tm); x = G.mergeX; y = lerp(G.mergeY, G.gateY, k); d = lerp(it.d2, it.d3, k); }
-  else if (it.rejected) {
-    const [kx, ky] = G.rejectKick, [cx, cy] = G.chuteEnd;
-    if (s < it.tk) { const k = easeOut((s - it.tg) / (it.tk - it.tg)); x = lerp(G.mergeX, kx, k); y = lerp(G.gateY, ky, k); d = it.d3 + k * 46; }
-    else if (s < it.tc) { const k = (s - it.tk) / (it.tc - it.tk); x = lerp(kx, cx, k); y = lerp(ky, cy, k); d = it.d3 + 46 + k * 389; }
-    else { const tau = Math.min(s, it.tp) - it.tc, k = clamp((s - it.tc) / (it.tp - it.tc), 0, 1);
-      x = lerp(cx, it.px, easeOut(k)); y = Math.min(it.py, cy + 0.5 * SIM.g * tau * tau);
-      if (s > it.tp) y = it.py - 6 * Math.max(0, Math.sin(clamp((s - it.tp) / 0.12, 0, 1) * Math.PI));
-      d = it.d3 + 435 + (y - cy) + Math.abs(x - cx); }
-  } else if (s < it.ss) {
-    const yf = G.gateY + SIM.v * (s - it.tg); y = Math.min(yf, queueTargetY(it, s)); x = G.mergeX; d = it.d3 + (y - G.gateY);
-  } else if (s < it.se) {
-    const k = easeIO((s - it.ss) / 0.14); x = G.mergeX; y = lerp(G.headY, G.server.y, k);
-    d = it.d3 + (G.headY - G.gateY) + k * 80 + Math.max(0, s - it.ss - 0.14) * 300;
-  } else {
-    const k = (s - it.se) / (it.tdb - it.se); x = G.mergeX; y = Math.min(G.dbTop + 20, lerp(G.server.y, G.dbTop, k) + (k > 1 ? (s - it.tdb) * 120 : 0));
-    d = it.d3 + 400 + y; a = s > it.tdb ? 1 - (s - it.tdb) / 0.18 : 1;
-  }
-  return { x, y, rot: d / r, a: clamp(a, 0, 1), sc };
-}
-
 // =====================================================================
 // RENDERING
 // =====================================================================
@@ -353,36 +257,46 @@ function compLabel(x, y, title, sub, color, align) {
   ctx.restore();
 }
 
-function drawItem(it, st, s, focus) {
-  const cfg = config.items[it.kind], color = col(cfg.color), r = G.itemR * st.sc;
-  ctx.save(); ctx.globalAlpha *= st.a; ctx.translate(st.x, st.y);
-  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = rgba(color, 0.22); ctx.fill();
-  glow(color, 12); ctx.strokeStyle = color; ctx.lineWidth = LW; ctx.stroke(); noGlow();
-  ctx.rotate(st.rot); ctx.strokeStyle = color; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
-  ctx.beginPath();
-  if (cfg.icon === 'stripe') { ctx.moveTo(-r * .5, 0); ctx.lineTo(r * .5, 0); ctx.moveTo(-r * .3, -r * .38); ctx.lineTo(r * .3, -r * .38); }
-  else if (cfg.icon === 'dot') { ctx.arc(0, 0, r * .3, 0, Math.PI * 2); ctx.moveTo(-r * .5, r * .5); ctx.lineTo(r * .5, -r * .5); }
-  else { ctx.ellipse(0, 1, r * .26, r * .36, 0, 0, Math.PI * 2);
-    for (const sy of [-1, 1]) { ctx.moveTo(-r * .26, sy * r * .15); ctx.lineTo(-r * .55, sy * r * .35); ctx.moveTo(r * .26, sy * r * .15); ctx.lineTo(r * .55, sy * r * .35); }
-    ctx.moveTo(-r * .1, -r * .32); ctx.lineTo(-r * .25, -r * .58); ctx.moveTo(r * .1, -r * .32); ctx.lineTo(r * .25, -r * .58); }
-  ctx.stroke(); ctx.restore();
+const sceneWin = (id, s, f = 0.35) => { const sc = T.S[id], first = sc.a <= 0, last = sc.b > 90;
+  return Math.min(first ? 1 : smooth((s - sc.a) / f), last ? 1 : smooth((sc.b - s) / f)); };
+const typed = (str, s, a, cps) => str.slice(0, clamp(Math.floor((s - a) * cps), 0, str.length));
+const since = (s, a, d) => clamp((s - a) / d, 0, 1);
+function sansText(txt, x, y, size, color, align = 'left', weight = 500) { ctx.font = `${weight} ${size}px ${F_SANS}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(txt, x, y); }
+function panel(x, y, w, h, color, fill = 0.06, blur = 10, r = 16) { strokeShape(() => ctx.roundRect(x, y, w, h, r), color, fill, LW, blur); }
+function arrow(x0, y0, x1, y1, color, a = 1) {
+  ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = LW; glow(color, 6);
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  const an = Math.atan2(y1 - y0, x1 - x0); ctx.beginPath(); ctx.moveTo(x1, y1);
+  ctx.lineTo(x1 - 16 * Math.cos(an - .45), y1 - 16 * Math.sin(an - .45)); ctx.lineTo(x1 - 16 * Math.cos(an + .45), y1 - 16 * Math.sin(an + .45)); ctx.closePath(); ctx.fill();
+  noGlow(); ctx.restore();
+}
+function codeBlock(str, x, y, size, lh, color) {
+  ctx.font = `500 ${size}px ${F_MONO}`; ctx.textAlign = 'left';
+  str.split('\n').forEach((ln, i) => { // light syntax colour: keywords lavender, strings mint
+    let cx = x; for (const tok of ln.split(/(\s+|[(),.;=])/)) { if (!tok) continue;
+      ctx.fillStyle = /^(ALTER|TABLE|SET|TBLPROPERTIES|SELECT|FROM|true)$/.test(tok) ? C.turn : /^["'].*/.test(tok) ? C.dest : /^\d+$/.test(tok) ? C.main : color;
+      ctx.fillText(tok, cx, y + i * lh); cx += ctx.measureText(tok).width; } });
+}
+// table row cells; widths from config
+function rowCells(x0, y, widths, cells, colors, size = 30) {
+  let x = x0; cells.forEach((c, i) => { sansText(String(c), x + 22, y, size, colors[i] || C.text, 'left', 500); x += widths[i]; });
+}
+function gridLines(x0, y0, widths, h, color, a) {
+  ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = color; ctx.lineWidth = 1.5; let x = x0;
+  for (let i = 0; i < widths.length - 1; i++) { x += widths[i]; ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y0 + h); ctx.stroke(); } ctx.restore();
 }
 
 function drawFrameWorld(t, s) {
-  const cam = VIEW, sp = speedAt(t);
-  // dust (story-time drift)
-  ctx.save();
+  const E = config.events, TB = config.table, W3 = TB.widths, TW = W3.reduce((a, b) => a + b, 0);
   for (const d of DUST) {
     const dx = reduced ? 0 : d.vx * s, dy = reduced ? 0 : d.vy * s;
     const x = ((d.x + dx) % W.w + W.w) % W.w, y = ((d.y + dy) % W.h + W.h) % W.h;
     ctx.fillStyle = `rgba(200,210,230,${d.a})`; ctx.beginPath(); ctx.arc(x, y, d.s, 0, 7); ctx.fill();
   }
-  ctx.restore();
-
-  // ---------- header (fully in frame or faded out) ----------
+  // ---------- header ----------
   ctx.save(); ctx.globalAlpha = labelAlpha(140, 160, 940, 425); ctx.textAlign = 'center';
   monoText(config.handle.toUpperCase(), 540, 190, 22, C.text2, 'center', 0.25);
-  ctx.font = `700 92px ${F_SANS}`; const parts = config.title, widths = parts.map(p => ctx.measureText(p.text).width);
+  ctx.font = `700 88px ${F_SANS}`; const parts = config.title, widths = parts.map(p => ctx.measureText(p.text).width);
   let tx = 540 - widths.reduce((a, b) => a + b, 0) / 2; ctx.textAlign = 'left';
   parts.forEach((p, i) => { ctx.fillStyle = col(p.color); if (p.color !== 'text') glow(col(p.color), 14); ctx.fillText(p.text, tx, 285); noGlow(); tx += widths[i]; });
   ctx.textAlign = 'center'; ctx.font = `500 34px ${F_SANS}`; ctx.fillStyle = C.text2; ctx.fillText(config.subtitle, 540, 340);
@@ -390,145 +304,207 @@ function drawFrameWorld(t, s) {
   ctx.beginPath(); ctx.roundRect(540 - pw / 2, 368, pw, 52, 26); ctx.fillStyle = '#131A26'; ctx.fill(); ctx.strokeStyle = '#2A3242'; ctx.lineWidth = 2; ctx.stroke();
   ctx.fillStyle = C.text; ctx.fillText(config.hook, 540, 403);
   ctx.restore();
+  // section chip
+  for (const sc of config.scenes) { if (!sc.chip) continue; const a = sceneWin(sc.id, s); if (a <= 0) continue;
+    ctx.save(); ctx.globalAlpha = a * labelAlpha(380, 455, 700, 505); monoText(sc.chip, 540, 492, 22, C.turn, 'center', 0.22); ctx.restore(); }
 
-  // ---------- counters ----------
-  for (const c of config.counters) {
-    const arr = RUN[c.id], n = countAt(arr, s), color = col(c.color);
-    const last = n > 0 ? vt(arr[n - 1]) : -9, k = (t - last) / 0.15, pop = k >= 0 && k < 1 ? 1 + 0.15 * Math.sin(k * Math.PI) : 1;
-    const left = c.side === 'left', x = left ? 80 : 1000, x0 = left ? 80 : 760;
-    const a = labelAlpha(x0, 465, x0 + 240, 600);
+  let a;
+  // ---------- hook: v0 → ? → v1 ----------
+  if ((a = sceneWin('hook', s)) > 0) {
     ctx.save(); ctx.globalAlpha = a;
-    ctx.strokeStyle = color; ctx.lineWidth = 3; glow(color, 8); ctx.beginPath(); ctx.moveTo(x0, 470); ctx.lineTo(x0 + 240, 470); ctx.stroke(); noGlow();
-    monoText(c.label, x, 504, 20, color, left ? 'left' : 'right', 0.2);
-    ctx.translate(x, 580); ctx.scale(pop, pop); ctx.font = `600 76px ${F_MONO}`; ctx.fillStyle = C.text; ctx.textAlign = left ? 'left' : 'right';
-    ctx.fillText(String(n), 0, 0); ctx.restore();
-  }
-
-  // ---------- sources (hoppers) ----------
-  for (const kind of ['user', 'bot']) {
-    const src = config.sources[kind], color = col(config.items[kind].color);
-    const lastSpawn = RUN.ev.filter(e => e.type === 'spawn:' + kind && e.s <= s).pop();
-    const act = lastSpawn ? Math.max(0, 1 - (s - lastSpawn.s) / 0.3) : 0;
-    const x = src.x;
-    strokeShape(() => { ctx.moveTo(x - 48, 625); ctx.lineTo(x + 48, 625); ctx.lineTo(x + 20, 690); ctx.lineTo(x - 20, 690); ctx.closePath(); },
-      mix(C.slateLine, color, 0.55 + 0.45 * act), 0.06 + 0.1 * act, LW, 6 + 10 * act);
-    const left = kind === 'user';
-    compLabel(left ? x - 70 : x + 70, 655, src.label, src.sub, color, left ? 'right' : 'left');
-  }
-
-  // ---------- tracks ----------
-  ctx.save(); ctx.strokeStyle = C.slateLine; ctx.lineWidth = LW; ctx.lineCap = 'round';
-  const rr = G.itemR + 3;
-  for (const kind of ['user', 'bot']) { const x = config.sources[kind].x;
-    ctx.beginPath(); ctx.moveTo(x, G.chuteY + rr); ctx.lineTo(G.mergeX, G.mergeY + rr); ctx.stroke(); }
-  for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(G.mergeX + sx * rr, G.mergeY + 8); ctx.lineTo(G.mergeX + sx * rr, G.server.y - G.server.r + 4); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(G.mergeX + sx * rr, G.server.y + G.server.r - 4); ctx.lineTo(G.mergeX + sx * rr, G.dbTop); ctx.stroke(); }
-  // reject chute (only meaningful after landing)
-  const [kx, ky] = G.rejectKick, [cx, cy] = G.chuteEnd, la = smooth((s - RUN.land) / 0.4);
-  ctx.globalAlpha = 0.35 + 0.65 * la; ctx.beginPath(); ctx.moveTo(kx, ky + rr); ctx.lineTo(cx, cy + rr); ctx.stroke();
-  ctx.restore();
-  // merge switch tick
-  const lm = RUN.ev.filter(e => e.type === 'merge' && e.s <= s).pop(), ma = lm ? Math.max(0, 1 - (s - lm.s) / 0.2) : 0;
-  strokeShape(() => ctx.arc(G.mergeX, G.mergeY, 9, 0, 7), mix(C.slateLine, lm ? col(config.items[lm.it.kind].color) : C.slateLine, ma), 0.1, 2.5, 4 + 10 * ma);
-
-  // ---------- server ----------
-  const sv = G.server, cur = RUN.admitted.find(o => o.ss <= s && o.se > s);
-  const lastSe = RUN.served[Math.max(0, countAt(RUN.served, s) - 1)];
-  const nServed = countAt(RUN.served, s);
-  const act = cur ? 1 : (lastSe !== undefined ? Math.max(0, 1 - (s - lastSe - SIM.serviceTime) / 0.4) : 0);
-  const sCol = mix(C.slateLine, C.main, 0.45 + 0.55 * act);
-  const notch = (nServed - 1 + (cur ? easeIO((s - cur.ss) / 0.2) : 1)) * Math.PI / 6;
-  ctx.save(); ctx.translate(sv.x, sv.y); ctx.rotate(Math.max(0, notch));
-  strokeShape(() => { for (let i = 0; i < 12; i++) { const a0 = i * Math.PI / 6, a1 = a0 + Math.PI / 12;
-      ctx.lineTo(Math.cos(a0) * sv.r, Math.sin(a0) * sv.r); ctx.lineTo(Math.cos(a0 + .05) * (sv.r + 12), Math.sin(a0 + .05) * (sv.r + 12));
-      ctx.lineTo(Math.cos(a1 - .05) * (sv.r + 12), Math.sin(a1 - .05) * (sv.r + 12)); ctx.lineTo(Math.cos(a1) * sv.r, Math.sin(a1) * sv.r); } ctx.closePath(); },
-    sCol, 0.06 + 0.06 * act, LW, 6 + 14 * act);
-  ctx.restore();
-  if (cur) { const c2 = col(config.items[cur.kind].color); ctx.save(); ctx.globalAlpha = 0.5; strokeShape(() => ctx.arc(sv.x, sv.y, sv.r - 14, 0, 7), c2, 0.08, 2, 16); ctx.restore(); }
-  compLabel(sv.x - sv.r - 40, sv.y - 8, config.main.label, config.main.sub, C.main, 'right');
-
-  // ---------- database ----------
-  const dbIdx = bsearchLE(RUN.dbIn.map(e => e.s), s), lastDb = dbIdx >= 0 ? RUN.dbIn[dbIdx] : null;
-  const da = lastDb ? Math.max(0, 1 - (s - lastDb.s) / 0.35) : 0, dCol = mix(C.slateLine, C.dest, 0.6 + 0.4 * da);
-  const dx = 540, dw = 150, top = G.dbTop + 6;
-  strokeShape(() => { ctx.ellipse(dx, top, dw / 2, 16, 0, Math.PI, 0); ctx.lineTo(dx + dw / 2, G.ground - 14); ctx.ellipse(dx, G.ground - 14, dw / 2, 14, 0, 0, Math.PI); ctx.closePath(); }, dCol, 0.06 + 0.08 * da, LW, 6 + 12 * da);
-  strokeShape(() => { ctx.ellipse(dx, top, dw / 2, 16, 0, 0, Math.PI); ctx.moveTo(dx - dw / 2, top + 30); ctx.ellipse(dx, top + 30, dw / 2, 16, 0, Math.PI, 0, true); }, dCol, 0, 2, 4);
-  compLabel(dx - dw / 2 - 30, G.dbTop + 30, config.dest.label, config.dest.sub, C.dest, 'right');
-
-  // ---------- reject bin ----------
-  const nBin = countAt(RUN.binIn, s), lb = nBin ? vt(RUN.binIn[nBin - 1]) : -9, ba = Math.max(0, 1 - (t - lb) / 0.3);
-  strokeShape(() => { ctx.moveTo(G.binX, G.binTop); ctx.lineTo(G.binX + 10, G.ground); ctx.lineTo(G.binX + G.binW - 10, G.ground); ctx.lineTo(G.binX + G.binW, G.binTop); },
-    mix(C.slateLine, C.bad, 0.25 * la + 0.35 * ba), 0.04, LW, 4 + 10 * ba);
-  {
-    const a = labelAlpha(G.binX - 10, G.binTop - 92, G.binX + G.binW + 10, G.binTop - 18) * (0.4 + 0.6 * la);
-    monoText(config.bin.label, G.binX + G.binW / 2, G.binTop - 54, 22, C.bad, 'center', 0.14, a);
-    ctx.save(); ctx.globalAlpha = a; ctx.font = `500 22px ${F_SANS}`; ctx.fillStyle = C.text2; ctx.textAlign = 'center';
-    const k = (t - lb) / 0.15, pop = k >= 0 && k < 1 ? 1 + 0.15 * Math.sin(k * Math.PI) : 1;
-    ctx.translate(G.binX + G.binW / 2, G.binTop - 24); ctx.scale(pop, pop); ctx.fillText(`${config.bin.sub} · ${nBin}`, 0, 0); ctx.restore();
-  }
-  // ground + logs
-  ctx.save(); ctx.strokeStyle = C.slate; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(60, G.ground); ctx.lineTo(1020, G.ground); ctx.stroke(); ctx.restore();
-  drawLog(dx - 150, G.ground + 22, 300, 24, RUN.dbIn.slice(0, dbIdx + 1).map(e => col(config.items[e.it.kind].color)));
-  drawLog(G.binX, G.ground + 22, G.binW, 16, Array(nBin).fill(C.bad));
-
-  // ---------- limiter (turning point) ----------
-  const dropS = RUN.land - SIM.dropDur;
-  if (s >= dropS) {
-    const k = (s - dropS) / SIM.dropDur;
-    let yOff = k < 1 ? -(1 - k * k) * 700 : -10 * Math.exp(-(s - RUN.land) * 9) * Math.abs(Math.sin((s - RUN.land) * 22));
-    const gp = RUN.gatePass[bsearchLE(RUN.gatePass.map(e => e.s), s)];
-    const ga = gp ? Math.max(0, 1 - (s - gp.s) / 0.4) : 0, gCol = gp && ga > 0 ? (gp.type === 'accept' ? C.good : C.bad) : C.turn;
-    const landGlow = Math.max(0, 1 - Math.abs(s - RUN.land) / 0.5);
-    ctx.save(); ctx.translate(0, yOff);
-    const gx = G.mergeX, gy = G.gateY;
-    strokeShape(() => ctx.roundRect(gx - 50, gy - 26, 100, 20, 6), C.turn, 0.12, LW, 10 + 16 * landGlow);
-    strokeShape(() => { ctx.moveTo(gx - 50, gy - 16); ctx.lineTo(gx - 70, gy - 16); ctx.moveTo(gx + 50, gy - 16); ctx.lineTo(gx + 70, gy - 16); }, C.turn, 0, LW, 6);
-    if (ga > 0) { ctx.save(); ctx.globalAlpha = ga; ctx.translate(gx + 84, gy - 50);
-      strokeShape(() => ctx.arc(0, 0, 18, 0, 7), gCol, 0.15, 2.5, 12);
-      ctx.beginPath(); if (gp.type === 'accept') { ctx.moveTo(-8, 0); ctx.lineTo(-2, 7); ctx.lineTo(9, -7); } else { ctx.moveTo(-7, -7); ctx.lineTo(7, 7); ctx.moveTo(7, -7); ctx.lineTo(-7, 7); }
-      ctx.strokeStyle = gCol; ctx.lineWidth = 3; ctx.stroke(); ctx.restore(); }
-    // label + buckets on the left
-    compLabel(gx - 90, gy - 40, config.turn.label, config.turn.sub, C.turn, 'right');
-    const lastAcc = RUN.accepts[countAt(RUN.accepts, s) - 1];
-    const lastRej = RUN.rejects[countAt(RUN.rejects, s) - 1];
-    config.turn.buckets.forEach(([lbl, c, full], i) => {
-      const by = gy + 34 + i * 34, bx = 220, a = labelAlpha(bx - 10, by - 22, gx - 70, by + 12);
-      ctx.save(); ctx.globalAlpha = a;
-      monoText(lbl, bx, by, 16, col(c), 'left', 0.12);
-      const spent = c === 'good' && lastAcc !== undefined && s - lastAcc < 0.8 ? 1 : 0;
-      for (let d = 0; d < 5; d++) { const filled = d < full - spent;
-        ctx.beginPath(); ctx.arc(bx + 130 + d * 22, by - 6, 7, 0, 7);
-        if (filled) { ctx.fillStyle = rgba(C.turn, 0.85); glow(C.turn, 8); ctx.fill(); noGlow(); }
-        else { ctx.strokeStyle = (c === 'bad' && lastRej !== undefined && s - lastRej < 0.4) ? C.bad : C.slateLine; ctx.lineWidth = 2; ctx.stroke(); } }
-      ctx.restore();
-    });
+    const p = 1 + 0.04 * Math.sin(s * 4);
+    panel(170, 700, 260, 300, C.main, 0.05, 10); panel(650, 700, 260, 300, C.main, 0.05, 10);
+    monoText('VERSION 0', 300, 760, 22, C.main, 'center'); monoText('VERSION 1', 780, 760, 22, C.main, 'center');
+    for (let i = 0; i < 4; i++) { const on = i < 3; ctx.fillStyle = rgba(C.slateLine, on ? 0.5 : 0); ctx.fillRect(200, 800 + i * 44, 200, 22);
+      ctx.fillStyle = rgba(i === 1 ? C.good : i === 3 ? C.dest : C.slateLine, 0.5 + (i === 1 || i === 3 ? 0.3 * Math.sin(s * 5) : 0)); ctx.fillRect(680, 800 + i * 44, 200, 22); }
+    ctx.save(); ctx.translate(540, 860); ctx.scale(p, p); sansText('?', 0, 40, 130, C.turn, 'center', 700); ctx.restore();
+    arrow(445, 960, 635, 960, C.slateLine);
     ctx.restore();
   }
-
-  // ---------- items (with trails) ----------
-  const trailN = reduced ? 0 : 6, trailStep = 0.018 * (sp < 0.9 ? 2 / Math.max(sp, 0.4) * 0.4 + 1 : 1);
-  for (const it of RUN.items) {
-    if (s < it.t0 || s > it.tEnd) continue;
-    const st = itemState(it, s); if (!st) continue;
-    const color = col(config.items[it.kind].color);
-    for (let k = trailN; k >= 1; k--) {
-      const p = itemState(it, s - k * trailStep); if (!p) continue;
-      if (Math.hypot(p.x - st.x, p.y - st.y) < 2) continue;
-      ctx.beginPath(); ctx.arc(p.x, p.y, G.itemR * (1 - k / (trailN + 2)), 0, 7); ctx.fillStyle = rgba(color, 0.07 * (1 - k / (trailN + 1)) * st.a); ctx.fill();
-    }
-    drawItem(it, st, s);
+  // ---------- example: v0 table becomes v1 ----------
+  if ((a = sceneWin('example', s)) > 0) {
+    ctx.save(); ctx.globalAlpha = a;
+    const x0 = 540 - TW / 2, hy = 660, rh = 76, ins = since(s, E.insert, 0.6), nRows = 3 + easeOut(ins);
+    const isV1 = s >= E.insert + 0.3;
+    monoText(isV1 ? 'VERSION 1' : 'VERSION 0', 540, 615, 26, isV1 ? C.good : C.main, 'center', 0.2);
+    monoText(`TABLE · ${TB.name.toUpperCase()}`, x0, 615, 18, C.text2, 'left', 0.15);
+    const build = since(s, T.S.example.a, 0.8);
+    panel(x0, hy, TW, (60 + nRows * rh) * build, C.main, 0.04, 8 + 10 * Math.max(0, 1 - Math.abs(s - E.insert) / 0.6));
+    gridLines(x0, hy, W3, (60 + nRows * rh) * build, C.slate, 1);
+    ctx.save(); ctx.globalAlpha *= build; let hx = x0; TB.cols.forEach((c, i) => { monoText(c.toUpperCase(), hx + 22, hy + 40, 20, C.text2, 'left', 0.18); hx += W3[i]; }); ctx.restore();
+    TB.v0.forEach((r, i) => {
+      const ra = since(s, T.S.example.a + 0.4 + i * 0.25, 0.4), y = hy + 60 + i * rh + 50;
+      ctx.save(); ctx.globalAlpha *= ra; ctx.strokeStyle = C.slate; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x0, y - 50); ctx.lineTo(x0 + TW, y - 50); ctx.stroke();
+      const U = TB.update;
+      if (i === U.row) {
+        rowCells(x0, y, W3, r.slice(0, 2), []);
+        const fk = since(s, E.flip, 0.5), cx = x0 + W3[0] + W3[1] + 22;
+        ctx.save(); ctx.translate(cx, y - 10); ctx.scale(1, Math.abs(Math.cos(fk * Math.PI)) || 0.01);
+        if (fk < 0.5) sansText(r[2], 0, 10, 30, C.text, 'left'); else { glow(C.good, 12); sansText(U.to, 0, 10, 30, C.good, 'left', 600); noGlow(); }
+        ctx.restore();
+        if (fk > 0.5) { const g = since(s, E.flip + 0.25, 1.4); ctx.save(); ctx.globalAlpha *= 1 - g; sansText(r[2], cx, y - 40 - g * 50, 26, C.bad, 'left');
+          ctx.restore(); }
+        const hl = Math.max(0, 1 - Math.abs(s - E.flip - 0.3) / 1.2);
+        if (hl > 0) { ctx.save(); ctx.globalAlpha *= hl; strokeShape(() => ctx.roundRect(x0 + W3[0] + W3[1] + 6, y - 46, W3[2] - 12, 64, 10), C.good, 0.08, 2.5, 14); ctx.restore(); }
+      } else rowCells(x0, y, W3, r, []);
+      ctx.restore();
+    });
+    if (ins > 0) { const y = hy + 60 + 3 * rh + 50; ctx.save(); ctx.globalAlpha *= ins; ctx.translate((1 - easeOut(ins)) * 260, 0);
+      strokeShape(() => ctx.roundRect(x0 + 6, y - 46, TW - 12, 64, 10), C.dest, 0.1, 2.5, 14 * (1 - since(s, E.insert + 0.6, 1.5)) + 4);
+      rowCells(x0, y, W3, TB.insert, [C.dest, C.dest, C.dest]); ctx.restore(); }
+    // legend
+    const lg = since(s, E.insert + 0.6, 0.4);
+    if (lg > 0) { ctx.save(); ctx.globalAlpha *= lg; monoText('● UPDATE id 2', 300, 1080 + 40, 20, C.good, 'center', 0.12); monoText('● INSERT id 4', 780, 1120, 20, C.dest, 'center', 0.12); ctx.restore(); }
+    ctx.restore();
   }
-  // focus ring + tag
-  for (const c of CAPS) {
-    if (!c.focusItem || t < c.t0 || t > c.t1) continue;
-    const st = itemState(c.focusItem, s); if (!st) continue;
-    const a = Math.min(smooth((t - c.t0) / 0.25), smooth((c.t1 - t) / 0.2)) * st.a, color = col(config.items[c.focusItem.kind].color);
-    const tag = c.tag === 'key' ? config.items[c.focusItem.kind].key : c.tag;
-    ctx.save(); ctx.globalAlpha = a; ctx.setLineDash([6, 5]); strokeShape(() => ctx.arc(st.x, st.y, G.itemR + 11, 0, 7), C.text, 0, 2, 6); ctx.setLineDash([]);
-    ctx.font = `600 15px ${F_MONO}`; const tw = ctx.measureText(tag).width + tag.length * 2.5 + 20;
-    const tx2 = st.x + 34, ty2 = st.y - 46;
-    ctx.beginPath(); ctx.roundRect(tx2, ty2, tw, 28, 6); ctx.fillStyle = 'rgba(11,15,23,.85)'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
-    monoText(tag, tx2 + 10, ty2 + 19, 15, color, 'left', 0.15);
+  // ---------- how: table → log → CDF ----------
+  if ((a = sceneWin('how', s)) > 0) {
+    ctx.save(); ctx.globalAlpha = a;
+    const A0 = T.S.how.a, b1 = since(s, A0, 0.5), b2 = since(s, A0 + 0.5, 0.5), b3 = since(s, A0 + 1.0, 0.5);
+    ctx.save(); ctx.globalAlpha *= b1; panel(240, 580, 600, 150, C.main, 0.05, 10 + 12 * Math.max(0, 1 - Math.abs(s - E.commit + 0.8) / 0.6));
+    monoText('DELTA TABLE', 280, 640, 24, C.main, 'left', 0.18); sansText('customers · version 1', 280, 685, 28, C.text2);
+    for (let i = 0; i < 4; i++) { ctx.fillStyle = rgba(i === 1 ? C.good : i === 3 ? C.dest : C.slateLine, 0.6); ctx.fillRect(650, 610 + i * 26, 150, 14); }
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha *= b2; arrow(540, 740, 540, 830, C.slateLine);
+    const ck = Math.max(0, 1 - Math.abs(s - E.commit) / 0.8);
+    panel(160, 840, 760, 250, mix(C.slateLine, C.main, ck), 0.05, 6 + 14 * ck);
+    monoText('TRANSACTION LOG · _delta_log/', 200, 895, 22, C.text, 'left', 0.14);
+    monoText('00000.json  v0  CREATE TABLE', 200, 960, 20, C.text2, 'left', 0.06);
+    const cm = since(s, E.commit, 0.4);
+    if (cm > 0) { ctx.save(); ctx.globalAlpha *= cm; ctx.translate((1 - easeOut(cm)) * 120, 0);
+      strokeShape(() => ctx.roundRect(186, 990, 708, 70, 10), C.main, 0.08, 2, 10 * ck + 3);
+      monoText('00001.json  v1  UPDATE 2 · INSERT 4', 206, 1034, 20, C.text, 'left', 0.06); ctx.restore(); }
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha *= b3; arrow(540, 1100, 540, 1190, C.turn);
+    const rk = Math.max(0, 1 - Math.abs(s - E.cdfRead) / 0.8), on = s >= E.cdfRead;
+    panel(240, 1200, 600, 250, C.turn, 0.07, 10 + 14 * rk);
+    monoText('CHANGE DATA FEED', 280, 1255, 24, C.turn, 'left', 0.18);
+    [['INSERT', C.dest, true], ['UPDATE', C.good, true], ['DELETE', C.slateLine, false]].forEach(([lbl, c, hit], i) => {
+      const lit = on && hit; ctx.save(); if (lit) glow(c, 10);
+      ctx.beginPath(); ctx.arc(298, 1308 + i * 46, 9, 0, 7); ctx.fillStyle = lit ? c : 'rgba(0,0,0,0)'; ctx.strokeStyle = lit ? c : C.slateLine; ctx.lineWidth = 2; ctx.fill(); ctx.stroke(); noGlow();
+      monoText(lbl, 322, 1316 + i * 46, 22, lit ? C.text : C.text2, 'left', 0.16); ctx.restore(); });
+    if (on) { ctx.save(); ctx.globalAlpha *= since(s, E.cdfRead + 0.3, 0.4); sansText('only rows', 800, 1350, 26, C.text2, 'right'); sansText('that changed', 800, 1385, 26, C.text2, 'right'); ctx.restore(); }
+    ctx.restore();
+    // travelling change tokens
+    for (const [a0, y0, y1, c] of [[E.commit - 0.8, 740, 990, C.main], [E.cdfRead - 0.8, 1060, 1300, C.turn]]) {
+      const k = (s - a0) / 0.8; if (k < 0 || k > 1) continue;
+      for (let j = 0; j < 2; j++) { const kk = clamp(k * 1.2 - j * 0.2, 0, 1); if (kk <= 0 || kk >= 1) continue;
+        ctx.beginPath(); ctx.arc(540 + (j ? 18 : -18), lerp(y0, y1, easeIO(kk)), 11, 0, 7); ctx.fillStyle = rgba(j ? C.dest : C.good, 0.6); glow(j ? C.dest : C.good, 10); ctx.fill(); noGlow(); }
+    }
+    ctx.restore();
+  }
+  // ---------- output: v1 table → CDF rows ----------
+  const oW = [300, 100, 180, 240], oX = 540 - oW.reduce((p, q) => p + q, 0) / 2, oY = 980, oRH = 74;
+  const vX = 540 - TW * 0.8 / 2, vY = 560, vRH = 60;
+  if ((a = sceneWin('output', s)) > 0) {
+    ctx.save(); ctx.globalAlpha = a;
+    const A0 = T.S.output.a, v1 = [...TB.v0.map(r => r.slice()), TB.insert]; v1[TB.update.row][2] = TB.update.to;
+    // source table (scaled)
+    ctx.save(); ctx.translate(vX, vY); ctx.scale(0.8, 0.8);
+    monoText('VERSION 1 · 4 ROWS', 0, 0, 22, C.main, 'left', 0.16);
+    panel(0, 20, TW, 4 * 76 + 10, C.main, 0.04, 6); gridLines(0, 20, W3, 4 * 76 + 10, C.slate, 1);
+    v1.forEach((r, i) => { const hot = i === 1 || i === 3; rowCells(0, 20 + 56 + i * 76, W3, r, hot ? [] : [C.text2, C.text2, C.text2]); });
+    ctx.restore();
+    // output table
+    monoText('CDF OUTPUT · CHANGES v0 → v1', oX, oY - 30, 20, C.turn, 'left', 0.14);
+    const hdr = ['_change_type', 'id', 'name', 'city'];
+    panel(oX, oY, oW.reduce((p, q) => p + q, 0), 60 + 3 * oRH + 6, C.turn, 0.05, 8); gridLines(oX, oY, oW, 60 + 3 * oRH + 6, C.slate, 1);
+    let hx = oX; hdr.forEach((h, i) => { monoText(h.toUpperCase(), hx + 18, oY + 40, 16, C.text2, 'left', 0.1); hx += oW[i]; });
+    const times = [E.pre, E.post, E.ins];
+    config.cdfRows.forEach((r, i) => {
+      const land = times[i], k = since(s, land - 0.7, 0.7); if (k <= 0) return;
+      const c = col(r[4]), srcY = vY + (20 + 56 + r[5] * 76) * 0.8 - 16, dstY = oY + 60 + i * oRH + 48;
+      const y = lerp(srcY, dstY, easeIO(k)), sc = lerp(0.8, 1, easeIO(k));
+      ctx.save(); ctx.translate(oX, y); ctx.scale(sc, sc);
+      const fl = Math.max(0, 1 - (s - land) / 0.8);
+      strokeShape(() => ctx.roundRect(6, -46, oW.reduce((p, q) => p + q, 0) - 12, 62, 10), c, 0.08 + 0.1 * fl, 2.5, 4 + 14 * fl);
+      monoText(r[0], 18, 0, 19, c, 'left', 0.02);
+      let x = oW[0]; [r[1], r[2], r[3]].forEach((v, j) => { sansText(String(v), x + 18, 0, 28, j === 2 ? c : C.text, 'left'); x += oW[j + 1]; });
+      ctx.restore();
+    });
+    // counters: rows in table vs rows CDF returned
+    const n = times.filter(x => x <= s).length, lastT = times.filter(x => x <= s).pop();
+    const pk = lastT !== undefined ? (t - vt(lastT)) / 0.15 : 9, pop = pk >= 0 && pk < 1 ? 1 + 0.15 * Math.sin(pk * Math.PI) : 1;
+    ctx.save(); ctx.globalAlpha *= labelAlpha(80, 1290, 1000, 1420);
+    for (const [x, al, lbl, val, c, pp] of [[120, 'left', 'ROWS IN TABLE', 4, C.main, 1], [960, 'right', 'ROWS CDF RETURNED', n, C.turn, pop]]) {
+      ctx.strokeStyle = c; ctx.lineWidth = 3; glow(c, 8); ctx.beginPath(); ctx.moveTo(al === 'left' ? x : x - 300, 1300); ctx.lineTo(al === 'left' ? x + 300 : x, 1300); ctx.stroke(); noGlow();
+      monoText(lbl, x, 1334, 18, c, al, 0.18);
+      ctx.save(); ctx.translate(x, 1410); ctx.scale(pp, pp); ctx.font = `600 72px ${F_MONO}`; ctx.fillStyle = C.text; ctx.textAlign = al; ctx.fillText(String(val), 0, 0); ctx.restore();
+    }
+    ctx.restore();
+    ctx.restore();
+  }
+  // ---------- enable ----------
+  if ((a = sceneWin('enable', s)) > 0) {
+    ctx.save(); ctx.globalAlpha = a;
+    monoText('b) EXISTING TABLE', 130, 600, 20, C.text2, 'left', 0.16);
+    panel(110, 620, 860, 330, C.slateLine, 0.05, 4);
+    const txt = typed(config.code.enable, s, T.enableA, CPS); codeBlock(txt, 150, 700, 30, 58, C.text);
+    if (txt.length < config.code.enable.length || Math.floor(s * 2) % 2) { const lines = txt.split('\n'), last = lines[lines.length - 1];
+      ctx.font = `500 30px ${F_MONO}`; ctx.fillStyle = C.turn; ctx.fillRect(150 + ctx.measureText(last).width + 4, 676 + (lines.length - 1) * 58, 14, 30); }
+    const tk = since(s, E.toggle, 0.35), ty = 1060;
+    sansText('delta.enableChangeDataFeed', 140, ty + 12, 32, C.text, 'left', 600);
+    const sw = mix(C.slateLine, C.turn, tk);
+    strokeShape(() => ctx.roundRect(780, ty - 30, 130, 60, 30), sw, 0.1 + 0.15 * tk, LW, 4 + 16 * tk);
+    ctx.beginPath(); ctx.arc(lerp(810, 880, easeIO(tk)), ty, 22, 0, 7); ctx.fillStyle = sw; glow(sw, 10 * tk); ctx.fill(); noGlow();
+    monoText(tk > 0.5 ? 'CDF ON' : 'CDF OFF', 845, ty + 70, 20, tk > 0.5 ? C.turn : C.text2, 'center', 0.2);
+    ctx.save(); ctx.globalAlpha *= since(s, E.toggle + 0.5, 0.4);
+    sansText('New table? Add the same TBLPROPERTIES', 140, 1200, 28, C.text2); sansText('to CREATE TABLE … USING DELTA.', 140, 1240, 28, C.text2); ctx.restore();
+    ctx.restore();
+  }
+  // ---------- read ----------
+  if ((a = sceneWin('read', s)) > 0) {
+    ctx.save(); ctx.globalAlpha = a;
+    monoText('SQL · BETWEEN VERSIONS', 130, 590, 20, C.text2, 'left', 0.16);
+    panel(110, 610, 860, 170, C.slateLine, 0.05, 4); codeBlock(typed(config.code.sql, s, T.sqlA, CPS), 150, 680, 28, 52, C.text);
+    monoText('PYSPARK · BATCH READ', 130, 840, 20, C.text2, 'left', 0.16);
+    panel(110, 860, 860, 320, C.slateLine, 0.05, 4); codeBlock(typed(config.code.spark, s, T.sparkA, CPS * 1.6), 150, 925, 26, 54, C.text);
+    const doneS = T.sparkA + config.code.spark.length / (CPS * 1.6), rk = since(s, doneS, 0.4);
+    if (rk > 0) { ctx.save(); ctx.globalAlpha *= rk; arrow(540, 1195, 540, 1250, C.turn);
+      config.cdfRows.forEach((r, i) => { const c = col(r[4]), x = 130 + i * 280, k = since(s, doneS + 0.2 + i * 0.2, 0.3);
+        ctx.save(); ctx.globalAlpha *= k; strokeShape(() => ctx.roundRect(x, 1270, 260, 70, 12), c, 0.1, 2.5, 10); monoText(r[0], x + 130, 1313, 16, c, 'center', 0.02); ctx.restore(); });
+      ctx.restore(); }
+    ctx.restore();
+  }
+  // ---------- why ----------
+  if ((a = sceneWin('why', s)) > 0) {
+    ctx.save(); ctx.globalAlpha = a;
+    const A0 = T.S.why.a, gk = easeOut(since(s, A0 + 0.2, 1.0));
+    monoText('FULL SCAN', 140, 600, 22, C.bad, 'left', 0.18); monoText((Math.round(1e6 * gk)).toLocaleString('en-US') + ' ROWS', 940, 600, 22, C.text, 'right', 0.1);
+    strokeShape(() => ctx.roundRect(140, 620, 800 * gk + 2, 34, 8), C.bad, 0.25, 2, 10);
+    monoText('CDF', 140, 720, 22, C.turn, 'left', 0.18); monoText(gk > 0.5 ? '3 ROWS' : '', 940, 720, 22, C.text, 'right', 0.1);
+    strokeShape(() => ctx.roundRect(140, 740, 10 * gk + 2, 34, 6), C.good, 0.4, 2, 10);
+    config.why.forEach((w, i) => { const at = A0 + 1.4 + i * 0.6, k = since(s, at, 0.3); if (k <= 0) return;
+      const y = 880 + i * 92; ctx.save(); ctx.globalAlpha *= k; ctx.translate((1 - easeOut(k)) * 40, 0);
+      strokeShape(() => ctx.arc(170, y - 10, 20, 0, 7), C.dest, 0.12, 2.5, 8);
+      ctx.beginPath(); ctx.moveTo(160, y - 10); ctx.lineTo(167, y - 2); ctx.lineTo(181, y - 19); ctx.strokeStyle = C.dest; ctx.lineWidth = 3; ctx.stroke();
+      sansText(w, 214, y, 32, C.text); ctx.restore(); });
+    ctx.restore();
+  }
+  // ---------- pitfalls ----------
+  if ((a = sceneWin('pitfalls', s)) > 0) {
+    ctx.save(); ctx.globalAlpha = a;
+    config.pitfalls.forEach((p, i) => { const k = since(s, T.pitA + 0.3 + i * 0.6, 0.3); if (k <= 0) return;
+      const y = 700 + i * 150; ctx.save(); ctx.globalAlpha *= k;
+      strokeShape(() => ctx.arc(170, y - 10, 26, 0, 7), C.bad, 0.12, 2.5, 10); sansText(String(i + 1), 170, y, 28, C.bad, 'center', 700);
+      sansText(p, 220, y, 32, C.text); ctx.restore(); });
+    ctx.restore();
+  }
+  // ---------- summary: pipeline + CDF vs CDC ----------
+  if ((a = sceneWin('summary', s)) > 0) {
+    ctx.save(); ctx.globalAlpha = a;
+    const A0 = T.S.summary.a, nodes = [['DELTA TABLE', C.main], ['TXN LOG', C.slateLine], ['CDF', C.turn], ['SNOWFLAKE · KAFKA', C.dest]];
+    nodes.forEach(([lbl, c], i) => { const k = since(s, A0 + i * 0.25, 0.35), y = 580 + i * 120; ctx.save(); ctx.globalAlpha *= k;
+      panel(290, y, 500, 80, c, 0.06, 8); monoText(lbl, 540, y + 50, 22, c === C.slateLine ? C.text : c, 'center', 0.18);
+      if (i < 3) arrow(540, y + 84, 540, y + 116, C.slateLine); ctx.restore(); });
+    // flowing change dots
+    if (!reduced) for (let j = 0; j < 3; j++) { const k = ((s - A0) * 0.5 + j / 3) % 1; ctx.beginPath(); ctx.arc(540, 620 + k * 360, 8, 0, 7);
+      ctx.fillStyle = rgba([C.bad, C.good, C.dest][j], 0.7 * since(s, A0 + 1, 0.4)); ctx.fill(); }
+    const ck = since(s, A0 + 1.0, 0.5); ctx.save(); ctx.globalAlpha *= ck;
+    monoText('CDF VS CDC', 540, 1130, 22, C.text2, 'center', 0.2);
+    [['', 'CDF', 'CDC'], ['SOURCE', 'Delta table', 'Operational DB'], ['READS', 'Delta log', 'DB binlog (Debezium)']].forEach((r, i) => {
+      const y = 1180 + i * 56; monoText(r[0], 140, y, 18, C.text2, 'left', 0.16); sansText(r[1], 400, y, 28, i ? C.text : C.turn, 'left', i ? 500 : 600); sansText(r[2], 650, y, 28, i ? C.text : C.text2, 'left', i ? 500 : 600); });
+    ctx.restore();
     ctx.restore();
   }
 }
@@ -666,20 +642,21 @@ function audioEvents() {
   const out = [], add = (name, s, x, vol) => out.push({ name, s, x, vol });
   for (const e of RUN.ev) {
     switch (e.type) {
-      case 'spawn:user': case 'spawn:bot': add('thump', e.s, e.x, 0.22); break;
-      case 'merge': add('clack', e.s, e.x, 0.18); break;
-      case 'accept': add('tick', e.s, e.x, 0.3); add('chime', e.s + 0.02, e.x, 0.32); break;
-      case 'reject': add('tick', e.s, e.x, 0.3); add('buzz', e.s + 0.02, e.x + 60, 0.3); break;
-      case 'bin': add('thunk', e.s, e.x, 0.4); add('pop', e.s, 900, 0.18); break;
-      case 'serve': add('ratchet', e.s, e.x, 0.22); break;
-      case 'served:user': add('pop', e.s, 160, 0.22); break;
-      case 'served:bot': add('pop', e.s, 920, 0.22); break;
-      case 'drop': add('whoosh', e.s - 0.3, e.x, 0.55); break;
-      case 'land': add('land', e.s, e.x, 0.9); break;
+      case 'scene': add('whoosh', e.s - 0.3, e.x, 0.25); break;
+      case 'flip': add('tick', e.s, 740, 0.35); add('chime', e.s + 0.25, 740, 0.3); break;
+      case 'insert': add('thump', e.s, 900, 0.35); add('chime', e.s + 0.3, 700, 0.25); break;
+      case 'commit': add('clack', e.s, e.x, 0.4); add('ratchet', e.s + 0.05, e.x, 0.25); break;
+      case 'cdfRead': add('chime', e.s, e.x, 0.35); break;
+      case 'pre': case 'post': case 'ins': add('thunk', e.s, e.x, 0.35); add('pop', e.s, 900, 0.25); break;
+      case 'toggle': add('tick', e.s, 845, 0.5); add('land', e.s, 845, 0.35); break;
+      case 'key': add('tick', e.s, e.x, 0.08); break;
+      case 'check': add('pop', e.s, e.x, 0.25); break;
+      case 'warn': add('buzz', e.s, e.x, 0.15); break;
     }
   }
   return out;
 }
+
 async function buildAudio() {
   const D = config.duration, N = Math.ceil(D * SR), L = new Float32Array(N), R = new Float32Array(N);
   const shots = {};
