@@ -24,11 +24,11 @@ const DPR=Math.min(2,window.devicePixelRatio||1);cv.width=1000*DPR;cv.height=560
 const KC=[['#4f8cff','#3a6bd0','#2c52a3'],['#2fc28a','#23996c','#197250'],['#ff6b6b','#d64f4f','#a83b3b']];
 const KN=['A','B','C'];
 const SCENES=[
- {d:6,t:'1 · Map stage',c:'Data is split into <b>partitions</b>, one per map task on each executor. Every record has a key (A, B, C), but keys are scattered across all executors — so we can\'t aggregate per key yet.'},
- {d:7,t:'2 · Partition by hash',c:'Each map task computes <b>hash(key) % numReducers</b> for every record and groups (and sorts) records into one bucket per target reducer. This is the <b>shuffle write</b> side.'},
- {d:6,t:'3 · Write shuffle files',c:'Buckets are spilled to the executor\'s <b>local disk</b> as a shuffle data file plus an index file. This is the <b>stage boundary</b>: the next stage can\'t start until all map outputs exist.'},
- {d:8,t:'4 · Fetch over network',c:'Each reducer asks the driver\'s MapOutputTracker where its blocks live, then <b>fetches its bucket from every executor</b> over the network (shuffle read). This all-to-all transfer is why shuffles are expensive.'},
- {d:7,t:'5 · Reduce / aggregate',c:'Each reducer now holds <b>all records for its keys</b>. It merges the sorted blocks and aggregates — e.g. counts per key. Tip: reduceByKey pre-combines on the map side so less data crosses the network.'}];
+ {d:6,t:'1 · Map stage',c:'A wide transformation (groupByKey, reduceByKey, join) needs every record with the same key in one place. Right now the keys A, B, C are <b>scattered across all executors\' partitions</b>, so Spark has to split the job into two stages with a shuffle in between.'},
+ {d:7,t:'2 · Partition & sort',c:'Each map task assigns every record to a reducer with <b>hash(key) % numPartitions</b> and sorts the records by partition ID (sort-based shuffle, the default since Spark 1.2). If memory fills up, sorted runs <b>spill to disk</b> and get merged later. With DataFrames/SQL the partition count comes from <b>spark.sql.shuffle.partitions</b> (default 200).'},
+ {d:6,t:'3 · Write data + index file',c:'Each map task writes <b>one data file</b> holding all its buckets back-to-back, plus <b>one small index file</b> recording where each bucket starts. (The old hash shuffle wrote one file per reducer.) This is the <b>stage boundary</b>: reducers wait until all map output exists.'},
+ {d:8,t:'4 · Fetch over network',c:'Each reducer asks the driver\'s <b>MapOutputTracker</b> where its blocks are, then fetches its slice from <b>every</b> executor. It uses the index file to find the byte offset and reads only its own slice (the shuffle read). This all-to-all disk + network + serialization cost is why shuffles are expensive. An <b>external shuffle service</b> can serve these files even after an executor goes away.'},
+ {d:7,t:'5 · Merge & aggregate',c:'Each reducer now has <b>all records for its keys</b> and merges them, e.g. count by key. Tips: <b>reduceByKey</b> combines on the map side first, so less data crosses the network. <b>AQE</b> (spark.sql.adaptive.enabled) can merge small shuffle partitions toward ~64 MB each. Broadcast joins skip the shuffle entirely.'}];
 let starts=[],T=0;SCENES.forEach(s=>{starts.push(T);T+=s.d});
 const MAPKEYS=[[0,1,2,0,2,1],[1,1,0,2,0,2],[2,0,1,1,2,0]];
 const R=[];const perKey=[0,0,0];
@@ -70,10 +70,10 @@ function draw(t){g.clearRect(0,0,1000,560);
    if(o.sc<1.05){const[s,q]=iso(o.x+.4,o.y,o.z+.6);g.font='bold 10px system-ui';g.fillStyle='#fff';g.textAlign='center';g.fillText(KN[o.r.k],s,q+3)}});
  for(let i=0;i<3;i++){label(i*5-2.2,-1.6,0,`Executor ${i+1} · map task`,'#aab4cc',12);
    label(i*5+1.6,11.6,0,`Reducer ${i} · partition ${i}`,KC[i][0],12);}
- if(dA>0)label(12.3,4.4,0,'shuffle files (local disk)','#c9ccd6',12,dA);
+ if(dA>0)label(12.3,4.4,0,'data + index files (local disk)','#c9ccd6',12,dA);
  const hA=ph(t,1,0,.2)*(1-ph(t,2,0,.3));
  if(hA>0){for(let m=0;m<3;m++)for(let k=0;k<3;k++)label(m*5+k*1.1-1.1+.4,1.4,0,`→${k}`,KC[k][0],10,hA);
-   g.globalAlpha=hA;g.font='600 16px ui-monospace,monospace';g.fillStyle='#f5a524';g.textAlign='left';g.fillText('bucket = hash(key) % 3',24,40);g.globalAlpha=1}
+   g.globalAlpha=hA;g.font='600 16px ui-monospace,monospace';g.fillStyle='#f5a524';g.textAlign='left';g.fillText('partition = hash(key) % 3  → sort by partition',24,40);g.globalAlpha=1}
  if(nA>0){g.globalAlpha=nA;g.font='600 16px ui-monospace,monospace';g.fillStyle='#f5a524';g.textAlign='left';g.fillText('all-to-all network fetch (shuffle read)',24,40);g.globalAlpha=1}
  const rA=ph(t,4,.5,.8);
  if(rA>0){for(let k=0;k<3;k++){const[s,q]=iso(k*5,9.4,0.35+6*0.45+1.4);g.globalAlpha=rA;g.fillStyle='#0b0f18cc';g.fillRect(s-38,q-16,76,24);g.fillStyle=KC[k][0];g.font='bold 14px ui-monospace,monospace';g.textAlign='center';g.fillText(`${KN[k]} → ${perKey[k]}`,s,q+1);g.globalAlpha=1}
