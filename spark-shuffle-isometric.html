@@ -107,15 +107,16 @@ function execRow(y,o={}){
   pbox(EXX[m],yy,EW,EH,ED,{a,label:`EXECUTOR ${m+1}`,lines:4,dot:C.green,bar:o.bar?o.bar(m):null});
   for(const row of[0,1])for(let c=0;c<5;c++){const i=row*5+c,ta=o.tile?o.tile(m,i):1;if(ta<=0)continue;const[tx,ty]=tileXY(m,i,yy);const k=MAPS[m][i];
    const st=o.style?o.style(m,i,k):{};tile(tx,ty-(1-ta)*50,k,{a:ta*a,...st})}}}
-function costCard(si,u){if(si<4||si>11)return;const on=[si>4||u>=2.2,si>4||u>=3.6,si>8||(si===8&&u>=2.6),si>10||(si===10&&u>=1.5)];
- const a=si===4?lin(u,1.6,2.2):1;const x=730,y=200;card(x,y,290,200,'SHUFFLE COST',{a});
+function costCard(s,u){if(!s.cost)return;const on=s.cost.map(v=>v===true||(typeof v==='number'&&u>=v));
+ const a=s.costIn?lin(u,s.costIn,s.costIn+.6):1;const x=730,y=200;card(x,y,290,200,'SHUFFLE COST',{a});
  g.save();g.globalAlpha*=a;const n=on.filter(Boolean).length;g.fillStyle='#ebe6d8';g.fillRect(x+18,y+46,254,12);g.fillStyle=C.brick;g.fillRect(x+18,y+46,254*n/4,12);g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(x+18,y+46,254,12);
  ['serialize','disk I/O','network I/O','deserialize'].forEach((s,i)=>{check(x+18,y+74+i*30,on[i],C.brick);txt(s,x+48,y+89+i*30,{size:18,col:on[i]?C.ink:'#bdb8a8'})});g.restore()}
+const CW=[true,true,false,false],CN=[true,true,true,false],CA=[true,true,true,true];
 /* ---------- scenes ---------- */
 const SC=[];const S=o=>SC.push(o);
 S({k:'SPARK INTERNALS · SHUFFLE',title:[['one line, ',C.ink],['two stages',C.navy]],center:true,
  n:'One line of Spark: map every word to a pair of word and one, then reduceByKey. map is a narrow dependency, so it stays inside the task. reduceByKey is wide: every output partition needs data from every input partition. So the DAGScheduler splits the job into two stages, and the gap between them is the shuffle.',
- hood:['ShuffleDependency','DAGScheduler','Exchange (in SQL plans)'],
+ hood:['ShuffleDependency','DAGScheduler','narrow vs wide'],
  draw(u){const code='words.map(w => (w, 1)).reduceByKey(_ + _)';
   term(90,440,900,76,code,lin(u,.3,3)*code.length,{size:25,cursor:u<3.4});
   const a0=seg(u,3.2,4.2),a1=seg(u,3.6,4.6);
@@ -126,7 +127,11 @@ S({k:'SPARK INTERNALS · SHUFFLE',title:[['one line, ',C.ink],['two stages',C.na
   const s=seg(u,6.4,7.6);txt('SHUFFLE',540,700,{size:64,w:700,align:'center',a:s});g.save();g.globalAlpha=s;g.fillStyle=C.navy;g.fillRect(540-150*s,716,300*s,6);g.restore();
   txt('ShuffleDependency → stage boundary',540,1120,{size:20,col:C.mut,align:'center',a:seg(u,7.4,8.4)});
  }});
-S({k:'STEP 1 / 11',title:[['keys are ',C.ink],['scattered',C.brick]],
+S({title:[['find it in ',C.ink],['the plan',C.navy]],
+ n:'With DataFrames, the same shuffle appears in explain. Spark plans a partial count on every partition, then an Exchange that hash-partitions by word into two hundred partitions, then a final merge of the partial counts. The Exchange is the shuffle and the stage boundary. With AQE on, the plan can still change at runtime.',
+ hood:['ShuffleExchangeExec','partial_count → finalmerge_count','EnsureRequirements'],
+ draw(u){drawPlan(u)}});
+S({title:[['keys are ',C.ink],['scattered',C.brick]],
  n:'The driver sends one ShuffleMapTask to each executor. Each task reads its partition and emits records. But look at key A: it is on every executor. No machine holds all the values for any key, so nothing can be counted yet.',
  hood:['ShuffleMapTask','TaskScheduler','SortShuffleManager'],
  draw(u){card(390,440,300,96,'DRIVER',{a:seg(u,0,.8)});txt('TaskScheduler',410,512,{size:22,w:700,a:seg(u,0,.8)});
@@ -136,7 +141,7 @@ S({k:'STEP 1 / 11',title:[['keys are ',C.ink],['scattered',C.brick]],
   pill(540,990,'3 MAP TASKS RUNNING',C.green,{a:seg(u,4.5,5.2)});
   txt('where is every "A"?  →  on every executor',540,1080,{size:22,col:C.navy,align:'center',w:700,a:seg(u,6.6,7.4)});
  }});
-S({k:'STEP 2 / 11',title:[['same key → ',C.ink],['same partition',C.navy]],
+S({title:[['same key → ',C.ink],['same partition',C.navy]],
  n:'First, every record gets a destination. The HashPartitioner takes the key\'s hash modulo the number of partitions. A and D go to partition zero, B and E to one, C and F to two. Nothing moves yet. For DataFrames, there are two hundred partitions by default.',
  hood:['HashPartitioner','nonNegativeMod(key.hashCode, n)','spark.sql.shuffle.partitions = 200'],
  draw(u){const code='partition = hash(key) % 3';term(260,430,560,64,code,lin(u,.2,1.8)*code.length,{size:23,prompt:'',cursor:u<2});
@@ -152,41 +157,73 @@ S({k:'STEP 2 / 11',title:[['same key → ',C.ink],['same partition',C.navy]],
    if(pr>=1)tile(dst[0],dst[1],K,{dash:[4,4],ink:PC[p],tc:PC[p],shadow:false})});
   txt('nothing moves yet: records are only tagged',540,1300,{size:20,col:C.mut,align:'center',a:seg(u,7.5,8.3)});
  }});
-S({k:'STEP 3 / 11',title:[['combine ',C.ink],['in memory',C.navy]],
+S({title:[['memory for ',C.ink],['the shuffle',C.navy]],
+ n:'Shuffle buffers live in execution memory. After 300 megabytes are reserved, 60 percent of the heap is shared by execution and storage, split softly in half. Execution can evict cached blocks down to that line. With N tasks running, each is guaranteed one over 2N of execution memory and can take up to one over N. Past that, it spills.',
+ hood:['spark.memory.fraction = 0.6','spark.memory.storageFraction = 0.5','TaskMemoryManager'],
+ draw(u){drawMemory(u)}});
+S({title:[['combine ',C.ink],['in memory',C.navy]],
  n:'reduceByKey has an aggregator, so each map task combines values before shuffling. Records go into an in-memory map keyed by partition and key. Two A\'s become A times two. Spark estimates the map\'s size by sampling, and when execution memory runs out, it has to spill.',
  hood:['ExternalSorter','PartitionedAppendOnlyMap','initialMemoryThreshold = 5 MB'],
  draw(u){drawMapTask(u,'combine')}});
-S({k:'STEP 4 / 11',title:[['spill ',C.ink],['to disk',C.brick]],
+S({title:[['spill ',C.ink],['to disk',C.brick]],cost:[2.2,3.6,false,false],costIn:1.6,
  n:'Spilling means sorting the entries by partition, then key, serializing and compressing them, and writing a temporary spill file to local disk. Memory is freed and the task keeps reading. The next batch fills up and spills too. That is our first cost: serialization and disk I/O.',
  hood:['spill.compress = true (lz4)','spill.batchSize = 10000','shuffle.file.buffer = 32k'],
  draw(u){drawMapTask(u,'spill')}});
-S({k:'STEP 5 / 11',title:[['merge: ',C.ink],['data + index',C.navy]],
+S({title:[['merge: ',C.ink],['data + index',C.navy]],cost:CW,
  n:'When the task finishes, a k-way merge reads every spill at once and combines matching keys again. A times two plus A times one is A times three. The output is one data file, written partition by partition, plus a small index file of byte offsets. Two files per map task.',
  hood:['shuffle_<id>_<map>_0.data','IndexShuffleBlockResolver','hash shuffle (old): M × R files'],
  draw(u){drawMerge(u)}});
-S({k:'STEP 6 / 11',title:[['which ',C.ink],['writer?',C.navy]],
+S({title:[['which ',C.ink],['writer?',C.navy]],cost:CW,
  n:'Spark picks one of three writers. Bypass writes a file per partition and concatenates them, but only without map-side combine and with at most two hundred partitions. Unsafe sorts tiny eight-byte pointers to serialized bytes. Our reduceByKey combines on the map side, so it gets SortShuffleWriter.',
  hood:['bypassMergeThreshold = 200','PackedRecordPointer (8 bytes)','SortShuffleManager.registerShuffle'],
  draw(u){drawWriters(u)}});
-S({k:'STEP 7 / 11',title:[['wait for ',C.ink],['every map',C.brick]],
+S({title:[['tungsten',C.ink],['-sort',C.navy]],cost:CW,
+ n:'Without map-side combine, and with a serializer like Kryo or Spark SQL\'s UnsafeRow, Spark uses tungsten-sort. Records are serialized straight into memory pages. Each gets one 8-byte pointer: 24 bits of partition, 13 bits of page, 27 bits of offset. Only the pointers are radix-sorted, the bytes never move, and spills are merged by copying bytes, not objects.',
+ hood:['ShuffleExternalSorter','PackedRecordPointer','spark.file.transferTo = true'],
+ draw(u){drawTungsten(u)}});
+S({title:[['bytes ',C.ink],['on disk',C.navy]],cost:CW,
+ n:'On disk, shuffle output is compressed with lz4 by default, so less data hits the disk and the network. Since Spark 3.2, each map task also writes a checksum file with one checksum per partition. If a reducer finds corrupt data, the server recomputes the checksum: a network problem gets a retry, a disk problem becomes a fetch failure.',
+ hood:['spark.shuffle.compress = true','spark.io.compression.codec = lz4','spark.shuffle.checksum.enabled'],
+ draw(u){drawDiskBytes(u)}});
+S({title:[['wait for ',C.ink],['every map',C.brick]],cost:CW,
  n:'Each finished map task sends a MapStatus to the driver: where its file lives and how big each block is. The MapOutputTracker fills in this table. Reduce tasks cannot start until every map task has reported. That is the shuffle barrier.',
  hood:['MapStatus','MapOutputTrackerMaster','HighlyCompressedMapStatus (> 2000 parts)'],
  draw(u){drawBarrier(u)}});
-S({k:'STEP 8 / 11',title:[['fetch over ',C.ink],['network',C.brick]],
+S({title:[['fetch over ',C.ink],['network',C.brick]],cost:[true,true,2.6,false],
  n:'Each reducer asks the driver where its blocks are, then pulls them. The index file turns partition zero into a single byte range. Local blocks are read straight from disk. Remote blocks stream over the network, at most forty-eight megabytes in flight per reducer. Cost number two: network I/O.',
  hood:['ShuffleBlockFetcherIterator','maxSizeInFlight = 48m','External Shuffle Service :7337'],
  draw(u){drawFetch(u)}});
-S({k:'STEP 9 / 11',title:[['an executor ',C.ink],['dies',C.brick]],
+S({title:[['fetch, ',C.ink],['in detail',C.navy]],cost:CN,
+ n:'The fetcher splits blocks three ways. Local blocks are read directly. Host-local blocks, written by another executor on the same machine, are read from that disk with no network hop. Remote blocks are grouped into requests, shuffled randomly, and capped at 48 megabytes in flight. Blocks over 200 megabytes stream to disk, and failed fetches retry three times, five seconds apart.',
+ hood:['host-local disk reads','maxRemoteBlockSizeFetchToMem = 200m','io.maxRetries = 3 · retryWait = 5s'],
+ draw(u){drawFetchDetail(u)}});
+S({title:[['an executor ',C.ink],['dies',C.brick]],cost:CN,
  n:'Now Executor 2 dies, and its shuffle files die with it. The reducers\' fetches fail with a FetchFailedException. The DAGScheduler re-runs only the lost map task, here on Executor 3, and the reducers fetch again. An External Shuffle Service would have kept those files alive.',
  hood:['FetchFailedException','stage.maxConsecutiveAttempts = 4','shuffle.io.maxRetries = 3'],
  draw(u){drawFail(u)}});
-S({k:'STEP 10 / 11',title:[['aggregate',C.navy]],
+S({title:[['who keeps ',C.ink],['the files?',C.navy]],cost:CN,
+ n:'Shuffle files live on executor disks, so scaling down is risky. There are four fixes. An External Shuffle Service on each node keeps serving files after an executor exits. Shuffle tracking, the default since Spark 3.4 without that service, keeps executors alive while their data is needed. Decommissioning copies blocks to peers. Or a remote shuffle service like Apache Celeborn holds the data off the executors.',
+ hood:['spark.shuffle.service.enabled','dynamicAllocation.shuffleTracking.enabled','spark.shuffle.manager (Celeborn)'],
+ draw(u){drawKeepers(u)}});
+S({title:[['aggregate',C.navy]],cost:[true,true,true,1.5],
  n:'Finally, each reducer deserializes its blocks and merges the partial counts in an ExternalAppendOnlyMap. For A, that is three plus one plus two: six. If one key is huge, its reducer becomes the straggler that everyone waits for.',
  hood:['ExternalAppendOnlyMap','combineCombinersByKey','A=6 B=5 C=5 D=6 E=4 F=4'],
  draw(u){drawAggregate(u)}});
-S({k:'STEP 11 / 11',title:[['shuffle ',C.ink],['overhead',C.brick]],
- n:'So every shuffle pays for serialization, disk, network and deserialization, and stage one waits for all of it. To cut it: combine before you shuffle, broadcast small tables, let AQE coalesce small partitions and split skewed ones, and on big clusters, try push-based shuffle.',
- hood:['spark.sql.adaptive.enabled','skewedPartitionFactor = 5','spark.shuffle.push.enabled'],
+S({title:[['read the ',C.ink],['Spark UI',C.navy]],
+ n:'The Spark UI shows all of this per stage. Shuffle write is what map tasks produced. Shuffle read splits into local and remote bytes. High fetch wait time means tasks sat blocked on the network. Spill memory and spill disk mean execution memory ran short. And when the slowest task towers over the median, you are looking at skew.',
+ hood:['Fetch Wait Time','Shuffle Remote Reads','Spill (Memory) / Spill (Disk)'],
+ draw(u){drawUI(u)}});
+S({title:[['AQE ',C.ink],['at runtime',C.navy]],
+ n:'Adaptive Query Execution re-plans after each shuffle, using the real block sizes from MapStatus. It coalesces small partitions toward 64 megabytes. It splits a skewed partition bigger than five times the median and 256 megabytes. And if one join side turns out small, it switches to a broadcast join and reads the shuffle files locally instead of over the network.',
+ hood:['spark.sql.adaptive.enabled (default 3.2+)','advisoryPartitionSizeInBytes = 64MB','localShuffleReader.enabled'],
+ draw(u){drawAQE(u)}});
+S({title:[['push-based ',C.ink],['shuffle',C.navy]],
+ n:'Push-based shuffle, from LinkedIn\'s Magnet project and added in Spark 3.2, adds a second path. After writing its file, each map task also pushes small blocks, up to one megabyte, to merger services, which append them into one merged file per partition. Reducers then do a few large sequential reads, and anything not merged is still fetched the normal way.',
+ hood:['spark.shuffle.push.enabled','push.maxBlockSizeToPush = 1m','YARN + External Shuffle Service'],
+ draw(u){drawPush(u)}});
+S({title:[['shuffle ',C.ink],['overhead',C.brick]],cost:CA,
+ n:'So every shuffle pays for serialization, disk, network and deserialization, and the next stage waits for all of it. To cut it: combine before you shuffle, broadcast small tables, keep partitions around one to two hundred megabytes and let AQE fix the rest, and bucket the tables you join again and again.',
+ hood:['autoBroadcastJoinThreshold = 10MB','spark.sql.adaptive.enabled','bucketBy(n, key)'],
  draw(u){drawOverhead(u)}});
 S({k:'',title:[],center:true,end:true,
  n:'Partition, combine, spill, merge, fetch, reduce. That is a Spark shuffle.',
@@ -197,6 +234,7 @@ S({k:'',title:[],center:true,end:true,
   ['P0','P1','P2'].forEach((s,i)=>{const on=Math.floor(NOW*1.2)%3===i;const a=seg(u,2.4+i*.3,3.2+i*.3);g.save();g.globalAlpha=a;rr(380+i*120,1010,80,46,10);g.fillStyle=on?PC[i]:'#f6f3ea';g.fill();g.lineWidth=2;g.strokeStyle=on?PC[i]:C.ink;g.stroke();g.restore();txt(s,420+i*120,1041,{size:20,w:700,align:'center',col:on?'#fff':C.ink,a})});
   for(let m=0;m<3;m++)pbox(150+m*270,1300,190,90,70,{a:seg(u,3.4+m*.25,4.4+m*.25),label:`EXECUTOR ${m+1}`,ls:13,dot:C.green,bar:1,lines:2});
  }});
+{let n=0;const tot=SC.filter(s=>!s.center).length;SC.forEach(s=>{if(!s.center)s.k=`STEP ${++n} / ${tot}`})}
 /* ---------- complex scenes ---------- */
 const MX=90,MY=760,MW=400,MH=150,MD=120; // big executor in map-task scenes
 const mtile=(r,c)=>TA(MX,MY,MH,22+c*74,r?82:25);
@@ -341,19 +379,177 @@ function drawAggregate(u){
 function drawOverhead(u){
  pbox(110,640,210,110,70,{label:'STAGE 0',lines:3,dot:C.green,bar:1});pbox(770,640,210,110,70,{label:'STAGE 1',lines:3,dot:C.mut,bar:.1});
  ['SERIAL.','DISK I/O','NETWORK','DESER.'].forEach((s,i)=>{const a=seg(u,.5+i*.4,1.2+i*.4);pbox(360+i*98,640-(1-a)*40,86,62,44,{col:C.brick,center:s,cs:11,a,small:true})});
- txt('stage 1 waits for all of this',555,690,{size:17,col:C.brick,align:'center',a:seg(u,2.4,3)});
- const tips=[['combine before you shuffle','reduceByKey / aggregateByKey, not groupByKey'],['broadcast small tables','joins under 10 MB (autoBroadcastJoinThreshold) skip it'],['let AQE fix partitions','coalesce toward 64 MB · split skew (> 5× median, > 256 MB)'],['push-based shuffle','Spark 3.2+: blocks merged per partition → fewer reads']];
+ txt('the next stage waits for all of this',555,690,{size:17,col:C.brick,align:'center',a:seg(u,2.4,3)});
+ const tips=[['combine before you shuffle','reduceByKey / aggregateByKey, not groupByKey'],['broadcast small tables','joins under 10 MB (autoBroadcastJoinThreshold) skip it'],['right-size partitions','~100–200 MB each · let AQE coalesce and split skew'],['bucket repeated joins','tables bucketed on the join key skip the Exchange']];
  tips.forEach(([t,d],i)=>{const a=seg(u,3.4+i*1.1,4.2+i*1.1),y=760+i*125,x=90+(1-a)*60;card(x,y,900,108,'',{a});
   g.save();g.globalAlpha=a;rr(x+20,y+24,60,60,8);g.fillStyle=C.navy;g.fill();g.restore();txt(String(i+1),x+50,y+66,{size:28,w:700,col:'#fff',align:'center',a});
   txt(t,x+104,y+48,{size:24,w:700,a});txt(d,x+104,y+82,{size:19,f:F.sans,col:'#5f5b52',a})});
+}
+/* ---------- deep-dive scenes ---------- */
+function bracket(x,y1,y2,label,a){if(a<=.01)return;g.save();g.globalAlpha*=a;g.strokeStyle=C.ink;g.lineWidth=2;g.beginPath();g.moveTo(x-12,y1);g.lineTo(x,y1);g.lineTo(x,y2);g.lineTo(x-12,y2);g.stroke();
+ g.translate(x+24,(y1+y2)/2);g.rotate(-Math.PI/2);g.font=`700 16px ${F.mono}`;g.textAlign='center';g.fillStyle=C.mut;if('letterSpacing'in g)g.letterSpacing='3px';g.fillText(label,0,0);g.restore()}
+function vArrow(x,y1,y2,a=1,col=C.ink){if(a<=.01)return;g.save();g.globalAlpha*=a;g.strokeStyle=col;g.fillStyle=col;g.lineWidth=2;g.beginPath();g.moveTo(x,y1);g.lineTo(x,y2+(y2>y1?-10:10));g.stroke();const d=y2>y1?-1:1;g.beginPath();g.moveTo(x,y2);g.lineTo(x-8,y2+d*12);g.lineTo(x+8,y2+d*12);g.closePath();g.fill();g.restore()}
+function hArrow(x1,x2,y,a=1,col=C.ink){if(a<=.01)return;g.save();g.globalAlpha*=a;g.strokeStyle=col;g.fillStyle=col;g.lineWidth=2;g.beginPath();g.moveTo(x1,y);g.lineTo(x2-10,y);g.stroke();g.beginPath();g.moveTo(x2,y);g.lineTo(x2-12,y-8);g.lineTo(x2-12,y+8);g.closePath();g.fill();g.restore()}
+function box2(x,y,w,h,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;rr(x,y,w,h,o.r??6);g.fillStyle=o.fill||'#fbf9f3';g.fill();g.lineWidth=o.lw||1.8;g.strokeStyle=o.stroke||C.ink;if(o.dash)g.setLineDash(o.dash);g.stroke();g.restore()}
+function drawPlan(u){
+ const code='df.groupBy("word").count().explain()';
+ term(90,430,900,70,code,lin(u,.2,2)*code.length,{size:24,cursor:u<2.3});
+ const ops=[['HashAggregate','finalmerge_count(word)'],['Exchange','hashpartitioning(word, 200)'],['HashAggregate','partial_count(1)'],['FileScan','parquet · words']];
+ ops.forEach(([t,d],i)=>{const y=555+i*165,a=seg(u,2.2+(3-i)*.6,2.9+(3-i)*.6),hl=i===1&&u>5.4;
+  card(150,y,560,120,'',{a,border:hl?C.brick:undefined,lw:hl?3.5:1.8,fill:hl?'#fbeee8':undefined});
+  txt(t,175,y+50,{size:28,w:700,col:hl?C.brick:C.ink,a});txt(d,175,y+92,{size:20,col:'#5f5b52',a});
+  if(i<3)vArrow(430,y+163,y+124,seg(u,2.2+(2-i)*.6,2.9+(2-i)*.6))});
+ txt('← the shuffle',730,555+165+70,{size:22,w:700,col:C.brick,a:seg(u,5.6,6.2)});
+ txt('← map-side combine',730,555+330+70,{size:20,w:700,col:C.navy,a:seg(u,6.4,7)});
+ bracket(975,555,675,'STAGE 1',seg(u,7,7.6));bracket(975,885,1170,'STAGE 0',seg(u,7.2,7.8));
+ pill(540,1250,'AdaptiveSparkPlan · can change at runtime',C.green,{size:15,a:seg(u,8.2,8.8)});
+}
+function drawMemory(u){
+ const x0=90,W0=900,y=480,h=64,xs=[x0,x0+W0*.08,x0+W0*.448,x0+W0];
+ txt('EXECUTOR HEAP',990,y-18,{size:15,col:C.mut,ls:2,align:'right',a:seg(u,0,.6)});
+ const ap=[seg(u,.3,1),seg(u,.8,1.5),seg(u,1.3,2)];
+ g.save();g.globalAlpha=ap[0];g.fillStyle='#e3dfd3';g.fillRect(xs[0],y,xs[1]-xs[0],h);hatch(xs[0],y,xs[1]-xs[0],h,'#bdb7a6');g.strokeStyle=C.ink;g.lineWidth=1.8;g.strokeRect(xs[0],y,xs[1]-xs[0],h);g.restore();
+ g.save();g.globalAlpha=ap[1];g.fillStyle=C.pF;g.fillRect(xs[1],y,xs[2]-xs[1],h);g.strokeStyle=C.ink;g.lineWidth=1.8;g.strokeRect(xs[1],y,xs[2]-xs[1],h);g.restore();
+ const mid=(xs[2]+xs[3])/2;g.save();g.globalAlpha=ap[2];g.fillStyle=mix(C.pF,C.navy,.25);g.fillRect(xs[2],y,mid-xs[2],h);g.fillStyle=mix(C.pF,C.green,.25);g.fillRect(mid,y,xs[3]-mid,h);g.strokeStyle=C.navy;g.lineWidth=3.5;g.strokeRect(xs[2],y,xs[3]-xs[2],h);g.restore();
+ txt('reserved · 300 MB',xs[0],y-18,{size:14,w:700,a:ap[0]});
+ txt('user memory · 40%',xs[1]+12,y+h+28,{size:16,w:700,a:ap[1]});txt('your objects, UDF data',xs[1]+12,y+h+50,{size:14,col:C.mut,a:ap[1]});
+ txt('unified · 60%',xs[2]+12,y+h+28,{size:16,w:700,col:C.navy,a:ap[2]});txt('spark.memory.fraction',xs[2]+12,y+h+50,{size:14,col:C.mut,a:ap[2]});
+ const za=seg(u,2,2.7),y2=700,h2=96;
+ g.save();g.globalAlpha=za*.6;g.setLineDash([6,6]);g.strokeStyle=C.navy;g.lineWidth=1.6;g.beginPath();g.moveTo(xs[2],y+h);g.lineTo(90,y2);g.moveTo(xs[3],y+h);g.lineTo(990,y2);g.stroke();g.restore();
+ const ex=L(330,540,seg(u,4,5.6));
+ g.save();g.globalAlpha=za;g.fillStyle=mix(C.pF,C.navy,.12);g.fillRect(90,y2,450,h2);g.fillStyle=mix(C.pF,C.green,.14);g.fillRect(540,y2,450,h2);
+ g.fillStyle=C.navy;g.fillRect(90,y2,ex-90,h2);g.strokeStyle=C.ink;g.lineWidth=2;g.strokeRect(90,y2,900,h2);
+ g.setLineDash([8,6]);g.strokeStyle=C.ink;g.beginPath();g.moveTo(540,y2-16);g.lineTo(540,y2+h2+16);g.stroke();g.restore();
+ txt('EXECUTION',104,y2+30,{size:16,w:700,col:'#fff',a:za});txt('shuffles · joins · sorts',104,y2+54,{size:14,col:'#dfe5f7',a:za});
+ txt('STORAGE · cache',976,y2+30,{size:16,w:700,col:C.green,align:'right',a:za});
+ txt('storageFraction 0.5 (soft line)',540,y2-26,{size:14,col:C.mut,align:'center',a:za});
+ for(let i=0;i<14;i++){const x=388+i*43;if(x<ex-2&&x<540){const ev=seg(u,4.2+(540-x)/200,5.2+(540-x)/200);if(ev>=1)continue;g.save();g.globalAlpha=za*(1-ev);g.fillStyle=mix(C.green,C.brick,ev);g.fillRect(x,y2+48-ev*90,34,34);g.restore();continue}
+  g.save();g.globalAlpha=za;g.fillStyle=C.green;g.fillRect(x,y2+48,34,34);g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(x,y2+48,34,34);g.restore()}
+ txt('execution can evict cached blocks, but only down to the line',540,y2+h2+40,{size:17,col:C.brick,align:'center',a:seg(u,4.6,5.2)});
+ const ta=seg(u,5.6,6.2);card(90,880,900,330,'EXECUTION POOL · N = 4 RUNNING TASKS',{a:ta});
+ const tg=[120,160,100,200],bx=250,bw=720;
+ for(let i=0;i<4;i++){const ry=930+i*62,f=Math.min(tg[i],180)*seg(u,6.3+i*.25,7.6+i*.25),cap=tg[i]>180&&u>7.8;
+  txt(`TASK ${i}`,115,ry+30,{size:17,w:700,a:ta});g.save();g.globalAlpha=ta;g.fillStyle='#eee9dc';g.fillRect(bx,ry+10,bw,30);g.fillStyle=cap?C.brick:C.navy;g.fillRect(bx,ry+10,f/720*bw*4,30);g.strokeStyle=C.ink;g.lineWidth=1.3;g.strokeRect(bx,ry+10,bw,30);
+   g.setLineDash([4,4]);g.strokeStyle=C.mut;g.beginPath();g.moveTo(bx+bw/8,ry+4);g.lineTo(bx+bw/8,ry+46);g.moveTo(bx+bw/4,ry+4);g.lineTo(bx+bw/4,ry+46);g.stroke();g.restore();
+   if(cap)pill(bx+bw/4+120,ry+25,'wants more → spill',C.brick,{size:14,a:seg(u,7.8,8.4)})}
+ txt('≥ 1/2N',bx+bw/8,1196,{size:14,col:C.mut,align:'center',a:ta});txt('≤ 1/N',bx+bw/4,1196,{size:14,col:C.mut,align:'center',a:ta});
+}
+function drawTungsten(u){
+ const keys=['C','A','E','B','F','D'],wd=[120,90,150,100,130,110],pages=[{x:90},{x:550}];
+ pages.forEach((p,i)=>card(p.x,440,440,120,`MEMORY PAGE ${i}`,{a:seg(u,.2+i*.3,.8+i*.3)}));
+ const off=[0,0],rec=keys.map((k,i)=>{const pg=i<3?0:1,x=pages[pg].x+16+off[pg],r={k,pg,x,w:wd[i],off:off[pg]*4};off[pg]+=wd[i]+8;return r});
+ rec.forEach((r,i)=>{const a=seg(u,.8+i*.35,1.2+i*.35);g.save();g.globalAlpha=a;g.fillStyle=PC[PID[r.k]];g.fillRect(r.x,496,r.w*a,44);g.restore();txt(`${r.k} 01…`,r.x+8,524,{size:14,w:700,col:'#fff',a})});
+ const pa=seg(u,3,3.8),bits=[[24,'partition · 24 bits',C.navy],[13,'page · 13',C.green],[27,'offset in page · 27 bits',C.ochre]];
+ txt('1 POINTER = 8 BYTES',90,615,{size:15,col:C.mut,ls:2,a:pa});let bxp=90;bits.forEach(([b,l,c])=>{const w=900*b/64;g.save();g.globalAlpha=pa;g.fillStyle=mix(C.pF,c,.25);g.fillRect(bxp,630,w,50);g.strokeStyle=C.ink;g.lineWidth=1.6;g.strokeRect(bxp,630,w,50);g.restore();txt(l,bxp+12,662,{size:16,w:700,col:c,a:pa});bxp+=w});
+ txt('POINTER ARRAY (LongArray)',90,760,{size:15,col:C.mut,ls:2,a:seg(u,3.8,4.3)});
+ const order=rec.map((r,i)=>i).sort((a,b)=>PID[rec[a].k]-PID[rec[b].k]||a-b),sp=seg(u,5,6.6);
+ rec.forEach((r,i)=>{const a=seg(u,3.8+i*.15,4.3+i*.15),x=L(90+i*150,90+order.indexOf(i)*150,sp),y=780-bump(sp)*(i%2?40:-40);
+  g.save();g.globalAlpha=a*.35;g.strokeStyle=PC[PID[r.k]];g.lineWidth=1.5;g.beginPath();g.moveTo(x+67,y);g.lineTo(r.x+r.w/2,540);g.stroke();g.restore();
+  box2(x,y,135,54,{a,fill:PC[PID[r.k]],stroke:C.ink});txt(`P${PID[r.k]}|${r.pg}|${r.off}`,x+67,y+34,{size:15,w:700,col:'#fff',align:'center',a})});
+ txt('radix sort by partition ID · the bytes never move',540,880,{size:18,w:700,col:C.navy,align:'center',a:seg(u,5.2,5.8)});
+ const fa=seg(u,6.8,7.3);sheet(90,920,900,200,'shuffle data file',{a:fa});let fx=110;
+ order.forEach((ri,j)=>{const r=rec[ri],w=r.w*.95,a=seg(u,7.2+j*.25,7.6+j*.25);g.save();g.globalAlpha=a;g.fillStyle=PC[PID[r.k]];g.fillRect(fx,990,w,60);g.restore();txt(r.k,fx+10,1028,{size:18,w:700,col:'#fff',a});fx+=w+6});
+ [['P0',110],['P1',110+(rec[1].w+rec[5].w)*.95+12],['P2',110+(rec[1].w+rec[5].w+rec[2].w+rec[3].w)*.95+24]].forEach(([s,x],i)=>txt(s,x,1080,{size:15,w:700,col:PC[i],a:seg(u,8.6,9)}));
+ pill(540,1200,'spills merge by copying bytes (transferTo)',C.green,{size:15,a:seg(u,8.8,9.4)});
+}
+function drawDiskBytes(u){
+ txt('spark.local.dir / blockmgr-… / 0c /',90,470,{size:19,col:C.mut,a:seg(u,0,.8)});
+ const da=seg(u,.4,1),comp=seg(u,2.2,3.8);sheet(90,500,440,440,'shuffle_0_0_0.data',{a:da});
+ for(let p=0;p<3;p++){txt(`P${p}`,110,585+p*125,{size:16,w:700,col:PC[p],a:da});for(let r=0;r<2;r++){const w=L(330,140,comp);g.save();g.globalAlpha=da;g.fillStyle=mix(C.pF,PC[p],.55);g.fillRect(160,560+p*125+r*44,w,34);g.restore();txt(comp>.5?'lz4 ▪▪▪':'(P'+p+', k) → v · v · v',170,583+p*125+r*44,{size:14,col:'#fff',a:da})}}
+ pill(410,900,'lz4',C.ink,{size:15,a:seg(u,3,3.6)});txt('smaller on disk & network',150,903,{size:15,col:C.mut,a:seg(u,3,3.6)});
+ const ia=seg(u,1,1.6);sheet(560,500,190,300,'.index',{a:ia});['0','412','798','1180'].forEach((s,i)=>txt(s,580,580+i*50,{size:24,w:700,col:i<3?PC[i]:C.mut,a:ia}));
+ const ca=seg(u,4.4,5.2);sheet(780,500,210,300,'.checksum',{a:ca});txt('ADLER32',800,560,{size:15,col:C.mut,a:ca});['3f9a1c02','7b20e4d1','c41f0a9e'].forEach((s,i)=>txt(`P${i} ${s}`,800,610+i*48,{size:17,w:700,col:PC[i],a:ca}));txt('Spark 3.2+',800,775,{size:14,w:700,col:C.green,a:ca});
+ const fa=seg(u,6,6.6);card(90,985,900,250,'CORRUPT BLOCK? CHECKSUM DIAGNOSIS',{a:fa});
+ txt('reader sends its checksum → server recomputes it from disk',115,1048,{size:18,a:fa});
+ const la=seg(u,7,7.6),ra=seg(u,7.8,8.4);
+ box2(115,1080,410,120,{a:la,stroke:C.brick,lw:2.6});txt('stored ≠ recomputed',135,1125,{size:19,w:700,col:C.brick,a:la});txt('disk issue → fetch failure',135,1165,{size:17,a:la});
+ box2(555,1080,410,120,{a:ra,stroke:C.green,lw:2.6});txt('only reader differs',575,1125,{size:19,w:700,col:C.green,a:ra});txt('network issue → retry',575,1165,{size:17,a:ra});
+}
+function drawFetchDetail(u){
+ const lanes=[['LOCAL','same executor → read the file directly',C.green],['HOST-LOCAL','other executor, same machine → read its disk',C.ochre],['REMOTE','other machine → request over Netty',C.navy]];
+ lanes.forEach(([t,d,col],i)=>{const y=440+i*118,a=seg(u,.3+i*.5,1+i*.5);card(90,y,900,100,'',{a,border:col,lw:2.4});
+  txt(t,115,y+42,{size:24,w:700,col,a});txt(d,115,y+78,{size:18,f:F.sans,col:'#5f5b52',a});
+  const p=lin(u,1+i*.5,3+i*.5);if(p>0&&p<1)tile(L(640,920,ez(p)),y+62,'blk',{col,w:48,h:24,d:12,cs:11})});
+ const qy=852,qa=seg(u,4,4.6);txt('REMOTE REQUESTS',90,qy-24,{size:15,col:C.mut,ls:2,a:qa});
+ const perm=[3,0,5,1,4,2],sp=seg(u,4.6,5.6),done=cl((u-6.4)/.55,0,6);
+ for(let i=0;i<6;i++){const pos=L(i,perm[i],sp)-(u>6.4?Math.min(done,perm[i]+1):0);const gone=u>6.4&&done>perm[i]?cl(done-perm[i]):0;if(gone>=1)continue;
+  const x=90+pos*120,y=qy-gone*40;box2(x,y,100,50,{a:qa*(1-gone),fill:mix(C.pF,C.navy,.18),stroke:C.navy,lw:2});txt(`req ${i+1}`,x+50,y+32,{size:16,w:700,col:C.navy,align:'center',a:qa*(1-gone)})}
+ const wa=seg(u,5.8,6.3);box2(80,qy-12,380,74,{a:wa,fill:'rgba(0,0,0,0)',stroke:C.brick,lw:2.4,dash:[8,6]});txt('≤ 48 MB in flight',470,qy+32,{size:17,w:700,col:C.brick,a:wa});
+ const by=985,ba=seg(u,8,8.6);box2(90,by,240,52,{a:ba,stroke:C.brick,lw:2.2});txt('250 MB block',210,by+33,{size:17,w:700,col:C.brick,align:'center',a:ba});
+ hArrow(340,460,by+26,ba,C.brick);disk(540,by+42,.45,ba);txt('> 200 MB → streamed to disk',620,by+33,{size:17,w:700,a:ba});
+ pill(540,1135,'fetch failed? retry 3× · 5 s apart · then FetchFailed',C.brick,{size:15,a:seg(u,9,9.6)});
+}
+function drawKeepers(u){
+ const items=[['External Shuffle Service',['a per-node process keeps serving','files after the executor exits']],
+  ['Shuffle tracking',['keeps executors alive while their','shuffle data is needed (default 3.4+)']],
+  ['Decommission migration',['copies shuffle blocks to a peer','before an executor leaves (3.1+)']],
+  ['Remote shuffle service',['Apache Celeborn, Uniffle: data is','pushed to a separate cluster']]];
+ items.forEach(([t,d],i)=>{const y=440+i*192,a=seg(u,.4+i*1.6,1.1+i*1.6),pi=lin(u,1.1+i*1.6,2.8+i*1.6);card(90,y,900,172,'',{a});
+  g.save();g.globalAlpha=a;rr(112,y+26,48,48,8);g.fillStyle=C.navy;g.fill();g.restore();txt(String(i+1),136,y+60,{size:24,w:700,col:'#fff',align:'center',a});
+  txt(t,180,y+58,{size:25,w:700,a});d.forEach((s,j)=>txt(s,180,y+100+j*30,{size:19,f:F.sans,col:'#5f5b52',a}));
+  const ix=760,iy=y+150;
+  if(i===0){pbox(ix,iy,110,62,40,{a:a*(1-pi*.85),label:'EXEC',ls:12,small:true,x:pi>.5});sheet(905,y+40,60,74,'',{a});pill(935,y+140,'ESS',C.green,{size:13,dot:false,a})}
+  if(i===1){pbox(ix,iy,110,62,40,{a,label:'EXEC',ls:12,small:true,dot:C.green});g.save();g.globalAlpha=a;g.strokeStyle=C.navy;g.lineWidth=4;g.beginPath();g.arc(952,y+52,15,Math.PI,0);g.stroke();g.fillStyle=C.navy;g.fillRect(933,y+52,38,30);g.restore();txt('kept alive',952,y+104,{size:14,w:700,col:C.navy,align:'center',a})}
+  if(i===2){pbox(ix,iy,80,56,36,{a:a*(1-lin(pi,.85,1)*.7),small:true,label:'OLD',ls:11});pbox(ix+130,iy,80,56,36,{a,small:true,label:'PEER',ls:11,dot:C.green});for(let k=0;k<3;k++){const p=cl(pi*1.4-k*.2);const q=qpt([ix+20,iy-80],[ix+150,iy-80],50,p);tile(q[0],q[1],'',{col:PC[k],w:26,h:14,d:8,a})}}
+  if(i===3){pbox(ix+40,y+70,130,44,40,{a,small:true,label:'CELEBORN',ls:11,tint:C.navy});for(let k=0;k<2;k++)pbox(ix+k*120,iy,74,40,30,{a,small:true,label:'EXEC',ls:10});for(let k=0;k<3;k++){const p=cl(pi*1.4-k*.2);tile(L(ix+20+k*60,ix+70+k*25,p),L(iy-44,y+40,p),'',{col:PC[k],w:22,h:12,d:8,a:a*(p<1?1:0)})}}
+ });
+}
+function drawUI(u){
+ const a0=seg(u,.2,.8);card(90,430,900,560,'SHUFFLE METRICS · SPARK UI STAGE PAGE',{a:a0});
+ const rows=[['Shuffle Write','stage 0 · 18 records · 90 KB',null],['Shuffle Read','',null],['Fetch Wait Time','0.4 s','high → tasks blocked on network'],['Spill (Memory)','1.2 MB',null],['Spill (Disk)','0.4 MB','execution memory ran short']];
+ rows.forEach(([l,v,n],r)=>{const y=500+r*94,a=seg(u,1+r*.9,1.6+r*.9);txt(l,115,y+28,{size:20,w:700,a});
+  if(r===1){g.save();g.globalAlpha=a;g.fillStyle=C.green;g.fillRect(420,y+6,180,34);g.fillStyle=C.navy;g.fillRect(600,y+6,360,34);g.strokeStyle=C.ink;g.lineWidth=1.4;g.strokeRect(420,y+6,540,34);g.restore();txt('local 30 KB',430,y+29,{size:15,w:700,col:'#fff',a});txt('remote 60 KB',612,y+29,{size:15,w:700,col:'#fff',a})}
+  else txt(v,420,y+28,{size:20,col:'#4a4842',a});
+  if(n)txt(n,420,y+60,{size:16,w:700,col:C.brick,a:seg(u,1.5+r*.9,2.1+r*.9)});
+  if(r<4){g.save();g.globalAlpha=a*.5;g.strokeStyle='#d6d0bf';g.lineWidth=1;g.beginPath();g.moveTo(115,y+78);g.lineTo(965,y+78);g.stroke();g.restore()}});
+ const ta=seg(u,6.2,6.8);card(90,1020,900,240,'STAGE 1 · TASK DURATION',{a:ta});
+ const X=s=>130+s/42*820,ay=1170,pts=[['min',2],['25%',3],['median',3.5],['75%',4.5],['max',41]];
+ g.save();g.globalAlpha=ta;g.strokeStyle=C.ink;g.lineWidth=2;g.beginPath();g.moveTo(130,ay);g.lineTo(950,ay);g.stroke();
+ g.fillStyle=mix(C.pF,C.navy,.3);g.fillRect(X(3),ay-24,X(4.5)-X(3),48);g.strokeRect(X(3),ay-24,X(4.5)-X(3),48);g.restore();
+ const mx=seg(u,7.2,8.4);g.save();g.globalAlpha=ta;g.setLineDash([6,6]);g.strokeStyle=C.brick;g.lineWidth=2.4;g.beginPath();g.moveTo(X(4.5),ay);g.lineTo(L(X(4.5),X(41),mx),ay);g.stroke();g.restore();
+ if(mx>.95){g.save();g.fillStyle=C.brick;g.beginPath();g.arc(X(41),ay,12,0,7);g.fill();g.restore();txt('max 41 s · skew!',X(41),ay-30,{size:18,w:700,col:C.brick,align:'right'})}
+ txt('min 2 s · median 3.5 s · 75% 4.5 s',130,ay+52,{size:16,col:C.mut,a:ta});
+}
+function drawAQE(u){
+ [[440,'1 · coalesce small partitions'],[720,'2 · split a skewed partition'],[1000,'3 · switch to broadcast, read locally']].forEach(([y,t],i)=>{const a=seg(u,.3+i*2.9,.9+i*2.9);card(90,y,900,250,'',{a});txt(t,115,y+46,{size:24,w:700,a})});
+ {const a=seg(u,.3,.9),base=665,mb=[10,22,8,30,15,40,12,25],grp=[0,0,0,1,1,2,2,3],sc=2,mp=seg(u,1.2,2.6),cum=[0,0,0,0];
+  g.save();g.globalAlpha=a;g.setLineDash([6,6]);g.strokeStyle=C.orange;g.lineWidth=2;g.beginPath();g.moveTo(120,base-64*sc);g.lineTo(960,base-64*sc);g.stroke();g.restore();txt('advisory 64 MB',960,base-64*sc-10,{size:15,w:700,col:C.orange,align:'right',a});
+  mb.forEach((v,i)=>{const gi=grp[i],x=L(130+i*92,170+gi*200,mp),b=base-L(0,cum[gi],mp)*sc;cum[gi]+=v;g.save();g.globalAlpha=a;g.fillStyle=PC[i%3];g.fillRect(x,b-v*sc,64,v*sc);g.strokeStyle=C.ink;g.lineWidth=1.4;g.strokeRect(x,b-v*sc,64,v*sc);g.restore()});
+  if(mp>.95)[40,45,52,25].forEach((t,gi)=>txt(`${t} MB`,202+gi*200,base-t*sc-10,{size:15,w:700,align:'center',a}));
+  txt(mp>.5?'4 tasks':'8 partitions',115,base-150,{size:16,col:C.mut,a})}
+ {const a=seg(u,3.2,3.8),base=945,mb=[40,50,420,45,55],sc=.36,spl=seg(u,4.2,5.6);
+  g.save();g.globalAlpha=a;g.setLineDash([6,6]);g.strokeStyle=C.brick;g.lineWidth=2;g.beginPath();g.moveTo(120,base-256*sc);g.lineTo(600,base-256*sc);g.stroke();g.restore();txt('> 5× median & > 256 MB',125,base-256*sc-10,{size:14,w:700,col:C.brick,a});
+  mb.forEach((v,i)=>{if(i===2)return;g.save();g.globalAlpha=a;g.fillStyle=PC[i%3];g.fillRect(140+i*95,base-v*sc,60,v*sc);g.strokeStyle=C.ink;g.lineWidth=1.4;g.strokeRect(140+i*95,base-v*sc,60,v*sc);g.restore()});
+  for(let j=0;j<4;j++){const x=L(330,650+j*80,spl),b=base-L(j*105*sc,0,spl);g.save();g.globalAlpha=a;g.fillStyle=C.brick;g.fillRect(x,b-105*sc,60,105*sc);g.strokeStyle=C.ink;g.lineWidth=1.4;g.strokeRect(x,b-105*sc,60,105*sc);g.restore()}
+  txt('1 skewed task → 4 tasks',800,base-60,{size:16,w:700,col:C.brick,align:'center',a:seg(u,5.4,5.9)})}
+ {const a=seg(u,6.1,6.7),y=1000,sw=seg(u,6.9,7.6);
+  box2(120,y+76,320,56,{a,fill:mix(C.pF,C.ink,.06)});txt(sw>.5?'BroadcastHashJoin':'SortMergeJoin',280,y+112,{size:19,w:700,align:'center',col:sw>.5?C.navy:C.ink,a});
+  txt('one side < 10 MB at runtime',470,y+112,{size:17,col:'#4a4842',a});
+  mark(130,y+186,true,seg(u,8,8.5));txt('local shuffle reader: map output read from local disk',150,y+194,{size:17,w:700,col:C.green,a:seg(u,8,8.5)})}
+}
+function drawPush(u){
+ const xs=[110,410,710],R=[600,905,1215];
+ ['MAP TASKS','MERGERS (shuffle service)','REDUCERS'].forEach((s,i)=>txt(s,90,R[i]-135,{size:15,col:C.mut,ls:2}));
+ for(let m=0;m<3;m++){pbox(xs[m],R[0],220,90,60,{label:`MAP ${m}`,ls:14,lines:2,dot:C.green,bar:1});pbox(xs[m],R[1],220,90,60,{label:`MERGER · P${m}`,ls:14,lines:2,tint:PC[m]});pbox(xs[m],R[2],220,90,60,{label:`REDUCER ${m}`,ls:14,lines:2,dot:PC[m],bar:seg(u,6,8)})}
+ const big=(m,p)=>m===2&&p===1;
+ for(let p=0;p<3;p++){let n=0;for(let m=0;m<3;m++){if(big(m,p))continue;const w=[1+m*.6+p*.15,1.9+m*.6+p*.15],pr=seg(u,...w);if(pr>=1){n++;continue}if(pr<=0)continue;
+   const q=qpt(TA(xs[m],R[0],90,110,30),TA(xs[p],R[1],90,110,30),40,pr);tile(q[0]-15,q[1],'',{col:PC[p],w:30,h:16,d:10})}
+  const rp=seg(u,5.4+p*.3,6.8+p*.3);
+  if(n&&rp<1){const[tx,ty]=TA(xs[p],R[1],90,30,30);const q=rp>0?qpt([tx,ty],TA(xs[p],R[2],90,30,30),60,rp):[tx,ty];tile(q[0],q[1],'merged',{col:PC[p],w:40+n*35,h:22,d:14,cs:11})}
+  if(rp>=1){const[tx,ty]=TA(xs[p],R[2],90,30,30);tile(tx,ty,'merged',{col:PC[p],w:145,h:22,d:14,cs:11})}}
+ const bp=seg(u,3.4,4.6);if(bp>0){const A=TA(xs[2],R[0],90,40,10),B=TA(xs[1],R[2],90,180,10);dashArc(A,B,30,{p:bp,col:C.brick,lw:2.2});if(bp<1){const q=qpt(A,B,30,bp);tile(q[0]-20,q[1],'2 MB',{col:C.brick,w:44,h:20,d:10,cs:10})}}
+ txt('> 1 MB: not pushed, fetched normally',650,R[1]+60,{size:15,w:700,col:C.brick,align:'center',a:seg(u,4,4.6)});
+ pill(540,R[0]+55,'push is async & best-effort',C.green,{size:14,a:seg(u,1.2,1.8)});
+ pill(540,R[2]+58,'merge missing? read the original blocks',C.navy,{size:14,a:seg(u,7.6,8.2)});
 }
 /* ---------- timeline ---------- */
 SC.forEach(s=>{s.words=s.n.split(/\s+/);s.dur=Math.max(8,Math.round(s.words.length/2.55+2))});
 const ST=[];let T=0;SC.forEach(s=>{ST.push(T);T+=s.dur});
 let NOW=0;const wrapCache=new Map();
-function wrapped(i){if(wrapCache.has(i))return wrapCache.get(i);g.font=`500 40px ${F.sans}`;const lines=[];let cur=[],w=0;const sp=g.measureText(' ').width;
- SC[i].words.forEach((wd,j)=>{const ww=g.measureText(wd).width;if(cur.length&&w+sp+ww>900){lines.push(cur);cur=[];w=0}cur.push([wd,j,w+(cur.length?sp:0)]);w+=(cur.length>1?sp:0)+ww});if(cur.length)lines.push(cur);
- lines.forEach(l=>{let x=0;l.forEach(it=>{it[2]=x;x+=g.measureText(it[0]).width+sp})});wrapCache.set(i,lines);return lines}
+function wrapAt(i,size){g.font=`500 ${size}px ${F.sans}`;const lines=[];let cur=[],w=0;const sp=g.measureText(' ').width;
+ SC[i].words.forEach((wd,j)=>{const ww=g.measureText(wd).width;if(cur.length&&w+sp+ww>900){lines.push(cur);cur=[];w=0}cur.push([wd,j,0]);w+=(cur.length>1?sp:0)+ww});if(cur.length)lines.push(cur);
+ lines.forEach(l=>{let x=0;l.forEach(it=>{it[2]=x;x+=g.measureText(it[0]).width+sp})});return lines}
+function wrapped(i){if(wrapCache.has(i))return wrapCache.get(i);let r;for(const size of[40,37,34,31]){const lh=Math.round(size*1.48),lines=wrapAt(i,size);r={lines,size,lh};if(lines.length*lh<=380)break}wrapCache.set(i,r);return r}
 function background(){g.fillStyle=C.bg;g.fillRect(0,0,W,H);g.strokeStyle=C.grid;g.lineWidth=1;g.beginPath();for(let x=0;x<=W;x+=36){g.moveTo(x+.5,0);g.lineTo(x+.5,H)}for(let y=0;y<=H;y+=36){g.moveTo(0,y+.5);g.lineTo(W,y+.5)}g.stroke();
  const v=g.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,H*.75);v.addColorStop(0,'rgba(255,255,255,0)');v.addColorStop(1,'rgba(120,105,70,.10)');g.fillStyle=v;g.fillRect(0,0,W,H)}
 function header(){txt('> SPARK INTERNALS / SHUFFLE / 01',60,128,{font:`400 25px ${F.pix}`,col:'#3a3833',ls:4});
@@ -363,16 +559,16 @@ function header(){txt('> SPARK INTERNALS / SHUFFLE / 01',60,128,{font:`400 25px 
 function titleBlock(s,i,lt){const a=lin(lt,.1,.6);if(s.end)return;
  if(s.center){txt(s.k,540,250,{size:19,col:C.mut,align:'center',ls:4,a});let total=0;g.font=`700 54px ${F.mono}`;s.title.forEach(([t])=>total+=g.measureText(t).width);let x=540-total/2;s.title.forEach(([t,c])=>{txt(t,x,330,{size:54,w:700,col:c,a});g.font=`700 54px ${F.mono}`;x+=g.measureText(t).width});return}
  txt(s.k,90,250,{size:19,col:C.mut,ls:3,a});let x=90;s.title.forEach(([t,c])=>{txt(t,x,322,{size:50,w:700,col:c,a});g.font=`700 50px ${F.mono}`;x+=g.measureText(t).width})}
-function captions(i,lt){const s=SC[i],lines=wrapped(i),n=s.words.length,span=s.dur*.86,wt=span/n;
+function captions(i,lt){const s=SC[i],{lines,size,lh}=wrapped(i),n=s.words.length,span=s.dur*.86,wt=span/n;
  const y0=s.end?1480:1400;
- lines.forEach((l,li)=>l.forEach(([wd,j,x])=>{const a=cl((lt-j*wt)/.25);txt(wd,90+x,y0+li*60,{size:40,w:500,f:F.sans,col:mix('#c4bfae',C.ink,a)})}));
+ lines.forEach((l,li)=>l.forEach(([wd,j,x])=>{const a=cl((lt-j*wt)/.25);txt(wd,90+x,y0+li*lh,{size,w:500,f:F.sans,col:mix('#c4bfae',C.ink,a)})}));
  let x=90;const cy=1820;g.font=`400 15px ${F.mono}`;s.hood.forEach((h,k)=>{const w=g.measureText(h).width+26;if(x+w>990)return;const a=lin(lt,1+k*.3,1.6+k*.3);g.save();g.globalAlpha=a;rr(x,cy-17,w,34,17);g.strokeStyle='#8c887c';g.lineWidth=1.4;g.stroke();g.restore();txt(h,x+13,cy+5,{size:15,col:'#5f5b52',a});x+=w+10});
  txt(`${String(i+1).padStart(2,'0')} / ${SC.length}`,990,1880,{size:15,col:C.mut,align:'right'});
 }
 function frame(){const i=chapterAt(NOW),s=SC[i],lt=NOW-ST[i],u=lt/s.dur*10;
  background();header();titleBlock(s,i,lt);
  g.save();const ap=ez(lt/.45);g.globalAlpha=ap;g.translate(0,(1-ez(lt/.6))*28);s.draw(u,lt);g.restore();
- costCard(i,u);captions(i,lt)}
+ costCard(s,u);captions(i,lt)}
 /* ---------- player ---------- */
 const chapterAt=tt=>{let i=0;for(let j=0;j<ST.length;j++)if(ST[j]<=tt)i=j;return i};
 const $=id=>document.getElementById(id);const pp=$('pp'),sc=$('sc'),tm=$('tm'),vc=$('vc'),recB=$('rec'),ch=$('ch');
