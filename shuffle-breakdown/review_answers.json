@@ -1,0 +1,106 @@
+{
+ "by": "Claude",
+ "shots": [
+  {
+   "id": "shot_001",
+   "time": "0.00-30.97",
+   "label_probs": {
+    "live_action": 0.8,
+    "code_render": 0.2
+   },
+   "image_source": "real camera footage inside a code-rendered layout",
+   "evidence": [
+    "natural skin texture, consistent hands and fingers across frames",
+    "real room with curtains and furniture, real window light",
+    "text and grid are crisp vector graphics, typical of an HTML/Remotion layout"
+   ],
+   "description": "A presenter talking to camera, filmed for real, shown in a small rounded card at the bottom of a cream grid page laid out in code; the top of the frame holds a 'binary habit' header and space for animated diagrams.",
+   "embedded_assets": [
+    "the presenter's own talking-head recording (needed as the original file)"
+   ],
+   "ai_edits": [],
+   "replication": {
+    "image_prompt": "",
+    "video_prompt": "",
+    "video_prompt_en": "Not for AI: film the talking head on a phone on a tripod by a window, then place it in an HTML/Remotion layout."
+   }
+  },
+  {
+   "id": "shot_002",
+   "time": "30.97-80.47",
+   "label_probs": {
+    "live_action": 0.8,
+    "code_render": 0.2
+   },
+   "image_source": "real camera footage inside a code-rendered layout",
+   "evidence": [
+    "natural skin texture, consistent hands and fingers across frames",
+    "real room with curtains and furniture, real window light",
+    "text and grid are crisp vector graphics, typical of an HTML/Remotion layout"
+   ],
+   "description": "The same presenter, larger card filling most of the frame, header 'BINARY HABIT / SPARK PERF / 03'; he counts on his fingers while explaining.",
+   "embedded_assets": [
+    "the presenter's own talking-head recording (needed as the original file)"
+   ],
+   "ai_edits": [],
+   "replication": {
+    "image_prompt": "",
+    "video_prompt": "",
+    "video_prompt_en": "Not for AI: film the talking head on a phone on a tripod by a window, then place it in an HTML/Remotion layout."
+   }
+  }
+ ],
+ "aspects": {
+  "camera": {
+   "setups": "one fixed phone on a tripod, chest-up, eye level",
+   "gear_guess": "smartphone, clip-on lavalier mic (visible on the collar)"
+  },
+  "lighting": {
+   "lighting_overall": "soft daylight from a window behind and to the side, room lights warm"
+  },
+  "grade": {
+   "grade_overall": "natural, slightly low saturation"
+  },
+  "editing": {
+   "editing": "one continuous take per segment; the layout change at 31 s is the only cut"
+  },
+  "format": {
+   "format": "technical explainer: talking head in a card plus code-drawn diagrams (Binary Habit, Spark performance series)"
+  }
+ },
+ "cast": {
+  "style": "cream grid paper background, monospace header, rounded video card",
+  "characters": [
+   {
+    "id": "A",
+    "name": "presenter",
+    "kind": "real person",
+    "look": "man with dark hair and beard, dark brown polo shirt, lavalier mic",
+    "role": "host",
+    "voice": "his own voice",
+    "shots": [
+     "shot_001",
+     "shot_002"
+    ]
+   }
+  ],
+  "scenes": [
+   {
+    "id": "S1",
+    "where": "living room by a window",
+    "when": "daytime",
+    "look": "curtains, plants, warm lamps",
+    "shots": [
+     "shot_001",
+     "shot_002"
+    ]
+   }
+  ],
+  "props": []
+ },
+ "packaging": {
+  "stickers": [],
+  "text": [],
+  "missed": []
+ }
+}

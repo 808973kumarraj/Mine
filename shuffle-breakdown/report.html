@@ -1,0 +1,198 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Breakdown: e921ed02-shuffle.mp4</title><style>
+:root{--bg:#fafaf9;--fg:#1c1917;--muted:#78716c;--card:#fff;--line:#e7e5e4;--accent:#0d9488}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1917;--fg:#f5f5f4;--muted:#a8a29e;--card:#292524;--line:#44403c}}
+body{margin:0;padding:24px 16px;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif}
+main{max-width:1100px;margin:auto} h1{font-size:22px} h2{font-size:18px;margin:4px 0 10px} h3{font-size:15px;margin:16px 0 6px} h4{font-size:13px;color:var(--muted);margin:10px 0 2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:14px 0}
+.mix{display:flex;height:30px;border-radius:6px;overflow:hidden;margin:12px 0} .bar{color:#fff;font-size:12px;padding:6px;white-space:nowrap;overflow:hidden}
+img{max-width:100%;border-radius:6px} img.sb{display:block;margin:8px 0}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0;display:block;overflow-x:auto} th,td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top} th{color:var(--muted);font-weight:600}
+td img{max-height:70px}
+ul,ol{margin:4px 0;padding-left:20px} li{margin:2px 0} p{margin:6px 0}
+pre.prompt{background:var(--bg);padding:10px;border-radius:6px;font-size:13px;white-space:pre-wrap;word-break:break-word}
+code{background:var(--bg);padding:1px 4px;border-radius:4px;font-size:13px}
+details{margin:8px 0;border:1px solid var(--line);border-radius:8px;padding:6px 12px} summary{cursor:pointer;color:var(--accent);font-weight:600}
+.stems div{margin:4px 0} audio{vertical-align:middle;max-width:100%}
+</style></head><body><main>
+<h1>Video breakdown: e921ed02-shuffle.mp4</h1>
+<p><b>Verdict</b>: Mixed production: AI-generated video 100%; overlays: static graphics (composited in code / an editor); audio: voice + music 132.5BPM (stock library music) + 18 sound effects</p>
+<ul>
+<li>80.467s · 1080×1920 · 30.0fps · 9:16; 2 shots, 40.23s average; transitions: jump cut×1</li>
+<li>Confidence (duration-weighted) 38%; decided by: deterministic forensics + agent image review; Claude reviewed 2/2 shots by eye; merged into the verdict</li>
+<li>Remake: 2 AI video shots → 2 generation units, 4 Seedance 2.5 calls (see “Remake plan”)</li>
+<li>⚠️ 3 open questions, see “Open questions” first: Shot #1 (0.0–31.0s): Tools say AI-generated video, the image review says live ac…</li>
+</ul>
+<div class='mix'><div class='bar' style='flex:1.0;background:rgb(217,70,239)' title='AI-generated video'>AI-generated video 100%</div></div>
+<img class='sb' src="storyboard.jpg" alt="storyboard" loading="lazy">
+<section class='card'><h2>Content and structure</h2>
+<ul>
+<li>No whole-video summary (needs the VLM or an agent watching the full video); subtitle text is under “Packaging layer”</li>
+</ul>
+</section>
+<section class='card'><h2>Cast, scenes and props</h2>
+<p>For the remake, give every character one reference image (<code>@image</code>) used across all generation units and copy the look below into the first-frame prompts, so the character stays the same from shot to shot.</p>
+<table><thead><tr><th>Id</th><th>Name</th><th>Kind</th><th>Look</th><th>Role</th><th>Voice</th><th>Shots</th></tr></thead><tbody><tr><td>A</td><td>presenter</td><td>other</td><td>man with dark hair and beard, dark brown polo shirt, lavalier mic</td><td>host</td><td>his own voice</td><td>—</td></tr></tbody></table>
+<p><b>Scenes</b></p>
+<table><thead><tr><th>Scene</th><th>Where</th><th>When</th><th>Set / light</th><th>Shots</th></tr></thead><tbody><tr><td>S1</td><td>living room by a window</td><td>daytime</td><td>curtains, plants, warm lamps</td><td>—</td></tr></tbody></table>
+</section>
+<section class='card'><h2>Sound</h2>
+<img class='sb' src="audio.png" alt="audio" loading="lazy">
+<ul>
+<li>loudness -16.4 dBFS, peak -4.2 dBFS</li>
+<li>Sources: Video type: voice-over / talking head + music → voice: TTS voice-over (leaning, to confirm); music: stock library music; SFX: added in post from an SFX library / editor (leaning, to confirm)</li>
+</ul>
+<p><b>Voice</b></p>
+<ul>
+<li>60% of the duration; pitch about 154.2Hz (gender unclear); sung</li>
+<li>Source: to confirm (tts 43%, human_recording 43%, ai_video_native 14%)</li>
+<li>Remake: capsule-cinema DoubaoTTSTool / UniversalTTSTool (or a MiniMax cloned voice); use duration-controlled TTS when it must fit the original time window</li>
+</ul>
+<p><b>Music</b></p>
+<ul>
+<li>Tempo: 132.5 BPM (or 66.3/265.0); key D minor (confidence 0.795); 26% of the duration (3.0–56.0s); section changes at 8.5s, 15.5s, 23.5s, 29.5s, 53.5s, 57.5s, 64.5s, 73.5s; ending: ends_early</li>
+<li>Cuts vs beat: 0% of cuts land on a beat (chance: about 8%)</li>
+<li>Source: stock library music (existing_library 60%, ai_generated 20%, popular_song 20%)</li>
+<ul>
+<li>The music is a bed under the picture: in a regular video the bed usually comes from a stock library (prior)</li>
+<li>How to confirm: Check the music tag on the original Douyin / Xiaohongshu / TikTok post: a song title → existing track; &quot;original sound - @creator&quot; → uploaded by the creator (for music videos, usually an AI song)</li>
+<li>How to confirm: Run it through Shazam / ACRCloud or another song-ID service: a hit means an existing song</li>
+</ul>
+<li>Remake: The original track leans stock library music: search a library by BPM / mood / key for a similar track, or generate a royalty-free track in a similar style with AI</li>
+</ul>
+<p><b>Sound effects</b> (18)</p>
+<details><summary>all 18 sound effects</summary>
+<table><thead><tr><th>Time</th><th>Type</th><th>Description</th><th>On screen</th><th>Basis</th></tr></thead><tbody><tr><td>31.01s</td><td>pop</td><td>—</td><td>cut</td><td>signal candidate (low confidence)</td></tr><tr><td>32.26s</td><td>ding</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>32.91s</td><td>pop</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>40.62s</td><td>pop</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>41.05s</td><td>pop</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>42.50s</td><td>whoosh</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>43.69s</td><td>pop</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>44.08s</td><td>pop</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>44.34s</td><td>pop</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>45.20s</td><td>pop</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>48.75s</td><td>whoosh</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>67.22s</td><td>pop</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>68.02s</td><td>pop</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>69.54s</td><td>pop</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>70.31s</td><td>ding</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>76.00s</td><td>whoosh</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>77.38s</td><td>pop</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr><tr><td>79.52s</td><td>pop</td><td>—</td><td>—</td><td>signal candidate (low confidence)</td></tr></tbody></table>
+</details>
+<ul>
+<li>Source: added in post from an SFX library / editor (library_editor 57%, ai_native 29%, live_sync 14%)</li>
+<li>Remake: Place by timestamp: capsule-cinema SoundEffectsTool / an SFX library, or synthesise procedurally like the plush recipe (pitched to the music key)</li>
+</ul>
+<ul>
+<li>Separated stems: <code>stems/original.wav</code> (original), <code>stems/vocals.wav</code> (dry voice; transient sound effects land here too), <code>stems/music.wav</code> (music + ambience)</li>
+</ul>
+<div class='stems'><div>original: <audio controls preload='none' src='stems/original.wav'></audio></div><div>dry voice: <audio controls preload='none' src='stems/vocals.wav'></audio></div><div>music + ambience: <audio controls preload='none' src='stems/music.wav'></audio></div></div>
+</section>
+<section class='card'><h2>Camera, lighting and editing</h2>
+<ul>
+<li>Visual style: cream grid paper background, monospace header, rounded video card</li>
+<li>Framing: shot size medium close-up 100%; subject is a face (shot size from face height)</li>
+<li>Camera: fixed camera (tripod / mount / on the desk) 62%, handheld 38%</li>
+<li>Lighting: backlit / background brighter than subject. Key light frontal (from the camera side; both sides of the subject about equally bright), at subject height; lighting ratio about 1.3:1 (0.3 stops); soft light (wide lit-to-shadow ramp); colour temperature warm (about 3000–4000K); subject and background differ in colour temperature: mixed sources (e.g. warm lamp + cool window light / screen); background sharp</li>
+<li>(not live footage: the above describes the light in the picture, for generation prompts, not a shooting plan)</li>
+<li>Grade: natural (close to the original colours); low saturation, normal contrast, normal blacks, overall neutral</li>
+<li>Editing: 0.7 cuts per minute, 40.23s average shot; no live-action shots</li>
+</ul>
+<details><summary>Per-item measurements and image readings (9)</summary>
+<table><thead><tr><th>Aspect</th><th>Item</th><th>Verdict</th><th>Sources</th></tr></thead><tbody><tr><td>Framing</td><td>shot size</td><td>medium close-up</td><td>measured</td></tr><tr><td>Camera</td><td>camera support</td><td>mixed: fixed camera (tripod / mount / on the desk) 62%, handheld 38%</td><td>measured</td></tr><tr><td>Camera</td><td>set-ups / locations</td><td>one fixed phone on a tripod, chest-up, eye level</td><td>agent review</td></tr><tr><td>Camera</td><td>likely gear</td><td>smartphone, clip-on lavalier mic (visible on the collar)</td><td>agent review</td></tr><tr><td>Lighting</td><td>soft / hard</td><td>soft light (wide lit-to-shadow ramp)</td><td>measured</td></tr><tr><td>Lighting</td><td>colour temperature</td><td>warm (about 3000–4000K)</td><td>measured</td></tr><tr><td>Lighting</td><td>overall lighting</td><td>soft daylight from a window behind and to the side, room lights warm</td><td>agent review</td></tr><tr><td>Grade</td><td>colour grade</td><td>natural (close to the original colours)</td><td>measured</td></tr><tr><td>Grade</td><td>overall grade</td><td>natural, slightly low saturation</td><td>agent review</td></tr></tbody></table>
+</details>
+<ul>
+<li>Note: lighting ratio, soft / hard, colour temperature and shot size are measured on the subject&#x27;s pixels (the face when there is one, otherwise the in-focus region, which is an estimate); platform transcodes crush the shadows, so hardness and fill read conservative; camera angle, light source, catchlight and rim light follow the image readers. Where measurement and readers disagree, both are listed.</li>
+</ul>
+</section>
+<section class='card'><h2>Packaging layer (subtitles / styled text / stickers / sound-effect hits)</h2>
+<ul>
+<li>SFX hits on: cut ×1</li>
+<li>No overlaid text or stickers detected</li>
+<li>Exports: <code>packaging/timeline.json</code> (SRT is the subtitle timeline; ASS carries colour, outline, position and entrance animation, swap in the original font; timeline.json is the full timeline)</li>
+</ul>
+<p>Remake: burn subtitles and styled text in with <code>packaging/overlays.ass</code> (ffmpeg -vf ass=overlays.ass), or rebuild them from timeline.json in CapCut / Remotion; stickers and GIFs need matching assets (meme / GIF libraries), crops are under packaging/.</p>
+</section>
+<section class='card'><h2>Remake plan</h2>
+<p><b>2 AI video shots → 2 generation units, 4 Seedance 2.5 calls</b></p>
+<ul>
+<li>The default engine Seedance 2.0（含 Mini / Fast） cannot generate several shots in one call; with it you would generate shot by shot, 2 times. This plan is for Seedance 2.5 (≤30s per call, multi-shot in one call), 4 calls in total</li>
+<li>Grouping: AI shots in the same scene joined by hard cuts are generated in one call; ≤30s per call; consecutive hard cuts inside a unit preferably ≤8s, at most 10s; split at dissolves / fades and scene changes</li>
+<li>Audio: the model can generate action sound effects and ambience along with the picture; voice-over is better done as separate TTS and mixed in, so copy and timing stay editable</li>
+</ul>
+<h3>Generation units</h3>
+<table><thead><tr><th>Unit</th><th>Shots</th><th>Time</th><th>Duration</th><th>Mode</th><th>Continuity</th></tr></thead><tbody><tr><td>G1</td><td>#1</td><td>0.0–31.0s</td><td>31.0s</td><td>long shot, split (2 calls)</td><td>first frame: generate an image matching the composition of source shot 1&#x27;s first frame (shots/shot_001_first.jpg)</td></tr><tr><td>G2</td><td>#2</td><td>31.0–80.5s</td><td>49.5s</td><td>long shot, split (2 calls)</td><td>first frame = last frame of G1, continue the action</td></tr></tbody></table>
+<p><b>G1 · AI-generated video · shots #1 · 31.0s</b></p>
+<ul>
+<li>References: <code>@图片1</code> character reference images (one frontal face + one half-body per character) so the look stays consistent across shots; <code>@视频1</code> source clip 0.0–31.0s: reference for action, camera movement and cutting rhythm (reference only, do not copy the picture)</li>
+<li>Single shot of 31.0s exceeds the Seedance 2.5 per-call limit of 30s: split into 2 parts at pauses in the action, each part starting from the previous part&#x27;s last frame (S02)</li>
+</ul>
+<pre class='prompt'>
+Vertical 9:16; backlit / background brighter than subject, soft light (almost no lit / shadow edge), warm (about 3000–4000K), background sharp. Characters follow @图片1. Follow the action, camera movement and cutting rhythm of @视频1.
+A presenter talking to camera, filmed for real, shown in a small rounded card at the bottom of a cream grid page laid out in code; the top of the frame holds a &#x27;binary habit&#x27; header and space for animated diagrams.
+</pre>
+<details><summary>English prompt</summary>
+<pre class='prompt'>
+Not for AI: film the talking head on a phone on a tripod by a window, then place it in an HTML/Remotion layout.
+</pre>
+</details>
+<p><b>G2 · AI-generated video · shots #2 · 49.5s</b></p>
+<ul>
+<li>References: <code>@图片1</code> character reference images (one frontal face + one half-body per character) so the look stays consistent across shots; <code>@视频1</code> source clip 31.0–80.5s: reference for action, camera movement and cutting rhythm (reference only, do not copy the picture)</li>
+<li>Single shot of 49.5s exceeds the Seedance 2.5 per-call limit of 30s: split into 2 parts at pauses in the action, each part starting from the previous part&#x27;s last frame (S02)</li>
+</ul>
+<pre class='prompt'>
+Vertical 9:16; backlit / background brighter than subject, soft light (almost no lit / shadow edge), warm (about 3000–4000K), background sharp. Characters follow @图片1. Follow the action, camera movement and cutting rhythm of @视频1.
+The same presenter, larger card filling most of the frame, header &#x27;BINARY HABIT / SPARK PERF / 03&#x27;; he counts on his fingers while explaining.
+</pre>
+<details><summary>English prompt</summary>
+<pre class='prompt'>
+Not for AI: film the talking head on a phone on a tripod by a window, then place it in an HTML/Remotion layout.
+</pre>
+</details>
+</section>
+<section class='card'><h2>Shot list</h2>
+<table><thead><tr><th>#</th><th>Time</th><th>Length</th><th>Base picture</th><th>Material</th><th>Overlays</th><th>Camera</th><th>Picture</th><th>Remake</th></tr></thead><tbody><tr><td>1</td><td>00:00.000</td><td>30.97s</td><td>AI-generated video 34%</td><td>AI-generated</td><td>—</td><td>handheld shake</td><td>A presenter talking to camera, filmed fo…</td><td>AI generation (first / last frame) · G1</td></tr><tr><td>2</td><td>00:30.967</td><td>49.50s</td><td>AI-generated video 40%</td><td>AI-generated</td><td>graphic</td><td>static (subject moves)</td><td>The same presenter, larger card filling …</td><td>AI generation (first / last frame) · G2</td></tr></tbody></table>
+</section>
+<section class='card'><h2>Open questions</h2>
+<ul>
+<li>Shot #1 (0.0–31.0s): Tools say AI-generated video, the image review says live action; on the AI / live-action axis the fusion follows the tools (eval-calibrated): check the frames to see whether the review&#x27;s evidence is really visible</li>
+<li>Shot #2 (31.0–80.5s): Tools say AI-generated video, the image review says live action; on the AI / live-action axis the fusion follows the tools (eval-calibrated): check the frames to see whether the review&#x27;s evidence is really visible</li>
+<li>voice source to confirm: leaning to confirm (43%)</li>
+</ul>
+</section>
+<section class='card'><h2>Appendix</h2>
+<h3>Shot by shot</h3>
+<p>Evidence, probabilities, text tracks and prompts per shot. Folded by default.</p>
+<details><summary>#1 00:00.000–00:30.967 · AI-generated video</summary>
+<img class='sb' src="shots/shot_001.jpg" alt="shot_001" loading="lazy">
+<ul>
+<li>Probabilities: AI-generated video 34%, 3D render 30%, live action 15%（fused_agent）</li>
+<li>⚠️ Disputed: Tools say AI-generated video, the image review says live action; on the AI / live-action axis the fusion follows the tools (eval-calibrated): check the frames to see whether the review&#x27;s evidence is really visible</li>
+<li>Material: AI-generated</li>
+<li>[Claude review] natural skin texture, consistent hands and fingers across frames</li>
+<li>[Claude review] real room with curtains and furniture, real window light</li>
+<li>[Claude review] text and grid are crisp vector graphics, typical of an HTML/Remotion layout</li>
+<li>Picture: A presenter talking to camera, filmed for real, shown in a small rounded card at the bottom of a cream grid page laid out in code; the top of the frame holds a &#x27;binary habit&#x27; header and space for animated diagrams.</li>
+<li>Camera / lighting: medium close-up; handheld; backlit / background brighter than subject; key light frame right, three-quarter front; lighting ratio about 1.4:1 (0.5 stops); soft light (wide lit-to-shadow ramp)</li>
+<li>Remake: Source is AI-generated: use the shot&#x27;s first and last frames for first/last-frame generation to closely match composition and motion; to change the subject, edit the first frame with an image model first</li>
+<ul>
+<li>Video prompt: A presenter talking to camera, filmed for real, shown in a small rounded card at the bottom of a cream grid page laid out in code; the top of the frame holds a &#x27;binary habit&#x27; header and space for animated diagrams.</li>
+</ul>
+</ul>
+</details>
+<details><summary>#2 00:30.967–01:20.467 · AI-generated video + code / editor overlays (static graphics)</summary>
+<img class='sb' src="shots/shot_002.jpg" alt="shot_002" loading="lazy">
+<ul>
+<li>Probabilities: AI-generated video 40%, 3D render 26%, AI avatar (talking head) 16%（fused_agent）</li>
+<li>⚠️ Disputed: Tools say AI-generated video, the image review says live action; on the AI / live-action axis the fusion follows the tools (eval-calibrated): check the frames to see whether the review&#x27;s evidence is really visible</li>
+<li>Material: AI-generated</li>
+<li>Photographic texture: noise σ=0.16, 79 colours, 6% flat blocks</li>
+<li>100% of sampled frames show a frontal face on a fixed camera, voice on the audio track</li>
+<li>[Claude review] natural skin texture, consistent hands and fingers across frames</li>
+<li>[Claude review] real room with curtains and furniture, real window light</li>
+<li>[Claude review] text and grid are crisp vector graphics, typical of an HTML/Remotion layout</li>
+<li>Picture: The same presenter, larger card filling most of the frame, header &#x27;BINARY HABIT / SPARK PERF / 03&#x27;; he counts on his fingers while explaining.</li>
+<li>Camera / lighting: medium close-up; fixed camera (tripod / mount / on the desk); backlit / background brighter than subject; key light frontal (from the camera side; both sides of the subject about equally bright); lighting ratio about 1.3:1 (0.3 stops); soft light (almost no lit / shadow edge)</li>
+<li>Remake: Source is AI-generated: use the shot&#x27;s first and last frames for first/last-frame generation to closely match composition and motion; to change the subject, edit the first frame with an image model first</li>
+<ul>
+<li>Video prompt: The same presenter, larger card filling most of the frame, header &#x27;BINARY HABIT / SPARK PERF / 03&#x27;; he counts on his fingers while explaining.</li>
+</ul>
+</ul>
+</details>
+<h3>Metadata clues</h3>
+<ul>
+<li>Encoder: <code>Lavf62.12.102</code></li>
+</ul>
+<h3>Notes</h3>
+<ul>
+<li>Deterministic forensics is reliable on motion, whole-frame pan/zoom, rendered texture and 24→30 fps conversion; telling live action from AI from 3D relies on the VLM and human review.</li>
+<li>Platform transcoding usually strips metadata; missing metadata proves nothing.</li>
+<li>The full data is in <code>breakdown.json</code>; agents read the compact view with <code>rea-video summary</code>.</li>
+</ul>
+</section>
+</main></body></html>
