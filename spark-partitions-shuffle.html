@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spark Partitions & Shuffle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Silkscreen&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e2ddcf;--ink:#23221f;--mut:#8c887c;--paper:#f6f3ea;--h:min(86vh,calc((100vw - 24px) * 16 / 9))}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 "Space Mono",ui-monospace,monospace;display:flex;flex-direction:column;align-items:center;padding:12px}
+canvas{height:var(--h);width:auto;aspect-ratio:9/16;display:block;border-radius:14px;box-shadow:0 10px 40px rgba(60,50,25,.18);background:#ebe7da}
+.bar{width:calc(var(--h) * 9 / 16);min-width:300px;max-width:100%;display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+button{font:inherit;font-size:12px;background:var(--paper);color:var(--ink);border:1.5px solid var(--ink);border-radius:999px;padding:5px 11px;cursor:pointer}
+button.on{background:var(--ink);color:var(--paper)}
+input[type=range]{flex:1;min-width:120px;accent-color:#26429a}
+#tm{font-size:11px;color:var(--mut);min-width:78px;text-align:right}
+.ch{width:calc(var(--h) * 9 / 16);min-width:300px;max-width:100%;display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.ch button{padding:3px 8px;font-size:11px}
+.note{width:calc(var(--h) * 9 / 16);min-width:300px;max-width:100%;color:var(--mut);font-size:11px;margin-top:8px}
+</style></head><body>
+<canvas id="c" width="1080" height="1920" aria-label="Animated explainer: Spark partitions and the shuffle"></canvas>
+<div class="bar"><button id="pp">❚❚ pause</button><input id="sc" type="range" min="0" max="10000" value="0" aria-label="Timeline"><span id="tm"></span><button id="vc">🔈 voice</button><button id="rec">⏺ record .webm</button></div>
+<div class="ch" id="ch"></div>
+<div class="note">Space = play/pause · ← → = scenes · "record" plays it once from the start and downloads a 1080×1920 WebM (the voice is not captured). Timings and sizes are illustrative.</div>
+<script>
+"use strict";
+const cv=document.getElementById('c'),g=cv.getContext('2d'),W=1080,H=1920;
+/* ---------- palette & fonts ---------- */
+const C={bg:'#ebe7da',grid:'#dfdaca',ink:'#23221f',mut:'#8c887c',faint:'#cbc6b6',pT:'#f9f6ee',pF:'#f0ebdf',pR:'#dfd9c9',navy:'#26429a',green:'#2e7d5b',ochre:'#c0812f',brick:'#b4472f',orange:'#c8873a',card:'#faf8f2',term:'#1f1e1b'};
+const PC=[C.navy,C.green,C.ochre];
+const F={mono:'"Space Mono", ui-monospace, Menlo, monospace',sans:'"IBM Plex Sans", system-ui, sans-serif',pix:'"Silkscreen", "Space Mono", monospace'};
+/* ---------- math ---------- */
+const cl=(v,a=0,b=1)=>Math.max(a,Math.min(b,v)),L=(a,b,p)=>a+(b-a)*p;
+const ez=v=>{v=cl(v);return v<.5?4*v*v*v:1-Math.pow(-2*v+2,3)/2};
+const seg=(u,a,b)=>ez((u-a)/(b-a)),lin=(u,a,b)=>cl((u-a)/(b-a)),bump=p=>Math.sin(Math.PI*cl(p));
+const rgbOf=h=>{const n=parseInt(h.slice(1),16);return[n>>16,n>>8&255,n&255]};
+const mix=(a,b,p)=>{const x=rgbOf(a),y=rgbOf(b);return'#'+x.map((v,i)=>Math.round(L(v,y[i],cl(p))).toString(16).padStart(2,'0')).join('')};
+const sh=(h,f)=>mix(h,f<0?'#000000':'#ffffff',Math.abs(f));
+/* ---------- drawing primitives (paper style) ---------- */
+function path(pts){g.beginPath();pts.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath()}
+function face(pts,fill){path(pts);g.fillStyle=fill;g.fill();g.stroke()}
+function rr(x,y,w,h,r){g.beginPath();if(g.roundRect)g.roundRect(x,y,w,h,r);else g.rect(x,y,w,h)}
+const TA=(bx,by,bh,fx,fz)=>[bx+fx+.45*fz,by-bh-.315*fz]; // point on a box's top face
+// paper box, (x,y) = bottom-left of the front face
+function pbox(x,y,w,h,d,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;
+ const dx=.45*d,dy=-.315*d;let top=C.pT,front=C.pF,right=C.pR;
+ if(o.col){top=sh(o.col,.16);front=o.col;right=sh(o.col,-.22)}
+ if(o.tint){top=mix(C.pT,o.tint,.18);front=mix(C.pF,o.tint,.14);right=mix(C.pR,o.tint,.14)}
+ if(o.shadow!==false){g.save();g.shadowColor='rgba(70,58,30,.22)';g.shadowBlur=o.small?6:20;g.shadowOffsetY=o.small?3:12;path([[x,y],[x+w,y],[x+w+dx,y+dy],[x+w+dx,y-h+dy],[x+dx,y-h+dy],[x,y-h]]);g.fillStyle=front;g.fill();g.restore()}
+ g.lineWidth=o.lw||2;g.lineJoin='round';g.strokeStyle=o.ink||C.ink;if(o.dash)g.setLineDash(o.dash);
+ face([[x,y-h],[x+w,y-h],[x+w+dx,y-h+dy],[x+dx,y-h+dy]],top);
+ face([[x+w,y],[x+w+dx,y+dy],[x+w+dx,y-h+dy],[x+w,y-h]],right);
+ face([[x,y],[x+w,y],[x+w,y-h],[x,y-h]],front);g.setLineDash([]);
+ const tc=o.tc||(o.col?'#ffffff':C.ink);
+ if(o.label){g.fillStyle=tc;g.font=`700 ${o.ls||15}px ${F.mono}`;g.textAlign='left';g.textBaseline='alphabetic';g.fillText(o.label,x+12,y-h+26)}
+ if(o.lines){g.strokeStyle=o.col?'rgba(255,255,255,.35)':'#d3ccba';g.lineWidth=1.2;for(let i=0;i<o.lines;i++){const ly=y-h+42+i*14;if(ly>y-30)break;g.beginPath();g.moveTo(x+12,ly);g.lineTo(x+w-12,ly);g.stroke()}}
+ if(o.dot){g.fillStyle=o.dot;g.beginPath();g.arc(x+w-16,y-h+18,5.5,0,7);g.fill()}
+ if(o.bar!=null){const bx=x+12,by=y-20,bw=w-24;g.fillStyle='#e7e2d4';g.fillRect(bx,by,bw,9);g.fillStyle=o.barCol||C.green;g.fillRect(bx,by,bw*cl(o.bar),9);g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(bx,by,bw,9)}
+ if(o.center){g.fillStyle=tc;g.font=`700 ${o.cs||13}px ${F.mono}`;g.textAlign='center';g.textBaseline='middle';g.fillText(o.center,x+w/2,y-h/2+1)}
+ if(o.x){g.strokeStyle=C.brick;g.lineWidth=6;g.lineCap='round';g.beginPath();g.moveTo(x+w*.32,y-h*.82);g.lineTo(x+w*.68,y-h*.18);g.moveTo(x+w*.68,y-h*.82);g.lineTo(x+w*.32,y-h*.18);g.stroke()}
+ if(o.ring){g.strokeStyle=o.ring;g.lineWidth=3;g.strokeRect(x-5,y-h-5,w+10,h+10)}
+ g.restore()}
+function tile(x,y,key,o={}){pbox(x,y,o.w||40,o.h||22,o.d||14,{center:key,cs:o.cs||12,small:true,lw:1.6,...o})}
+function txt(s,x,y,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;g.font=o.font||`${o.w||400} ${o.size||20}px ${o.f||F.mono}`;g.textAlign=o.align||'left';g.textBaseline=o.base||'alphabetic';if(o.ls&&'letterSpacing'in g)g.letterSpacing=o.ls+'px';g.fillStyle=o.col||C.ink;g.fillText(s,x,y);g.restore()}
+function card(x,y,w,h,title,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;g.save();g.shadowColor='rgba(70,58,30,.18)';g.shadowBlur=18;g.shadowOffsetY=8;rr(x,y,w,h,8);g.fillStyle=o.fill||C.card;g.fill();g.restore();
+ rr(x,y,w,h,8);g.lineWidth=o.lw||1.8;g.strokeStyle=o.border||'#3b3934';g.stroke();
+ if(title)txt(title,x+18,y+30,{size:14,col:C.mut,ls:2});g.restore()}
+function pill(cx,cy,s,col,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;g.font=`700 ${o.size||16}px ${F.mono}`;const tw=g.measureText(s).width,dot=o.dot!==false;const w=tw+(dot?50:30),h=(o.size||16)+20;
+ rr(cx-w/2,cy-h/2,w,h,h/2);g.fillStyle=o.fill?col:'#f6f3ea';g.fill();g.lineWidth=2;g.strokeStyle=col;g.stroke();
+ if(dot){g.fillStyle=o.fill?'#fff':col;g.beginPath();g.arc(cx-w/2+20,cy,5.5,0,7);g.fill()}
+ g.fillStyle=o.fill?'#fff':col;g.textAlign='left';g.textBaseline='middle';g.fillText(s,cx-w/2+(dot?34:15),cy+1);g.restore()}
+function term(x,y,w,h,s,n,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;rr(x,y,w,h,6);g.fillStyle=C.term;g.fill();
+ g.font=`400 ${o.size||26}px ${F.mono}`;g.textBaseline='middle';g.textAlign='left';const p=o.prompt??'>>> ';g.fillStyle='#8d887b';g.fillText(p,x+22,y+h/2);const pw=g.measureText(p).width;
+ const vis=s.slice(0,Math.floor(n));g.fillStyle='#efe9dc';g.fillText(vis,x+22+pw,y+h/2);
+ if(o.cursor!==false&&Math.floor(NOW*2.2)%2===0){const cw=g.measureText(vis).width;g.fillStyle=C.orange;g.fillRect(x+24+pw+cw,y+h/2-14,13,28)}g.restore()}
+function bin(x,y,s,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;g.font=`400 ${o.size||18}px ${F.mono}`;const w=g.measureText(s).width+28;rr(x-w/2,y-19,w,38,4);g.fillStyle=C.term;g.fill();g.fillStyle='#e8e3d6';g.textAlign='center';g.textBaseline='middle';g.fillText(s,x,y+1);g.restore()}
+function disk(cx,cy,s=1,a=1){if(a<=.01)return;g.save();g.globalAlpha*=a;g.lineWidth=1.6;
+ g.save();g.shadowColor='rgba(70,58,30,.2)';g.shadowBlur=18;g.shadowOffsetY=10;g.beginPath();g.ellipse(cx,cy,80*s,27*s,0,0,7);g.fillStyle='#d8d4c8';g.fill();g.restore();
+ for(let i=0;i<6;i++){const y=cy-i*9*s;g.beginPath();g.ellipse(cx,y,80*s,27*s,0,0,7);g.fillStyle=i===5?'#f1eee6':'#dcd8cc';g.fill();g.strokeStyle='#8f8a7e';g.stroke()}
+ const ty=cy-45*s;g.beginPath();g.ellipse(cx,ty,14*s,5.5*s,0,0,7);g.fillStyle='#2a2926';g.fill();
+ txt('DISK',cx,cy+50*s,{size:14,col:C.mut,align:'center',ls:2});g.restore()}
+function sheet(x,y,w,h,title,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;const e=22;
+ g.save();g.shadowColor='rgba(70,58,30,.18)';g.shadowBlur=14;g.shadowOffsetY=7;path([[x,y],[x+w-e,y],[x+w,y+e],[x+w,y+h],[x,y+h]]);g.fillStyle='#fcfaf5';g.fill();g.restore();
+ path([[x,y],[x+w-e,y],[x+w,y+e],[x+w,y+h],[x,y+h]]);g.lineWidth=1.8;g.strokeStyle=o.border||C.ink;g.stroke();
+ g.beginPath();g.moveTo(x+w-e,y);g.lineTo(x+w-e,y+e);g.lineTo(x+w,y+e);g.stroke();
+ if(title)txt(title,x+14,y+28,{size:o.ts||15,w:700,col:o.tcol||C.ink});
+ if(o.strike){g.strokeStyle=C.brick;g.lineWidth=3;g.beginPath();g.moveTo(x+8,y+h/2);g.lineTo(x+8+(w-16)*o.strike,y+h/2);g.stroke()}
+ g.restore()}
+function qpt(a,b,hgt,p){const c=[(a[0]+b[0])/2,Math.min(a[1],b[1])-hgt];const q=1-p;return[q*q*a[0]+2*q*p*c[0]+p*p*b[0],q*q*a[1]+2*q*p*c[1]+p*p*b[1]]}
+function dashArc(a,b,hgt,o={}){const al=o.a??1,pr=o.p??1;if(al<=.01||pr<=0)return;g.save();g.globalAlpha*=al;g.strokeStyle=o.col||C.ink;g.lineWidth=o.lw||2.5;g.setLineDash(o.dash||[10,9]);g.lineDashOffset=-(o.flow?NOW*40:0);
+ g.beginPath();for(let i=0;i<=40;i++){const p=pr*i/40,q=qpt(a,b,hgt,p);i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1])}g.stroke();g.restore()}
+function hatch(x,y,w,h,col){g.save();g.beginPath();g.rect(x,y,w,h);g.clip();g.strokeStyle=col;g.lineWidth=2;for(let i=-h;i<w;i+=12){g.beginPath();g.moveTo(x+i,y+h);g.lineTo(x+i+h,y);g.stroke()}g.restore()}
+function check(x,y,on,col){g.save();g.lineWidth=1.8;g.strokeStyle=on?col:'#bdb8a8';if(on){g.fillStyle=col;g.fillRect(x,y,18,18)}g.strokeRect(x,y,18,18);g.restore()}
+function mark(x,y,ok,a=1){if(a<=.01)return;g.save();g.globalAlpha*=a;g.lineWidth=4;g.lineCap='round';g.strokeStyle=ok?C.green:C.brick;g.beginPath();if(ok){g.moveTo(x-9,y);g.lineTo(x-2,y+8);g.lineTo(x+11,y-9)}else{g.moveTo(x-8,y-8);g.lineTo(x+8,y+8);g.moveTo(x+8,y-8);g.lineTo(x-8,y+8)}g.stroke();g.restore()}
+/* ---------- episode 02 · partitions & shuffle ---------- */
+C.plum='#6d4c9f';const KC={A:C.navy,B:C.green,C:C.ochre,D:C.plum};
+function box2(x,y,w,h,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;rr(x,y,w,h,o.r??6);g.fillStyle=o.fill||'#fbf9f3';g.fill();g.lineWidth=o.lw||1.8;g.strokeStyle=o.stroke||C.ink;if(o.dash)g.setLineDash(o.dash);g.stroke();g.restore()}
+function vArrow(x,y1,y2,a=1,col=C.ink){if(a<=.01)return;g.save();g.globalAlpha*=a;g.strokeStyle=col;g.fillStyle=col;g.lineWidth=2;g.beginPath();g.moveTo(x,y1);g.lineTo(x,y2+(y2>y1?-10:10));g.stroke();const d=y2>y1?-1:1;g.beginPath();g.moveTo(x,y2);g.lineTo(x-8,y2+d*12);g.lineTo(x+8,y2+d*12);g.closePath();g.fill();g.restore()}
+function hArrow(x1,x2,y,a=1,col=C.ink){if(a<=.01)return;g.save();g.globalAlpha*=a;g.strokeStyle=col;g.fillStyle=col;g.lineWidth=2;g.beginPath();g.moveTo(x1,y);g.lineTo(x2-10,y);g.stroke();g.beginPath();g.moveTo(x2,y);g.lineTo(x2-12,y-8);g.lineTo(x2-12,y+8);g.closePath();g.fill();g.restore()}
+function line(a,b,col,o={}){const al=o.a??1;if(al<=.01)return;g.save();g.globalAlpha*=al;g.strokeStyle=col;g.lineWidth=o.lw||2;if(o.dash)g.setLineDash(o.dash);g.beginPath();g.moveTo(...a);g.lineTo(...b);g.stroke();g.restore()}
+function costCard(s,u){if(!s.cost)return;const on=s.cost.map(v=>v===true||(typeof v==='number'&&u>=v));const x=730,y=200;card(x,y,290,200,'SHUFFLE COST');
+ const n=on.filter(Boolean).length;g.fillStyle='#ebe6d8';g.fillRect(x+18,y+46,254,12);g.fillStyle=C.brick;g.fillRect(x+18,y+46,254*n/4,12);g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(x+18,y+46,254,12);
+ ['serialize','disk I/O','network I/O','deserialize'].forEach((s,i)=>{check(x+18,y+74+i*30,on[i],C.brick);txt(s,x+48,y+89+i*30,{size:18,col:on[i]?C.ink:'#bdb8a8'})})}
+function cylinder(cx,ty,w,h,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;const rx=w/2,ry=w*.16;
+ const body=()=>{g.beginPath();g.moveTo(cx-rx,ty);g.lineTo(cx-rx,ty+h);g.ellipse(cx,ty+h,rx,ry,0,Math.PI,0,true);g.lineTo(cx+rx,ty);g.closePath()};
+ g.save();g.shadowColor='rgba(70,58,30,.2)';g.shadowBlur=22;g.shadowOffsetY=12;body();g.fillStyle=C.pF;g.fill();g.restore();
+ g.lineWidth=2.2;g.strokeStyle=C.ink;body();g.stroke();g.beginPath();g.ellipse(cx,ty,rx,ry,0,0,7);g.fillStyle=C.pT;g.fill();g.stroke();
+ const ks=o.keys||'ABCDBADCABDC';for(let r=0;r<3;r++)for(let c=0;c<4;c++){const k=ks[(r*4+c)%ks.length],x=cx-rx+22+c*((w-44)/4),y=ty+ry+18+r*((h-ry-10)/3.2),ww=(w-44)/4-10,hh=(h-ry-10)/3.2-12,gone=o.gone?o.gone(r*4+c):0;
+  if(gone>=1)continue;g.globalAlpha=a*(1-gone);g.fillStyle=mix(C.pF,KC[k],.75);g.fillRect(x,y,ww,hh);g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(x,y,ww,hh)}
+ g.restore()}
+function gear(cx,cy,r,rot,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;g.translate(cx,cy);g.rotate(rot);g.beginPath();
+ for(let i=0;i<32;i++){const ang=i/32*Math.PI*2,rr2=[r,r,r*.76,r*.76][i%4];const px=Math.cos(ang)*rr2,py=Math.sin(ang)*rr2;i?g.lineTo(px,py):g.moveTo(px,py)}g.closePath();
+ g.fillStyle=o.col?mix(C.pF,o.col,.35):C.pT;g.fill();g.lineWidth=2;g.strokeStyle=C.ink;g.stroke();g.beginPath();g.arc(0,0,r*.3,0,7);g.fillStyle=C.bg;g.fill();g.stroke();g.restore()}
+function chip(x,y,k,v,o={}){const a=o.a??1;if(a<=.01)return;const w=o.w||170,h=o.h||40,col=KC[k];g.save();g.globalAlpha*=a;rr(x,y,w,h,8);g.fillStyle=mix('#ffffff',col,.16);g.fill();g.lineWidth=o.ring?3.5:2;g.strokeStyle=o.ring?C.brick:col;if(o.dash)g.setLineDash(o.dash);g.stroke();g.restore();
+ txt(`(${k}, ${v})`,x+w/2,y+h/2+7,{size:o.size||20,w:700,col,align:'center',a})}
+function partBox(x,y,w,h,label,o={}){pbox(x,y,w,h,o.d??44,{label,ls:14,tint:o.tint,a:o.a,dot:o.dot,ink:o.ink})}
+const BEFORE=[[['A',1],['A',2],['B',1]],[['B',2],['C',1],['A',3]],[['C',2],['B',3],['D',1]]];
+const AFTER={A:[1,2,3],B:[1,2,3],C:[1,2],D:[1]};
+const KEYS='ABCD';
+/* ---------- scenes ---------- */
+const SC=[];const S=o=>SC.push(o);
+S({k:'SPARK INTERNALS · 02',title:[['partitions ',C.ink],['& shuffle',C.navy]],center:true,
+ n:'Two ideas explain most of Spark\'s speed: partitions and the shuffle. Partitions split your data so many tasks can work at the same time. The shuffle is what happens when data has to move between those partitions, and it is usually the most expensive part of a job.',
+ hood:['RDD','DataFrame','partitions','shuffle'],
+ draw(u){cylinder(540,440,240,200,{a:seg(u,.2,1),gone:i=>seg(u,2+i*.08,2.5+i*.08)});txt('one big dataset',540,712,{size:20,col:C.mut,align:'center',a:seg(u,.6,1.2)});
+  const xs=[110,335,560,785];xs.forEach((x,i)=>{const a=seg(u,2.4+i*.2,3.2+i*.2);partBox(x,1010+(1-a)*30,190,150,`P${i+1}`,{a,d:60});vArrow(540,730,860,a*.0)});
+  for(let i=0;i<12;i++){const p=seg(u,2+i*.08,3.2+i*.08),k='ABCDBADCABDC'[i];if(p<=0)continue;const src=[540-90+(i%4)*45,520+Math.floor(i/4)*50],m=Math.floor(i/3),j=i%3;
+   let dst=[xs[m]+22+j*54,920];const sp=seg(u,5.2,6.8);if(sp>0){const q=KEYS.indexOf(k),cnt='ABCDBADCABDC'.slice(0,i).split('').filter(c=>c===k).length;dst=[L(dst[0],xs[q]+22+cnt*54,sp),dst[1]-bump(sp)*120]}
+   const q=p<1?qpt(src,dst,80,p):dst;box2(q[0],q[1],44,30,{fill:KC[k],stroke:C.ink,lw:1.4,r:4});txt(k,q[0]+22,q[1]+22,{size:15,w:700,col:'#fff',align:'center'})}
+  const s=seg(u,6.6,7.6);txt('SHUFFLE',540,1150,{size:58,w:700,align:'center',a:s});g.save();g.globalAlpha=s;g.fillStyle=C.navy;g.fillRect(540-130*s,1166,260*s,6);g.restore();
+  txt('same key → same partition',540,1230,{size:22,col:C.mut,align:'center',a:seg(u,7.6,8.4)});
+ }});
+S({title:[['what is a ',C.ink],['partition?',C.navy]],
+ n:'A partition is the smallest unit of data that Spark works on. Every RDD or DataFrame is split into many partitions, and each partition is simply a chunk of rows. One task processes one partition from start to finish, so partitions are Spark\'s unit of work.',
+ hood:['rdd.getNumPartitions','df.rdd.getNumPartitions()','unit of parallelism'],
+ draw(u){cylinder(540,420,230,190,{a:seg(u,.2,.9),gone:i=>seg(u,2+i*.12,2.6+i*.12)});txt('INPUT DATA',700,470,{size:16,w:700,col:C.mut,ls:2,a:seg(u,.5,1)});txt('large dataset',700,496,{size:16,col:C.mut,a:seg(u,.5,1)});
+  vArrow(540,680,800,seg(u,1.2,1.8));txt('split',560,750,{size:18,col:C.mut,a:seg(u,1.2,1.8)});
+  const xs=[90,325,560,795];xs.forEach((x,i)=>{const a=seg(u,1.4+i*.2,2+i*.2);partBox(x,1000,190,150,`PARTITION ${i+1}`,{a,d:60})});
+  for(let i=0;i<12;i++){const p=seg(u,2+i*.12,2.9+i*.12);if(p<=0)continue;const k='ABCDBADCABDC'[i],m=i%4,j=Math.floor(i/4);const src=[540-90+(i%4)*46,480+Math.floor(i/4)*45],dst=[xs[m]+20+j*52,950];
+   const q=p<1?qpt(src,dst,60,p):dst;box2(q[0],q[1],44,30,{fill:KC[k],stroke:C.ink,lw:1.4,r:4})}
+  ['RDD','DataFrame','Dataset'].forEach((s,i)=>pill(330+i*200,1090,s,C.navy,{dot:false,size:16,a:seg(u,5+i*.3,5.6+i*.3)}));
+  txt('partition = a chunk of rows · 1 partition → 1 task',540,1180,{size:21,w:700,align:'center',a:seg(u,6.4,7.2)});
+ }});
+S({title:[['one partition, ',C.ink],['one task',C.navy]],
+ n:'Spark runs one task per partition. The tasks are spread over the executors\' cores and run at the same time. Four partitions on four free cores means four tasks working in parallel, each on its own slice of the data.',
+ hood:['task = partition + code','executor cores','spark.executor.cores'],
+ draw(u){const xs=[90,325,560,795];
+  xs.forEach((x,i)=>{partBox(x,700,190,130,`PARTITION ${i+1}`,{d:56});vArrow(x+95,712,820,seg(u,.8+i*.2,1.4+i*.2));
+   const run=u>2.2;gear(x+95,880,46,run?NOW*1.6*(i%2?-1:1):0,{a:seg(u,1+i*.2,1.6+i*.2),col:run?C.green:null});txt(`TASK ${i+1}`,x+95,960,{size:17,w:700,align:'center',a:seg(u,1.2+i*.2,1.8+i*.2)});
+   const f=seg(u,2.6,7.5+i*.4);g.save();g.globalAlpha=seg(u,2.2,2.6);g.fillStyle='#ebe6d8';g.fillRect(x+15,985,160,14);g.fillStyle=C.green;g.fillRect(x+15,985,160*f,14);g.strokeStyle=C.ink;g.lineWidth=1.3;g.strokeRect(x+15,985,160,14);g.restore()});
+  const ea=seg(u,5.4,6);[[70,'EXECUTOR 1 · 2 CORES'],[540,'EXECUTOR 2 · 2 CORES']].forEach(([x,l])=>{box2(x,815,470,215,{a:ea,fill:'rgba(0,0,0,0)',stroke:C.navy,dash:[8,6],lw:2});txt(l,x+14,1056,{size:15,w:700,col:C.navy,a:ea})});
+  pill(540,1130,'4 PARTITIONS → 4 TASKS → IN PARALLEL',C.green,{a:seg(u,6.6,7.2)});
+ }});
+S({title:[['example: ',C.ink],['a 1 GB file',C.navy]],
+ n:'Say we read a 1 gigabyte file and split it into 4 partitions. Spark creates 4 tasks, each handling about 250 megabytes, all at once. In practice, Spark reads files in splits of up to 128 megabytes by default, so this file would become about 8 partitions.',
+ hood:['spark.sql.files.maxPartitionBytes = 128MB','1 GB ÷ 4 = 250 MB','tasks run in waves'],
+ draw(u){txt('1 GB',540,600,{size:140,w:700,align:'center',a:seg(u,.2,1)});txt('INPUT FILE',540,650,{size:17,col:C.mut,align:'center',ls:3,a:seg(u,.4,1)});
+  vArrow(540,670,740,seg(u,1.4,2));
+  for(let i=0;i<4;i++){const a=seg(u,1.8+i*.25,2.5+i*.25);pbox(90+i*235,880,190,100,56,{a,label:`P${i+1}`,center:'250 MB',cs:22,ls:14,tint:Object.values(KC)[i]})}
+  const ca=seg(u,3.4,4);card(90,930,900,250,'TIME TO PROCESS (illustrative)',{a:ca});
+  txt('1 task',115,1010,{size:18,w:700,a:ca});const f1=seg(u,4,8.6);g.save();g.globalAlpha=ca;g.fillStyle=C.brick;g.fillRect(240,990,700*f1,30);g.strokeStyle=C.ink;g.lineWidth=1.3;g.strokeRect(240,990,700,30);g.restore();txt('≈ 40 s',940,1050,{size:16,col:C.brick,align:'right',a:seg(u,8.4,8.8)});
+  txt('4 tasks',115,1110,{size:18,w:700,a:ca});const f4=seg(u,4,5.2);for(let i=0;i<4;i++){g.save();g.globalAlpha=ca;g.fillStyle=Object.values(KC)[i];g.fillRect(240,1078+i*16,175*f4,13);g.restore()}g.save();g.globalAlpha=ca;g.strokeStyle=C.ink;g.lineWidth=1.3;g.strokeRect(240,1076,175,66);g.restore();txt('≈ 10 s',430,1118,{size:16,col:C.green,w:700,a:seg(u,5.2,5.6)});
+  pill(540,1250,'default split ≈ 128 MB → about 8 partitions',C.navy,{size:15,a:seg(u,7,7.6)});
+ }});
+S({title:[['why partitions ',C.ink],['matter',C.navy]],
+ n:'Partitions matter for four reasons. They enable parallelism. They improve performance, because each task gets a chunk small enough to fit in memory. They control how well you use the cluster\'s cores. And they shape scheduling, because every partition becomes exactly one task.',
+ hood:['parallelism','memory per task','task scheduling'],
+ draw(u){const items=[['enable parallelism','more partitions → more tasks at once',C.navy],['improve performance','small chunks fit in memory, fewer spills',C.green],['control resource use','every core gets work, none sits idle',C.ochre],['shape task scheduling','each partition = exactly one task',C.plum]];
+  items.forEach(([t,d,col],i)=>{const y=440+i*200,a=seg(u,.4+i*1.6,1+i*1.6);card(90,y,900,176,'',{a});check(118,y+40,u>1.2+i*1.6,col);txt(t,160,y+58,{size:27,w:700,a});txt(d,160,y+100,{size:20,f:F.sans,col:'#5f5b52',a});
+   const ix=780,iy=y+150,p=lin(u,1.2+i*1.6,2.8+i*1.6);
+   if(i===0)for(let k=0;k<4;k++)gear(ix+20+k*44,y+120,17,NOW*2,{a,col:p>k/4?C.navy:null});
+   if(i===1){g.save();g.globalAlpha=a;for(let k=0;k<4;k++){g.fillStyle=C.green;g.fillRect(ix+k*44,y+88,34,L(70,34,p));g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(ix+k*44,y+88,34,L(70,34,p))}g.restore()}
+   if(i===2){g.save();g.globalAlpha=a;for(let k=0;k<8;k++){g.fillStyle=p>k/8?C.ochre:'#e3dfd3';g.fillRect(ix+(k%4)*44,y+68+Math.floor(k/4)*44,34,34);g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(ix+(k%4)*44,y+68+Math.floor(k/4)*44,34,34)}g.restore()}
+   if(i===3){for(let k=0;k<3;k++){box2(ix+k*60,y+64,48,30,{a,fill:mix('#ffffff',C.plum,.2),stroke:C.plum});vArrow(ix+24+k*60,y+98,y+122,a*p);gear(ix+24+k*60,y+140,13,0,{a:a*p})}}
+  });
+ }});
+S({title:[['how many ',C.ink],['partitions?',C.navy]],
+ n:'So how many? Too few partitions and most cores sit idle while a few huge tasks run, and they may spill to disk. Too many and you get thousands of tiny tasks where scheduling overhead dominates. Spark\'s tuning guide suggests two to three tasks per core, and partitions of roughly 100 to 200 megabytes are a common target.',
+ hood:['2–3 tasks per CPU core','~100–200 MB per partition','tasks run in waves'],
+ draw(u){const P=[[440,'TOO FEW',C.brick],[720,'TOO MANY',C.brick],[1000,'JUST RIGHT',C.green]];
+  P.forEach(([y,t,col],i)=>{const a=seg(u,.3+i*2.6,.9+i*2.6);card(90,y,900,250,'',{a,border:i===2?C.green:undefined,lw:i===2?3:1.8});txt(t,115,y+46,{size:24,w:700,col,a});
+   const p=lin(u,.9+i*2.6,3.2+i*2.6);
+   if(i===0){for(let k=0;k<8;k++){const busy=k<2;box2(115+k*60,y+80,48,48,{a,fill:busy?C.navy:'#e3dfd3'});}txt('8 cores · 2 partitions',115,y+160,{size:17,col:'#4a4842',a});
+    g.save();g.globalAlpha=a;g.fillStyle=C.navy;g.fillRect(620,y+80,330*p,24);g.fillRect(620,y+116,300*p,24);g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(620,y+80,330,24);g.strokeRect(620,y+116,330,24);g.restore();
+    txt('6 cores idle · huge tasks may spill',115,y+210,{size:18,w:700,col:C.brick,a:seg(u,2,2.6)})}
+   if(i===1){for(let k=0;k<60;k++){const x=115+(k%30)*28,yy=y+80+Math.floor(k/30)*44,on=p>k/60;g.save();g.globalAlpha=a;g.fillStyle=on?C.navy:'#e3dfd3';g.fillRect(x,yy,14,34);g.fillStyle=C.brick;g.fillRect(x+14,yy,8,34);g.restore()}
+    txt('100,000 tiny tasks: the red slivers are scheduling overhead',115,y+200,{size:17,col:C.brick,w:700,a:seg(u,4.6,5.2)})}
+   if(i===2){for(let k=0;k<8;k++){g.save();g.globalAlpha=a;for(let w=0;w<3;w++){const f=cl(p*3-w);g.fillStyle=[C.navy,C.green,C.ochre][w];g.fillRect(115+k*60,y+150-w*26,48*f,22)}g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(115+k*60,y+72,48,100);g.restore()}
+    txt('2–3 tasks per core',620,y+110,{size:22,w:700,col:C.green,a});txt('≈ 100–200 MB per partition',620,y+150,{size:19,col:'#4a4842',a})}
+  });
+ }});
+S({title:[['control ',C.ink],['the count',C.navy]],
+ n:'You control the count in four places. spark.default.parallelism sets the default for RDD operations. spark.sql.shuffle.partitions, 200 by default, sets how many partitions a DataFrame shuffle produces. repartition does a full shuffle into any number of evenly sized partitions. coalesce only reduces the count, merging neighbors without a full shuffle.',
+ hood:['spark.default.parallelism','spark.sql.shuffle.partitions = 200','repartition(n) · coalesce(n)'],
+ draw(u){const c=[[440,140,'spark.default.parallelism','default partitions for RDD operations'],[600,140,'spark.sql.shuffle.partitions = 200','partitions produced by a DataFrame shuffle'],[760,230,'repartition(n)','full shuffle · up or down · even sizes'],[1010,230,'coalesce(n)','merges neighbors · no full shuffle · only down']];
+  c.forEach(([y,h,t,d],i)=>{const a=seg(u,.3+i*1.4,.9+i*1.4);card(90,y,900,h,'',{a});txt(t,115,y+52,{size:i<2?24:27,w:700,col:C.navy,a});txt(d,115,y+92,{size:19,f:F.sans,col:'#5f5b52',a})});
+  {const y=760,a=seg(u,4.5,5.1),p=seg(u,5.4,7),base=y+205,src=[60,140,40],sx=[560,622,684],tx=[790,842,894,946];
+   src.forEach((h,i)=>box2(sx[i],base-h,50,h,{a:a*(1-p*.6),fill:C.ochre,r:2}));
+   if(a>0&&p>0){for(let i=0;i<3;i++)for(let j=0;j<4;j++)line([sx[i]+25,base-src[i]],[L(sx[i]+25,tx[j]+20,p),L(base-src[i],base-60,p)],C.brick,{a:a*.45*(1-lin(u,7.2,7.8)),lw:1.4});tx.forEach(x=>box2(x,base-60,40,60,{a:a*p,fill:C.green,r:2}))}
+   txt('3 uneven → 4 even',870,y+40,{size:16,w:700,col:C.green,align:'center',a:seg(u,6.8,7.3)})}
+  {const y=1010,a=seg(u,5.9,6.5),p=seg(u,7.2,8.6),base=y+205,col=Object.values(KC);
+   const pos=[[600,base],[L(662,600,p),L(base,base-50,p)],[L(724,780,p),base],[L(786,780,p),L(base,base-50,p)]];
+   pos.forEach(([x,b],i)=>box2(x,b-50,50,50,{a,fill:col[i],r:2}));
+   txt('4 → 2, no shuffle',870,y+40,{size:16,w:700,col:C.green,align:'center',a:seg(u,8.4,8.9)})}
+ }});
+S({title:[['narrow vs ',C.ink],['wide',C.brick]],
+ n:'Transformations come in two kinds. Narrow ones like map, filter and flatMap: each output partition depends on one input partition, so data stays where it is. Wide ones like groupBy, join, distinct and sortByKey: an output partition needs data from many input partitions, so Spark has to shuffle.',
+ hood:['narrow: map · filter · flatMap · union','wide: groupBy · join · distinct · sortByKey','wide ⇒ new stage'],
+ draw(u){[[440,'NARROW · no shuffle',C.green,['map','filter','flatMap','union'],false],[860,'WIDE · causes a shuffle',C.brick,['groupBy','join','distinct','sortByKey'],true]].forEach(([y,t,col,ex,wide],i)=>{
+   const a=seg(u,.3+i*3.6,.9+i*3.6),p=seg(u,1+i*3.6,2.6+i*3.6);card(90,y,900,380,'',{a,border:col,lw:2.6});txt(t,115,y+48,{size:26,w:700,col,a});
+   for(let k=0;k<3;k++){box2(130,y+90+k*92,130,64,{a,fill:C.pF});txt(`in ${k+1}`,195,y+130+k*92,{size:17,w:700,align:'center',a});box2(500,y+90+k*92,130,64,{a:a*p,fill:mix('#ffffff',col,.15),stroke:col,lw:2});txt(`out ${k+1}`,565,y+130+k*92,{size:17,w:700,align:'center',col,a:a*p})}
+   for(let k=0;k<3;k++)for(let j=0;j<3;j++){if(!wide&&k!==j)continue;line([260,y+122+k*92],[L(260,500,p),L(y+122+k*92,y+122+j*92,p)],wide?[C.navy,C.green,C.ochre][j]:C.green,{a,lw:2.4})}
+   ex.forEach((s,j)=>pill(800,y+120+j*62,s,col,{dot:false,size:17,a:seg(u,2+i*3.6+j*.2,2.5+i*3.6+j*.2)}));
+  });
+ }});
+S({title:[['before ',C.ink],['the shuffle',C.navy]],
+ n:'Here is a concrete example. Pairs are spread across three partitions, and we call groupByKey. Key A sits in partitions one and two, B is spread across all three, and C across two. To group them, matching keys must end up in the same partition.',
+ hood:['rdd.groupByKey()','partitioned randomly','keys scattered'],
+ draw(u){const code='pairs.groupByKey()';term(260,430,560,64,code,lin(u,.2,1.6)*code.length,{size:24,cursor:u<2});
+  const xs=[80,410,740];BEFORE.forEach((recs,p)=>{const a=seg(u,1+p*.3,1.7+p*.3);partBox(xs[p],1000,260,330,`PARTITION ${p+1}`,{a,d:50});
+   recs.forEach(([k,v],j)=>chip(xs[p]+24,1000-330+60+j*80,k,v,{w:210,h:56,size:24,a:a*seg(u,1.6+p*.3+j*.15,2.1+p*.3+j*.15),ring:u>4.6&&k===(u<6.4?'A':'B')}))});
+  txt(u<6.4?'where is A?  →  partitions 1 and 2':'where is B?  →  all three partitions',540,1080,{size:23,w:700,col:C.brick,align:'center',a:seg(u,4.6,5.2)});
+  pill(540,1170,'GOAL: SAME KEY → SAME PARTITION',C.navy,{a:seg(u,7.6,8.2)});
+ }});
+S({title:[['the ',C.ink],['shuffle',C.brick]],
+ n:'During the shuffle, every record is sent to the partition its key hashes to: A to partition one, B to two, C to three, D to four. Each source partition writes its records out grouped by destination, and each target partition fetches its share from all of them, usually over the network.',
+ hood:['partition = hash(key) % 4','written to local disk','fetched over the network'],
+ draw(u){const sx=[80,410,740],tx=[60,300,540,780];
+  BEFORE.forEach((recs,p)=>{partBox(sx[p],690,260,220,`PARTITION ${p+1}`,{d:40})});
+  for(let q=0;q<4;q++)partBox(tx[q],1250,200,200,`PARTITION ${q+1}`,{d:40,tint:KC[KEYS[q]],a:seg(u,.5+q*.15,1.1+q*.15)});
+  const na=seg(u,.8,1.4);box2(90,740,900,200,{a:na,fill:'rgba(255,255,255,.35)',stroke:C.ink,dash:[10,8],lw:2,r:14});txt('NETWORK',540,775,{size:16,col:C.mut,align:'center',ls:3,a:na});
+  pill(540,905,'partition = hash(key) % 4',C.navy,{dot:false,size:15,a:seg(u,1.2,1.8)});
+  let r=0;BEFORE.forEach((recs,p)=>recs.forEach(([k,v],j)=>{const q=KEYS.indexOf(k),kk=AFTER[k].indexOf(v),s0=2.2+r*.5,pr=seg(u,s0,s0+1.6);r++;
+   const src=[sx[p]+24,690-220+50+j*52],dst=[tx[q]+18,1250-200+50+kk*46];
+   if(pr<=0){chip(src[0],src[1],k,v,{w:210,h:40});return}
+   chip(src[0],src[1],k,v,{w:210,h:40,a:.25,dash:[5,5]});
+   if(pr<1){line([src[0]+105,src[1]+40],[dst[0]+80,dst[1]],KC[k],{a:.25,lw:1.5,dash:[4,5]});const pt=qpt(src,dst,20,pr);chip(pt[0],pt[1],k,v,{w:L(210,164,pr),h:40,size:18})}
+   else chip(dst[0],dst[1],k,v,{w:164,h:38,size:18})}));
+ }});
+S({title:[['after ',C.ink],['the shuffle',C.green]],
+ n:'After the shuffle, the data is partitioned by key: every A is in partition one, every B in partition two, and so on. Now each task can finish its keys on its own, with no more data movement. Summing the values gives A six, B six, C three, and D one.',
+ hood:['partitioned by key','no more data movement','reduce per partition'],
+ draw(u){const xs=[70,306,542,778];
+  KEYS.split('').forEach((k,q)=>{const a=seg(u,.3+q*.25,1+q*.25);partBox(xs[q],900,210,330,`PARTITION ${q+1}`,{d:40,tint:KC[k],a});
+   AFTER[k].forEach((v,j)=>chip(xs[q]+20,900-330+56+j*72,k,v,{w:170,h:52,size:22,a:a*seg(u,.8+q*.25+j*.12,1.3+q*.25+j*.12)}));
+   const sum=AFTER[k].reduce((s,x)=>s+x,0),ra=seg(u,5+q*.4,5.6+q*.4);vArrow(xs[q]+105,930,1010,ra);
+   g.save();g.globalAlpha=ra;rr(xs[q]+15,1020,180,70,10);g.fillStyle=KC[k];g.fill();g.restore();txt(`${k} = ${sum}`,xs[q]+105,1067,{size:30,w:700,col:'#fff',align:'center',a:ra})});
+  pill(540,1180,'NOW: ALL RECORDS WITH THE SAME KEY ARE TOGETHER',C.green,{size:15,a:seg(u,3,3.6)});
+  txt('each task sums its own keys · no more network',540,1250,{size:19,col:C.mut,align:'center',a:seg(u,7.4,8)});
+ }});
+S({title:[['why it\'s ',C.ink],['expensive',C.brick]],cost:[1,2.2,3.4,4.6],
+ n:'That movement is why shuffles are expensive. Records are serialized, written to disk, sent across the network, and deserialized again, and the next stage waits until all of it is done. So minimize data movement: filter rows and columns early, combine before shuffling with reduceByKey, and broadcast small tables instead of shuffling them.',
+ hood:['network + disk I/O','stage boundary','minimize data movement'],
+ draw(u){const steps=[['1 · serialize'],['2 · write to disk'],['3 · send over network'],['4 · read + deserialize']];
+  steps.forEach(([t],i)=>{const x=90+(i%2)*460,y=440+Math.floor(i/2)*200,a=seg(u,.6+i*1.2,1.2+i*1.2);card(x,y,440,180,'',{a,border:u>1+i*1.2?C.brick:undefined});txt(t,x+20,y+46,{size:22,w:700,col:C.brick,a});
+   if(i===0)bin(x+220,y+115,'01000001 00110001',{a,size:17});
+   if(i===1)disk(x+220,y+130,.5,a);
+   if(i===2){dashArc([x+60,y+150],[x+380,y+150],70,{a,p:lin(u,3,4.2),flow:true});box2(x+30,y+140,60,30,{a,fill:C.pF});box2(x+350,y+140,60,30,{a,fill:C.pF})}
+   if(i===3)for(let k=0;k<4;k++)chip(x+30+(k%2)*200,y+80+Math.floor(k/2)*48,KEYS[k],k+1,{w:180,h:40,size:17,a})});
+  txt('…and the next stage waits for all of it',540,880,{size:20,w:700,col:C.brick,align:'center',a:seg(u,5.2,5.8)});
+  const tips=[['filter rows & select columns early','less data to move'],['reduceByKey, not groupByKey','combine on the map side first'],['broadcast small tables','join without shuffling the big side']];
+  tips.forEach(([t,d],i)=>{const y=920+i*112,a=seg(u,6+i*.9,6.7+i*.9);card(90,y,900,96,'',{a,border:C.green});mark(125,y+48,true,a);txt(t,160,y+44,{size:23,w:700,a});txt(d,160,y+76,{size:18,f:F.sans,col:'#5f5b52',a})});
+ }});
+S({title:[['real-world ',C.ink],['analogy',C.navy]],
+ n:'Think of a delivery company. Partitions are warehouses, each holding a mix of packages. The shuffle is the sorting center: every package is routed by its destination, its key, so all packages for the same city end up on the same truck. Sorting is necessary, but it costs time and fuel.',
+ hood:['package = record','destination = key','sorting center = shuffle'],
+ draw(u){const wx=[80,410,740];const pk=['ABDC','CBAD','DACB'];
+  wx.forEach((x,w)=>{partBox(x,640,240,110,`WAREHOUSE ${w+1}`,{d:70,a:seg(u,.2+w*.2,.8+w*.2)})});
+  const sa=seg(u,1,1.6);pbox(190,920,700,120,90,{a:sa,label:'SORTING CENTER  =  SHUFFLE',ls:16,lines:3});
+  g.save();g.globalAlpha=sa;g.strokeStyle=C.mut;g.lineWidth=2;g.setLineDash([14,10]);g.lineDashOffset=-NOW*40;g.beginPath();g.moveTo(230,880);g.lineTo(850,880);g.stroke();g.restore();
+  const tx=[60,300,540,780];KEYS.split('').forEach((k,q)=>{const a=seg(u,1.4+q*.15,2+q*.15);pbox(tx[q],1240,200,90,60,{a,label:`TRUCK · ${k}`,ls:14,tint:KC[k]});
+   g.save();g.globalAlpha=a;g.fillStyle=C.ink;[tx[q]+40,tx[q]+160].forEach(cx=>{g.beginPath();g.arc(cx,1244,13,0,7);g.fill()});g.restore()});
+  pk.forEach((s,w)=>[...s].forEach((k,j)=>{const q=KEYS.indexOf(k),home=TA(wx[w],640,110,30+j*48,30),mid=[300+(w*4+j)*40,860],dst=TA(tx[q],1240,90,30+w*48,24);
+   const p1=seg(u,2.4+w*.4+j*.12,3.4+w*.4+j*.12),p2=seg(u,4.8+q*.3+w*.15,6+q*.3+w*.15);let pt=home;if(p1>0)pt=p1<1?qpt(home,mid,60,p1):mid;if(p2>0)pt=p2<1?qpt(mid,dst,40,p2):dst;
+   tile(pt[0],pt[1],k,{col:KC[k],w:36,h:24,d:14,cs:12})}));
+  pill(300,1330,'package = record',C.navy,{dot:false,size:15,a:seg(u,7,7.5)});pill(560,1330,'city = key',C.navy,{dot:false,size:15,a:seg(u,7.3,7.8)});pill(810,1330,'sorting = shuffle',C.brick,{dot:false,size:15,a:seg(u,7.6,8.1)});
+ }});
+S({k:'',title:[],center:true,end:true,
+ n:'Partitions give you parallelism. The shuffle moves data so the same key lands together. Use enough partitions, and shuffle as little as you can.',
+ hood:[],
+ draw(u){txt('SPARK INTERNALS / 02',540,640,{size:20,col:C.mut,align:'center',ls:5,a:seg(u,0,1)});
+  txt('Partitions &',540,760,{size:72,w:700,align:'center',a:seg(u,.5,1.8)});txt('the Shuffle',540,850,{size:72,w:700,align:'center',col:C.navy,a:seg(u,.8,2.1)});
+  txt('partitions = parallelism · shuffle = moving data by key',540,930,{size:25,f:F.sans,col:'#6f6b60',align:'center',a:seg(u,1.6,2.8)});
+  KEYS.split('').forEach((k,i)=>{const on=Math.floor(NOW*1.2)%4===i,a=seg(u,2.4+i*.3,3.2+i*.3);g.save();g.globalAlpha=a;rr(320+i*120,1010,80,46,10);g.fillStyle=on?KC[k]:'#f6f3ea';g.fill();g.lineWidth=2;g.strokeStyle=on?KC[k]:C.ink;g.stroke();g.restore();txt(k,360+i*120,1041,{size:20,w:700,align:'center',col:on?'#fff':C.ink,a})});
+  for(let m=0;m<4;m++)partBox(90+m*235,1300,190,90,`P${m+1}`,{a:seg(u,3.4+m*.25,4.4+m*.25),d:56,tint:Object.values(KC)[m]});
+ }});
+{let n=0;const tot=SC.filter(s=>!s.center).length;SC.forEach(s=>{if(!s.center)s.k=`STEP ${++n} / ${tot}`})}
+/* ---------- timeline ---------- */
+SC.forEach(s=>{s.words=s.n.split(/\s+/);s.dur=Math.max(8,Math.round(s.words.length/2.55+2))});
+const ST=[];let T=0;SC.forEach(s=>{ST.push(T);T+=s.dur});
+let NOW=0;const wrapCache=new Map();
+function wrapAt(i,size){g.font=`500 ${size}px ${F.sans}`;const lines=[];let cur=[],w=0;const sp=g.measureText(' ').width;
+ SC[i].words.forEach((wd,j)=>{const ww=g.measureText(wd).width;if(cur.length&&w+sp+ww>900){lines.push(cur);cur=[];w=0}cur.push([wd,j,0]);w+=(cur.length>1?sp:0)+ww});if(cur.length)lines.push(cur);
+ lines.forEach(l=>{let x=0;l.forEach(it=>{it[2]=x;x+=g.measureText(it[0]).width+sp})});return lines}
+function wrapped(i){if(wrapCache.has(i))return wrapCache.get(i);let r;for(const size of[40,37,34,31]){const lh=Math.round(size*1.48),lines=wrapAt(i,size);r={lines,size,lh};if(lines.length*lh<=380)break}wrapCache.set(i,r);return r}
+function background(){g.fillStyle=C.bg;g.fillRect(0,0,W,H);g.strokeStyle=C.grid;g.lineWidth=1;g.beginPath();for(let x=0;x<=W;x+=36){g.moveTo(x+.5,0);g.lineTo(x+.5,H)}for(let y=0;y<=H;y+=36){g.moveTo(0,y+.5);g.lineTo(W,y+.5)}g.stroke();
+ const v=g.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,H*.75);v.addColorStop(0,'rgba(255,255,255,0)');v.addColorStop(1,'rgba(120,105,70,.10)');g.fillStyle=v;g.fillRect(0,0,W,H)}
+function header(){txt('> SPARK INTERNALS / PARTITIONS / 02',60,128,{font:`400 25px ${F.pix}`,col:'#3a3833',ls:4});
+ g.save();g.font=`400 25px ${F.pix}`;if('letterSpacing'in g)g.letterSpacing='4px';const w=g.measureText('> SPARK INTERNALS / PARTITIONS / 02').width;g.restore();
+ if(Math.floor(NOW*2)%2===0){g.fillStyle=C.orange;g.fillRect(60+w+8,106,14,24)}
+ g.fillStyle='#cfc9b8';g.fillRect(60,150,960,2);g.fillStyle=C.navy;g.fillRect(60,149,960*(NOW/T),4)}
+function titleBlock(s,i,lt){const a=lin(lt,.1,.6);if(s.end)return;
+ if(s.center){txt(s.k,540,250,{size:19,col:C.mut,align:'center',ls:4,a});let total=0;g.font=`700 54px ${F.mono}`;s.title.forEach(([t])=>total+=g.measureText(t).width);let x=540-total/2;s.title.forEach(([t,c])=>{txt(t,x,330,{size:54,w:700,col:c,a});g.font=`700 54px ${F.mono}`;x+=g.measureText(t).width});return}
+ txt(s.k,90,250,{size:19,col:C.mut,ls:3,a});let x=90;s.title.forEach(([t,c])=>{txt(t,x,322,{size:50,w:700,col:c,a});g.font=`700 50px ${F.mono}`;x+=g.measureText(t).width})}
+function captions(i,lt){const s=SC[i],{lines,size,lh}=wrapped(i),n=s.words.length,span=s.dur*.86,wt=span/n;
+ const y0=s.end?1480:1400;
+ lines.forEach((l,li)=>l.forEach(([wd,j,x])=>{const a=cl((lt-j*wt)/.25);txt(wd,90+x,y0+li*lh,{size,w:500,f:F.sans,col:mix('#c4bfae',C.ink,a)})}));
+ let x=90;const cy=1820;g.font=`400 15px ${F.mono}`;s.hood.forEach((h,k)=>{const w=g.measureText(h).width+26;if(x+w>990)return;const a=lin(lt,1+k*.3,1.6+k*.3);g.save();g.globalAlpha=a;rr(x,cy-17,w,34,17);g.strokeStyle='#8c887c';g.lineWidth=1.4;g.stroke();g.restore();txt(h,x+13,cy+5,{size:15,col:'#5f5b52',a});x+=w+10});
+ txt(`${String(i+1).padStart(2,'0')} / ${SC.length}`,990,1880,{size:15,col:C.mut,align:'right'});
+}
+function frame(){const i=chapterAt(NOW),s=SC[i],lt=NOW-ST[i],u=lt/s.dur*10;
+ background();header();titleBlock(s,i,lt);
+ g.save();const ap=ez(lt/.45);g.globalAlpha=ap;g.translate(0,(1-ez(lt/.6))*28);s.draw(u,lt);g.restore();
+ costCard(s,u);captions(i,lt)}
+/* ---------- player ---------- */
+const chapterAt=tt=>{let i=0;for(let j=0;j<ST.length;j++)if(ST[j]<=tt)i=j;return i};
+const $=id=>document.getElementById(id);const pp=$('pp'),sc=$('sc'),tm=$('tm'),vc=$('vc'),recB=$('rec'),ch=$('ch');
+const btns=SC.map((s,i)=>{const b=document.createElement('button');b.textContent=i===0?'intro':s.end?'end':String(i);b.title=s.title.map(x=>x[0]).join('')||'end';b.onclick=()=>go(i);ch.appendChild(b);return b});
+let t=0,play=true,last=performance.now(),cur=-1,voice=false,rec=null;
+function go(i){t=ST[cl(i,0,SC.length-1)]+.01;cur=-1;if(voice)speechSynthesis.cancel()}
+pp.onclick=()=>{play=!play;if(play&&t>=T)t=0;pp.textContent=play?'❚❚ pause':'▶ play';if(voice){play?speechSynthesis.resume():speechSynthesis.pause()}};
+sc.oninput=()=>{t=sc.value/10000*T;if(voice)speechSynthesis.cancel()};
+vc.onclick=()=>{if(!('speechSynthesis'in window)){vc.textContent='no voice';return}voice=!voice;vc.classList.toggle('on',voice);vc.textContent=voice?'🔊 voice':'🔈 voice';if(voice)cur=-1;else speechSynthesis.cancel()};
+recB.onclick=()=>{if(rec){rec.stop();return}if(!cv.captureStream||!window.MediaRecorder){recB.textContent='not supported';return}
+ const mt=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(m=>MediaRecorder.isTypeSupported(m));const chunks=[];
+ rec=new MediaRecorder(cv.captureStream(30),{mimeType:mt,videoBitsPerSecond:8e6});rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+ rec.onstop=()=>{const url=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));const a=document.createElement('a');a.href=url;a.download='spark-partitions-shuffle.webm';a.click();rec=null;recB.textContent='⏺ record .webm';recB.classList.remove('on')};
+ if(voice)vc.click();t=0;play=true;pp.textContent='❚❚ pause';rec.start(1000);recB.textContent='■ stop';recB.classList.add('on')};
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();pp.click()}else if(e.key==='ArrowRight')go(chapterAt(t)+1);else if(e.key==='ArrowLeft')go(chapterAt(t)-(t-ST[chapterAt(t)]<1.5?1:0))});
+function speak(i){if(!voice)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(SC[i].n);u.rate=1.02;speechSynthesis.speak(u)}
+const fmt=x=>`${Math.floor(x/60)}:${String(Math.floor(x%60)).padStart(2,'0')}`;
+function loop(now){const dt=Math.min(.1,(now-last)/1000);last=now;
+ if(play){const i0=chapterAt(Math.min(t,T-.001));const hold=voice&&speechSynthesis.speaking&&t+dt>=ST[i0]+SC[i0].dur-.05&&i0<SC.length-1;if(!hold)t+=dt;
+  if(t>=T){if(rec){t=T;rec.stop()}else{t=T;play=false;pp.textContent='▶ replay'}}}
+ NOW=Math.min(t,T-.001);frame();sc.value=Math.round(NOW/T*10000);tm.textContent=`${fmt(NOW)} / ${fmt(T)}`;
+ const i=chapterAt(NOW);if(i!==cur){cur=i;btns.forEach((b,j)=>b.classList.toggle('on',j===i));if(play)speak(i)}
+ requestAnimationFrame(loop)}
+const fontsReady=document.fonts?Promise.race([Promise.all([`700 50px "Space Mono"`,`400 20px "Space Mono"`,`500 40px "IBM Plex Sans"`,`25px "Silkscreen"`].map(f=>document.fonts.load(f))),new Promise(r=>setTimeout(r,2500))]):Promise.resolve();
+fontsReady.then(()=>{wrapCache.clear();last=performance.now();requestAnimationFrame(loop)});
+if(document.fonts)document.fonts.addEventListener('loadingdone',()=>wrapCache.clear());
+</script></body></html>
