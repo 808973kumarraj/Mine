@@ -20,7 +20,7 @@ input[type=range]{flex:1;min-width:120px;accent-color:#26429a}
 <canvas id="c" width="1080" height="1920" aria-label="Animated explainer: Spark partitions and the shuffle"></canvas>
 <div class="bar"><button id="pp">❚❚ pause</button><input id="sc" type="range" min="0" max="10000" value="0" aria-label="Timeline"><span id="tm"></span><button id="vc">🔈 voice</button><button id="rec">⏺ record .webm</button></div>
 <div class="ch" id="ch"></div>
-<div class="note">Space = play/pause · ← → = scenes · "record" plays it once from the start and downloads a 1080×1920 WebM (the voice is not captured). Timings and sizes are illustrative.</div>
+<div class="note">Space = play/pause · ← → = scenes · "record" plays it once from the start and downloads a 1080×1920 WebM (the voice is not captured). Worked numbers use Spark defaults; timings are illustrative.</div>
 <script>
 "use strict";
 const cv=document.getElementById('c'),g=cv.getContext('2d'),W=1080,H=1920;
@@ -91,199 +91,218 @@ function dashArc(a,b,hgt,o={}){const al=o.a??1,pr=o.p??1;if(al<=.01||pr<=0)retur
 function hatch(x,y,w,h,col){g.save();g.beginPath();g.rect(x,y,w,h);g.clip();g.strokeStyle=col;g.lineWidth=2;for(let i=-h;i<w;i+=12){g.beginPath();g.moveTo(x+i,y+h);g.lineTo(x+i+h,y);g.stroke()}g.restore()}
 function check(x,y,on,col){g.save();g.lineWidth=1.8;g.strokeStyle=on?col:'#bdb8a8';if(on){g.fillStyle=col;g.fillRect(x,y,18,18)}g.strokeRect(x,y,18,18);g.restore()}
 function mark(x,y,ok,a=1){if(a<=.01)return;g.save();g.globalAlpha*=a;g.lineWidth=4;g.lineCap='round';g.strokeStyle=ok?C.green:C.brick;g.beginPath();if(ok){g.moveTo(x-9,y);g.lineTo(x-2,y+8);g.lineTo(x+11,y-9)}else{g.moveTo(x-8,y-8);g.lineTo(x+8,y+8);g.moveTo(x+8,y-8);g.lineTo(x-8,y+8)}g.stroke();g.restore()}
-/* ---------- episode 02 · partitions & shuffle ---------- */
+/* ---------- episode 02 · partitions & shuffle: how + why ---------- */
 C.plum='#6d4c9f';const KC={A:C.navy,B:C.green,C:C.ochre,D:C.plum};
+const PCOL=[C.plum,C.navy,C.green,C.ochre],HP={A:1,B:2,C:3,D:0},PC6=[C.navy,C.green,C.ochre,C.plum,C.navy,C.green];
 function box2(x,y,w,h,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;rr(x,y,w,h,o.r??6);g.fillStyle=o.fill||'#fbf9f3';g.fill();g.lineWidth=o.lw||1.8;g.strokeStyle=o.stroke||C.ink;if(o.dash)g.setLineDash(o.dash);g.stroke();g.restore()}
 function vArrow(x,y1,y2,a=1,col=C.ink){if(a<=.01)return;g.save();g.globalAlpha*=a;g.strokeStyle=col;g.fillStyle=col;g.lineWidth=2;g.beginPath();g.moveTo(x,y1);g.lineTo(x,y2+(y2>y1?-10:10));g.stroke();const d=y2>y1?-1:1;g.beginPath();g.moveTo(x,y2);g.lineTo(x-8,y2+d*12);g.lineTo(x+8,y2+d*12);g.closePath();g.fill();g.restore()}
 function hArrow(x1,x2,y,a=1,col=C.ink){if(a<=.01)return;g.save();g.globalAlpha*=a;g.strokeStyle=col;g.fillStyle=col;g.lineWidth=2;g.beginPath();g.moveTo(x1,y);g.lineTo(x2-10,y);g.stroke();g.beginPath();g.moveTo(x2,y);g.lineTo(x2-12,y-8);g.lineTo(x2-12,y+8);g.closePath();g.fill();g.restore()}
 function line(a,b,col,o={}){const al=o.a??1;if(al<=.01)return;g.save();g.globalAlpha*=al;g.strokeStyle=col;g.lineWidth=o.lw||2;if(o.dash)g.setLineDash(o.dash);g.beginPath();g.moveTo(...a);g.lineTo(...b);g.stroke();g.restore()}
-function costCard(s,u){if(!s.cost)return;const on=s.cost.map(v=>v===true||(typeof v==='number'&&u>=v));const x=730,y=200;card(x,y,290,200,'SHUFFLE COST');
- const n=on.filter(Boolean).length;g.fillStyle='#ebe6d8';g.fillRect(x+18,y+46,254,12);g.fillStyle=C.brick;g.fillRect(x+18,y+46,254*n/4,12);g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(x+18,y+46,254,12);
- ['serialize','disk I/O','network I/O','deserialize'].forEach((s,i)=>{check(x+18,y+74+i*30,on[i],C.brick);txt(s,x+48,y+89+i*30,{size:18,col:on[i]?C.ink:'#bdb8a8'})})}
-function cylinder(cx,ty,w,h,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;const rx=w/2,ry=w*.16;
- const body=()=>{g.beginPath();g.moveTo(cx-rx,ty);g.lineTo(cx-rx,ty+h);g.ellipse(cx,ty+h,rx,ry,0,Math.PI,0,true);g.lineTo(cx+rx,ty);g.closePath()};
- g.save();g.shadowColor='rgba(70,58,30,.2)';g.shadowBlur=22;g.shadowOffsetY=12;body();g.fillStyle=C.pF;g.fill();g.restore();
- g.lineWidth=2.2;g.strokeStyle=C.ink;body();g.stroke();g.beginPath();g.ellipse(cx,ty,rx,ry,0,0,7);g.fillStyle=C.pT;g.fill();g.stroke();
- const ks=o.keys||'ABCDBADCABDC';for(let r=0;r<3;r++)for(let c=0;c<4;c++){const k=ks[(r*4+c)%ks.length],x=cx-rx+22+c*((w-44)/4),y=ty+ry+18+r*((h-ry-10)/3.2),ww=(w-44)/4-10,hh=(h-ry-10)/3.2-12,gone=o.gone?o.gone(r*4+c):0;
-  if(gone>=1)continue;g.globalAlpha=a*(1-gone);g.fillStyle=mix(C.pF,KC[k],.75);g.fillRect(x,y,ww,hh);g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(x,y,ww,hh)}
- g.restore()}
+function costCard(){}
 function gear(cx,cy,r,rot,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;g.translate(cx,cy);g.rotate(rot);g.beginPath();
  for(let i=0;i<32;i++){const ang=i/32*Math.PI*2,rr2=[r,r,r*.76,r*.76][i%4];const px=Math.cos(ang)*rr2,py=Math.sin(ang)*rr2;i?g.lineTo(px,py):g.moveTo(px,py)}g.closePath();
  g.fillStyle=o.col?mix(C.pF,o.col,.35):C.pT;g.fill();g.lineWidth=2;g.strokeStyle=C.ink;g.stroke();g.beginPath();g.arc(0,0,r*.3,0,7);g.fillStyle=C.bg;g.fill();g.stroke();g.restore()}
 function chip(x,y,k,v,o={}){const a=o.a??1;if(a<=.01)return;const w=o.w||170,h=o.h||40,col=KC[k];g.save();g.globalAlpha*=a;rr(x,y,w,h,8);g.fillStyle=mix('#ffffff',col,.16);g.fill();g.lineWidth=o.ring?3.5:2;g.strokeStyle=o.ring?C.brick:col;if(o.dash)g.setLineDash(o.dash);g.stroke();g.restore();
- txt(`(${k}, ${v})`,x+w/2,y+h/2+7,{size:o.size||20,w:700,col,align:'center',a})}
-function partBox(x,y,w,h,label,o={}){pbox(x,y,w,h,o.d??44,{label,ls:14,tint:o.tint,a:o.a,dot:o.dot,ink:o.ink})}
+ txt(`(${k}, ${v})`,x+w/2,y+h/2+(o.size||20)*.36,{size:o.size||20,w:700,col,align:'center',a})}
+function whyNote(x,y,w,lines,a){if(a<=.01)return;const h=58+(lines.length-1)*34+12;g.save();g.globalAlpha*=a;g.translate(x+w/2,y+h/2);g.rotate(-.01);g.translate(-(x+w/2),-(y+h/2));
+ g.save();g.shadowColor='rgba(70,58,30,.22)';g.shadowBlur=16;g.shadowOffsetY=8;g.fillStyle='#f1e2a4';g.fillRect(x,y,w,h);g.restore();g.strokeStyle='#bfa95e';g.lineWidth=1.2;g.strokeRect(x,y,w,h);
+ g.fillStyle='rgba(255,255,255,.55)';g.fillRect(x+w/2-55,y-13,110,26);
+ txt('WHY?',x+22,y+42,{size:21,w:700,col:C.brick,ls:2});lines.forEach((l,i)=>txt(l,x+108,y+42+i*34,{size:21,f:F.sans,w:500,col:'#3a352a'}));g.restore()}
+function taskPacket(x,y,p,col){box2(x-58,y-20,116,40,{fill:col||C.ink,stroke:C.ink});txt(`P${p} + f(x)`,x,y+7,{size:15,w:700,col:'#fff',align:'center'})}
 const BEFORE=[[['A',1],['A',2],['B',1]],[['B',2],['C',1],['A',3]],[['C',2],['B',3],['D',1]]];
-const AFTER={A:[1,2,3],B:[1,2,3],C:[1,2],D:[1]};
-const KEYS='ABCD';
 /* ---------- scenes ---------- */
 const SC=[];const S=o=>SC.push(o);
 S({k:'SPARK INTERNALS · 02',title:[['partitions ',C.ink],['& shuffle',C.navy]],center:true,
- n:'Two ideas explain most of Spark\'s speed: partitions and the shuffle. Partitions split your data so many tasks can work at the same time. The shuffle is what happens when data has to move between those partitions, and it is usually the most expensive part of a job.',
- hood:['RDD','DataFrame','partitions','shuffle'],
- draw(u){cylinder(540,440,240,200,{a:seg(u,.2,1),gone:i=>seg(u,2+i*.08,2.5+i*.08)});txt('one big dataset',540,712,{size:20,col:C.mut,align:'center',a:seg(u,.6,1.2)});
-  const xs=[110,335,560,785];xs.forEach((x,i)=>{const a=seg(u,2.4+i*.2,3.2+i*.2);partBox(x,1010+(1-a)*30,190,150,`P${i+1}`,{a,d:60});vArrow(540,730,860,a*.0)});
-  for(let i=0;i<12;i++){const p=seg(u,2+i*.08,3.2+i*.08),k='ABCDBADCABDC'[i];if(p<=0)continue;const src=[540-90+(i%4)*45,520+Math.floor(i/4)*50],m=Math.floor(i/3),j=i%3;
-   let dst=[xs[m]+22+j*54,920];const sp=seg(u,5.2,6.8);if(sp>0){const q=KEYS.indexOf(k),cnt='ABCDBADCABDC'.slice(0,i).split('').filter(c=>c===k).length;dst=[L(dst[0],xs[q]+22+cnt*54,sp),dst[1]-bump(sp)*120]}
-   const q=p<1?qpt(src,dst,80,p):dst;box2(q[0],q[1],44,30,{fill:KC[k],stroke:C.ink,lw:1.4,r:4});txt(k,q[0]+22,q[1]+22,{size:15,w:700,col:'#fff',align:'center'})}
-  const s=seg(u,6.6,7.6);txt('SHUFFLE',540,1150,{size:58,w:700,align:'center',a:s});g.save();g.globalAlpha=s;g.fillStyle=C.navy;g.fillRect(540-130*s,1166,260*s,6);g.restore();
-  txt('same key → same partition',540,1230,{size:22,col:C.mut,align:'center',a:seg(u,7.6,8.4)});
+ n:'You already know what partitions and shuffles are. This time we look at how they actually work inside Spark, and why they behave the way they do. Why a 1 gigabyte file becomes 8 or 16 partitions. Why one task per partition. How a key finds its partition. Why groupBy must shuffle, why that is slow, and why coalesce can quietly kill parallelism.',
+ hood:['how it works','why it works that way'],
+ draw(u){const q=['why does 1 GB become 8 or 16 partitions?','why exactly one task per partition?','how does a key find its partition?','why does groupBy have to shuffle?','why is the shuffle so slow?','why can coalesce(1) kill parallelism?'];
+  q.forEach((s,i)=>{const y=440+i*112,a=seg(u,.6+i*.9,1.2+i*.9);card(90,y,900,92,'',{a});g.save();g.globalAlpha=a;rr(112,y+22,48,48,24);g.fillStyle=C.brick;g.fill();g.restore();txt('?',136,y+56,{size:28,w:700,col:'#fff',align:'center',a});txt(s,180,y+56,{size:23,w:700,a})});
+  txt('not just what: how it works, and why',540,1160,{size:24,w:700,col:C.navy,align:'center',a:seg(u,6.6,7.4)});
  }});
-S({title:[['what is a ',C.ink],['partition?',C.navy]],
- n:'A partition is the smallest unit of data that Spark works on. Every RDD or DataFrame is split into many partitions, and each partition is simply a chunk of rows. One task processes one partition from start to finish, so partitions are Spark\'s unit of work.',
- hood:['rdd.getNumPartitions','df.rdd.getNumPartitions()','unit of parallelism'],
- draw(u){cylinder(540,420,230,190,{a:seg(u,.2,.9),gone:i=>seg(u,2+i*.12,2.6+i*.12)});txt('INPUT DATA',700,470,{size:16,w:700,col:C.mut,ls:2,a:seg(u,.5,1)});txt('large dataset',700,496,{size:16,col:C.mut,a:seg(u,.5,1)});
-  vArrow(540,680,800,seg(u,1.2,1.8));txt('split',560,750,{size:18,col:C.mut,a:seg(u,1.2,1.8)});
-  const xs=[90,325,560,795];xs.forEach((x,i)=>{const a=seg(u,1.4+i*.2,2+i*.2);partBox(x,1000,190,150,`PARTITION ${i+1}`,{a,d:60})});
-  for(let i=0;i<12;i++){const p=seg(u,2+i*.12,2.9+i*.12);if(p<=0)continue;const k='ABCDBADCABDC'[i],m=i%4,j=Math.floor(i/4);const src=[540-90+(i%4)*46,480+Math.floor(i/4)*45],dst=[xs[m]+20+j*52,950];
-   const q=p<1?qpt(src,dst,60,p):dst;box2(q[0],q[1],44,30,{fill:KC[k],stroke:C.ink,lw:1.4,r:4})}
-  ['RDD','DataFrame','Dataset'].forEach((s,i)=>pill(330+i*200,1090,s,C.navy,{dot:false,size:16,a:seg(u,5+i*.3,5.6+i*.3)}));
-  txt('partition = a chunk of rows · 1 partition → 1 task',540,1180,{size:21,w:700,align:'center',a:seg(u,6.4,7.2)});
+S({title:[['how does Spark ',C.ink],['split a file?',C.navy]],
+ n:'When a DataFrame reads files, Spark computes a split size: the total bytes divided by the number of cores, but never more than 128 megabytes and never less than 4. On 4 cores, a 1 gigabyte file gets 128 megabyte splits, so 8 partitions. On 16 cores it gets 64 megabyte splits, so 16 partitions. Why? Every core should get work, but no single task should get too much.',
+ hood:['spark.sql.files.maxPartitionBytes = 128MB','spark.sql.files.openCostInBytes = 4MB','default parallelism = cores'],
+ draw(u){card(90,430,900,150,'HOW · SPLIT SIZE FOR A FILE READ',{a:seg(u,.2,.8)});
+  txt('split = min( 128 MB , max( 4 MB , total ÷ cores ) )',115,512,{size:26,w:700,a:seg(u,.6,1.4)});
+  txt('128 MB = maxPartitionBytes · 4 MB = open cost per file · cores = default parallelism',115,556,{size:14,col:C.mut,a:seg(u,1,1.6)});
+  [[90,4,['total = 1024 + 4 = 1028 MB','1028 ÷ 4 cores = 257 MB','min(128, 257) = 128 MB'],'→ 8 partitions',8],[550,16,['total = 1024 + 4 = 1028 MB','1028 ÷ 16 cores ≈ 64 MB','min(128, 64) = 64 MB'],'→ 16 partitions',16]].forEach(([x,cores,lines,res,n],c)=>{
+   const a=seg(u,1.6+c*2.6,2.2+c*2.6);card(x,610,440,480,`${cores} CORES · 1 GB FILE`,{a});
+   lines.forEach((l,i)=>txt(l,x+20,680+i*40,{size:20,col:'#4a4842',a:seg(u,2+c*2.6+i*.5,2.4+c*2.6+i*.5)}));
+   txt(res,x+20,812,{size:28,w:700,col:C.navy,a:seg(u,3.6+c*2.6,4+c*2.6)});
+   const shh=n===8?56:30,gap=n===8?66:40;for(let k=0;k<n;k++){const r=Math.floor(k/4),cc=k%4,ka=seg(u,3.8+c*2.6+k*.04,4.2+c*2.6+k*.04);box2(x+20+cc*102,842+r*gap,92,shh,{a:ka,fill:mix('#ffffff',C.navy,.18),stroke:C.navy});txt(n===8?'128 MB':'64 MB',x+66+cc*102,842+r*gap+shh/2+6,{size:n===8?15:13,w:700,col:C.navy,align:'center',a:ka})}
+   txt(`all ${cores} cores busy`,x+20,1068,{size:17,w:700,col:C.green,a:seg(u,4.4+c*2.6,4.8+c*2.6)})});
+  whyNote(90,1128,900,['one split per core → no core sits idle','capped at 128 MB → no task gets too much data'],seg(u,7.8,8.4));
  }});
-S({title:[['one partition, ',C.ink],['one task',C.navy]],
- n:'Spark runs one task per partition. The tasks are spread over the executors\' cores and run at the same time. Four partitions on four free cores means four tasks working in parallel, each on its own slice of the data.',
- hood:['task = partition + code','executor cores','spark.executor.cores'],
- draw(u){const xs=[90,325,560,795];
-  xs.forEach((x,i)=>{partBox(x,700,190,130,`PARTITION ${i+1}`,{d:56});vArrow(x+95,712,820,seg(u,.8+i*.2,1.4+i*.2));
-   const run=u>2.2;gear(x+95,880,46,run?NOW*1.6*(i%2?-1:1):0,{a:seg(u,1+i*.2,1.6+i*.2),col:run?C.green:null});txt(`TASK ${i+1}`,x+95,960,{size:17,w:700,align:'center',a:seg(u,1.2+i*.2,1.8+i*.2)});
-   const f=seg(u,2.6,7.5+i*.4);g.save();g.globalAlpha=seg(u,2.2,2.6);g.fillStyle='#ebe6d8';g.fillRect(x+15,985,160,14);g.fillStyle=C.green;g.fillRect(x+15,985,160*f,14);g.strokeStyle=C.ink;g.lineWidth=1.3;g.strokeRect(x+15,985,160,14);g.restore()});
-  const ea=seg(u,5.4,6);[[70,'EXECUTOR 1 · 2 CORES'],[540,'EXECUTOR 2 · 2 CORES']].forEach(([x,l])=>{box2(x,815,470,215,{a:ea,fill:'rgba(0,0,0,0)',stroke:C.navy,dash:[8,6],lw:2});txt(l,x+14,1056,{size:15,w:700,col:C.navy,a:ea})});
-  pill(540,1130,'4 PARTITIONS → 4 TASKS → IN PARALLEL',C.green,{a:seg(u,6.6,7.2)});
+S({title:[['why one task ',C.ink],['per partition?',C.navy]],
+ n:'Partitions are independent: computing a map or a filter on one never needs another. So the scheduler turns each partition into a task, the partition\'s index plus your serialized code, and sends that small task to a core next to the data instead of moving the data. And when a machine dies, Spark recomputes only the lost partitions, by replaying their lineage.',
+ hood:['task = partition + closure','locality: PROCESS → NODE → ANY','lineage recompute'],
+ draw(u){card(370,430,340,120,'DRIVER · SCHEDULER',{a:seg(u,.2,.8)});txt('1 partition → 1 task',390,512,{size:20,w:700,a:seg(u,.2,.8)});
+  const ex=[70,395,720],EY0=900,dead=seg(u,5,5.8);
+  ex.forEach((x,e)=>{const isDead=e===1&&dead>.5;pbox(x,EY0,260,140,80,{label:`EXECUTOR ${e+1}`,lines:3,dot:isDead?C.brick:C.green,ink:isDead?C.brick:C.ink,x:isDead&&dead>.7,tint:isDead?C.brick:null});
+   for(let j=0;j<2;j++){const p=e*2+j,[tx,ty]=TA(x,EY0,140,40+j*110,45);tile(tx,ty,`P${p}`,{col:isDead?'#9a948a':PC6[p],w:70,h:30,d:18,cs:14})}});
+  for(let p=0;p<6;p++){const e=Math.floor(p/2),pr=seg(u,1+p*.35,2.2+p*.35);const dst=TA(ex[e],EY0,140,75+(p%2)*110,45);if(pr>0&&pr<1){const q=qpt([540,560],[dst[0],dst[1]-46],110,pr);taskPacket(q[0],q[1],p)}}
+  pill(540,640,'ship the code (KB) to the data (MB)',C.navy,{size:15,a:seg(u,3,3.6)*(1-seg(u,5,5.4))});
+  pill(540,640,'EXECUTOR 2 LOST → only P2, P3 rerun',C.brick,{size:15,a:seg(u,5.6,6.2)});
+  [[2,0],[3,2]].forEach(([p,e],i)=>{const pr=seg(u,6.4+i*.5,7.6+i*.5),dst=TA(ex[e],EY0,140,130,45);if(pr>0&&pr<1){const q=qpt([540,560],[dst[0],dst[1]-46],110,pr);taskPacket(q[0],q[1],p,C.brick)}if(pr>=1)tile(dst[0]-35,dst[1]-40,`P${p} ↻`,{col:PC6[p],w:70,h:26,d:14,cs:12})});
+  txt('recomputed from lineage: read file → map',540,1072,{size:18,w:700,col:C.brick,align:'center',a:seg(u,7.4,8)});
+  whyNote(90,1120,900,['partitions are independent → tasks never wait on each other','code is tiny, data is big → ship the code to the data','a lost machine costs a few partitions, not the whole job'],seg(u,8,8.6));
  }});
-S({title:[['example: ',C.ink],['a 1 GB file',C.navy]],
- n:'Say we read a 1 gigabyte file and split it into 4 partitions. Spark creates 4 tasks, each handling about 250 megabytes, all at once. In practice, Spark reads files in splits of up to 128 megabytes by default, so this file would become about 8 partitions.',
- hood:['spark.sql.files.maxPartitionBytes = 128MB','1 GB ÷ 4 = 250 MB','tasks run in waves'],
- draw(u){txt('1 GB',540,600,{size:140,w:700,align:'center',a:seg(u,.2,1)});txt('INPUT FILE',540,650,{size:17,col:C.mut,align:'center',ls:3,a:seg(u,.4,1)});
-  vArrow(540,670,740,seg(u,1.4,2));
-  for(let i=0;i<4;i++){const a=seg(u,1.8+i*.25,2.5+i*.25);pbox(90+i*235,880,190,100,56,{a,label:`P${i+1}`,center:'250 MB',cs:22,ls:14,tint:Object.values(KC)[i]})}
-  const ca=seg(u,3.4,4);card(90,930,900,250,'TIME TO PROCESS (illustrative)',{a:ca});
-  txt('1 task',115,1010,{size:18,w:700,a:ca});const f1=seg(u,4,8.6);g.save();g.globalAlpha=ca;g.fillStyle=C.brick;g.fillRect(240,990,700*f1,30);g.strokeStyle=C.ink;g.lineWidth=1.3;g.strokeRect(240,990,700,30);g.restore();txt('≈ 40 s',940,1050,{size:16,col:C.brick,align:'right',a:seg(u,8.4,8.8)});
-  txt('4 tasks',115,1110,{size:18,w:700,a:ca});const f4=seg(u,4,5.2);for(let i=0;i<4;i++){g.save();g.globalAlpha=ca;g.fillStyle=Object.values(KC)[i];g.fillRect(240,1078+i*16,175*f4,13);g.restore()}g.save();g.globalAlpha=ca;g.strokeStyle=C.ink;g.lineWidth=1.3;g.strokeRect(240,1076,175,66);g.restore();txt('≈ 10 s',430,1118,{size:16,col:C.green,w:700,a:seg(u,5.2,5.6)});
-  pill(540,1250,'default split ≈ 128 MB → about 8 partitions',C.navy,{size:15,a:seg(u,7,7.6)});
+S({title:[['why not ',C.ink],['10,000 partitions?',C.brick]],
+ n:'Every task pays a fixed cost: it has to be scheduled, shipped, started and reported, a few milliseconds each time. With too few partitions, cores sit idle and big tasks spill. With too many, that fixed cost repeats thousands of times, and a shuffle between M and R partitions creates M times R blocks. That is why Spark suggests two to three tasks per core.',
+ hood:['2–3 tasks per CPU core','tasks ≥ ~200 ms are fine','M × R shuffle blocks'],
+ draw(u){const a=seg(u,.2,.8);card(90,430,900,470,'JOB TIME vs PARTITIONS (16 cores)',{a});
+  const X0=150,X1=950,Y0=845,Y1=505,lx=n=>X0+30+Math.log10(n)*150;g.save();g.globalAlpha=a;g.strokeStyle=C.ink;g.lineWidth=2;g.beginPath();g.moveTo(X0,Y1);g.lineTo(X0,Y0);g.lineTo(X1,Y0);g.stroke();g.restore();
+  [[1,'1'],[10,'10'],[100,'100'],[1e3,'1k'],[1e4,'10k'],[1e5,'100k']].forEach(([n,l])=>txt(l,lx(n),Y0+28,{size:15,col:C.mut,align:'center',a}));txt('partitions →',X1,Y0+50,{size:14,col:C.mut,align:'right',a});txt('job time',X0+8,Y1+4,{size:14,col:C.mut,a});
+  const ba=seg(u,4,4.6);g.save();g.globalAlpha=a*ba*.55;g.fillStyle=mix(C.bg,C.green,.4);g.fillRect(lx(25),Y1+10,lx(60)-lx(25),Y0-Y1-10);g.restore();txt('2–3 × cores',lx(39),Y0-14,{size:14,w:700,col:C.green,align:'center',a:a*ba});
+  const P=[[1,1],[10,.34],[40,.1],[100,.14],[1e3,.3],[1e4,.62],[1e5,.96]].map(([n,h])=>[lx(n),Y0-h*(Y0-Y1-30)]);
+  const pr=seg(u,1,3.6);g.save();g.globalAlpha=a;g.strokeStyle=C.navy;g.lineWidth=4;g.lineJoin='round';g.beginPath();const N=120;
+  for(let k=0;k<=Math.floor(N*pr);k++){const t=k/N*(P.length-1),i=Math.min(P.length-2,Math.floor(t)),f=t-i,p0=P[Math.max(0,i-1)],p1=P[i],p2=P[i+1],p3=P[Math.min(P.length-1,i+2)];
+   const cr=j=>.5*(2*p1[j]+(-p0[j]+p2[j])*f+(2*p0[j]-5*p1[j]+4*p2[j]-p3[j])*f*f+(-p0[j]+3*p1[j]-3*p2[j]+p3[j])*f*f*f);k?g.lineTo(cr(0),cr(1)):g.moveTo(cr(0),cr(1))}g.stroke();g.restore();
+  txt('too few:',lx(1)+20,790,{size:16,w:700,col:C.brick,a:seg(u,1.6,2.2)});txt('idle cores, spills',lx(1)+20,814,{size:16,col:C.brick,a:seg(u,1.6,2.2)});
+  txt('too many:',lx(1e5)-10,790,{size:16,w:700,col:C.brick,align:'right',a:seg(u,3.2,3.8)});txt('fixed cost × tasks',lx(1e5)-10,814,{size:16,col:C.brick,align:'right',a:seg(u,3.2,3.8)});
+  const ta=seg(u,4.8,5.4);card(90,930,900,160,'ONE TASK = FIXED COST + WORK',{a:ta});
+  const wk=L(640,50,seg(u,5.6,7.2));g.save();g.globalAlpha=ta;g.fillStyle=C.brick;g.fillRect(115,978,90,34);g.fillStyle=C.navy;g.fillRect(205,978,wk,34);g.strokeStyle=C.ink;g.lineWidth=1.3;g.strokeRect(115,978,90+wk,34);g.restore();
+  txt('fixed',160,1000,{size:14,w:700,col:'#fff',align:'center',a:ta});txt(wk>150?'work = data ÷ partitions':'',215,1000,{size:14,w:700,col:'#fff',a:ta});
+  txt('more partitions → work shrinks, fixed cost stays',115,1046,{size:16,col:'#4a4842',a:ta});
+  txt('shuffle blocks: 100 × 100 = 10,000 · 10k × 10k = 100,000,000',115,1074,{size:16,w:700,col:C.brick,a:seg(u,7.2,7.8)});
+  whyNote(90,1128,900,['enough tasks to keep every core busy and rebalance slow ones','each task long enough to hide its fixed cost'],seg(u,8,8.6));
  }});
-S({title:[['why partitions ',C.ink],['matter',C.navy]],
- n:'Partitions matter for four reasons. They enable parallelism. They improve performance, because each task gets a chunk small enough to fit in memory. They control how well you use the cluster\'s cores. And they shape scheduling, because every partition becomes exactly one task.',
- hood:['parallelism','memory per task','task scheduling'],
- draw(u){const items=[['enable parallelism','more partitions → more tasks at once',C.navy],['improve performance','small chunks fit in memory, fewer spills',C.green],['control resource use','every core gets work, none sits idle',C.ochre],['shape task scheduling','each partition = exactly one task',C.plum]];
-  items.forEach(([t,d,col],i)=>{const y=440+i*200,a=seg(u,.4+i*1.6,1+i*1.6);card(90,y,900,176,'',{a});check(118,y+40,u>1.2+i*1.6,col);txt(t,160,y+58,{size:27,w:700,a});txt(d,160,y+100,{size:20,f:F.sans,col:'#5f5b52',a});
-   const ix=780,iy=y+150,p=lin(u,1.2+i*1.6,2.8+i*1.6);
-   if(i===0)for(let k=0;k<4;k++)gear(ix+20+k*44,y+120,17,NOW*2,{a,col:p>k/4?C.navy:null});
-   if(i===1){g.save();g.globalAlpha=a;for(let k=0;k<4;k++){g.fillStyle=C.green;g.fillRect(ix+k*44,y+88,34,L(70,34,p));g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(ix+k*44,y+88,34,L(70,34,p))}g.restore()}
-   if(i===2){g.save();g.globalAlpha=a;for(let k=0;k<8;k++){g.fillStyle=p>k/8?C.ochre:'#e3dfd3';g.fillRect(ix+(k%4)*44,y+68+Math.floor(k/4)*44,34,34);g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(ix+(k%4)*44,y+68+Math.floor(k/4)*44,34,34)}g.restore()}
-   if(i===3){for(let k=0;k<3;k++){box2(ix+k*60,y+64,48,30,{a,fill:mix('#ffffff',C.plum,.2),stroke:C.plum});vArrow(ix+24+k*60,y+98,y+122,a*p);gear(ix+24+k*60,y+140,13,0,{a:a*p})}}
-  });
+S({title:[['how does a key ',C.ink],['find its partition?',C.navy]],
+ n:'For RDDs, Spark takes the key\'s hashCode modulo the number of partitions. The string A hashes to 65, and 65 mod 4 is 1, so A goes to partition 1. D hashes to 68, which lands in partition 0. A negative hash is shifted to stay positive. DataFrames use a Murmur3 hash instead. Why hashing? It is a pure function of the key, so every executor gets the same answer without talking to anyone.',
+ hood:['HashPartitioner','Utils.nonNegativeMod','pmod(murmur3(key, 42), n)'],
+ draw(u){const a=seg(u,.2,.8);card(90,430,900,410,'HOW · HashPartitioner (RDD, 4 partitions)',{a});const cx=[120,300,470,790];
+  ['key','hashCode','mod 4','partition'].forEach((h,i)=>txt(h,cx[i],490,{size:16,col:C.mut,a}));
+  [['A',65,1],['B',66,2],['C',67,3],['D',68,0]].forEach(([k,h,p],i)=>{const y=548+i*72,t0=1+i*1.05;
+   box2(cx[0],y-32,80,46,{a:seg(u,t0,t0+.3),fill:mix('#ffffff',KC[k],.2),stroke:KC[k],lw:2});txt(`"${k}"`,cx[0]+40,y,{size:22,w:700,col:KC[k],align:'center',a:seg(u,t0,t0+.3)});
+   hArrow(cx[0]+90,cx[1]-12,y-9,seg(u,t0+.2,t0+.4),C.mut);txt(String(h),cx[1],y,{size:24,w:700,a:seg(u,t0+.3,t0+.6)});
+   hArrow(cx[1]+60,cx[2]-12,y-9,seg(u,t0+.5,t0+.7),C.mut);txt(`${h} % 4 = ${p}`,cx[2],y,{size:24,a:seg(u,t0+.6,t0+.9)});
+   hArrow(cx[2]+200,cx[3]-12,y-9,seg(u,t0+.8,t0+1),C.mut);box2(cx[3],y-32,130,46,{a:seg(u,t0+.9,t0+1.2),fill:PCOL[p]});txt(`P${p}`,cx[3]+65,y,{size:22,w:700,col:'#fff',align:'center',a:seg(u,t0+.9,t0+1.2)})});
+  const na=seg(u,5.6,6.2);card(90,870,440,220,'NEGATIVE HASH?',{a:na});txt('-7 % 4 = -3',115,940,{size:22,a:na});txt('-3 + 4 = 1  → P1',115,980,{size:22,w:700,col:C.navy,a:na});txt('Utils.nonNegativeMod',115,1030,{size:16,col:C.mut,a:na});
+  const da=seg(u,6.4,7);card(550,870,440,220,'DATAFRAMES',{a:da});txt('pmod(murmur3(key, 42), n)',575,940,{size:20,w:700,a:da});txt('n = shuffle.partitions',575,980,{size:18,col:'#4a4842',a:da});txt('different hash, same idea',575,1030,{size:16,col:C.mut,a:da});
+  whyNote(90,1128,900,['a pure function of the key: same answer on every executor','so all the A records meet in P1 with zero coordination'],seg(u,7.8,8.4));
  }});
-S({title:[['how many ',C.ink],['partitions?',C.navy]],
- n:'So how many? Too few partitions and most cores sit idle while a few huge tasks run, and they may spill to disk. Too many and you get thousands of tiny tasks where scheduling overhead dominates. Spark\'s tuning guide suggests two to three tasks per core, and partitions of roughly 100 to 200 megabytes are a common target.',
- hood:['2–3 tasks per CPU core','~100–200 MB per partition','tasks run in waves'],
- draw(u){const P=[[440,'TOO FEW',C.brick],[720,'TOO MANY',C.brick],[1000,'JUST RIGHT',C.green]];
-  P.forEach(([y,t,col],i)=>{const a=seg(u,.3+i*2.6,.9+i*2.6);card(90,y,900,250,'',{a,border:i===2?C.green:undefined,lw:i===2?3:1.8});txt(t,115,y+46,{size:24,w:700,col,a});
-   const p=lin(u,.9+i*2.6,3.2+i*2.6);
-   if(i===0){for(let k=0;k<8;k++){const busy=k<2;box2(115+k*60,y+80,48,48,{a,fill:busy?C.navy:'#e3dfd3'});}txt('8 cores · 2 partitions',115,y+160,{size:17,col:'#4a4842',a});
-    g.save();g.globalAlpha=a;g.fillStyle=C.navy;g.fillRect(620,y+80,330*p,24);g.fillRect(620,y+116,300*p,24);g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(620,y+80,330,24);g.strokeRect(620,y+116,330,24);g.restore();
-    txt('6 cores idle · huge tasks may spill',115,y+210,{size:18,w:700,col:C.brick,a:seg(u,2,2.6)})}
-   if(i===1){for(let k=0;k<60;k++){const x=115+(k%30)*28,yy=y+80+Math.floor(k/30)*44,on=p>k/60;g.save();g.globalAlpha=a;g.fillStyle=on?C.navy:'#e3dfd3';g.fillRect(x,yy,14,34);g.fillStyle=C.brick;g.fillRect(x+14,yy,8,34);g.restore()}
-    txt('100,000 tiny tasks: the red slivers are scheduling overhead',115,y+200,{size:17,col:C.brick,w:700,a:seg(u,4.6,5.2)})}
-   if(i===2){for(let k=0;k<8;k++){g.save();g.globalAlpha=a;for(let w=0;w<3;w++){const f=cl(p*3-w);g.fillStyle=[C.navy,C.green,C.ochre][w];g.fillRect(115+k*60,y+150-w*26,48*f,22)}g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(115+k*60,y+72,48,100);g.restore()}
-    txt('2–3 tasks per core',620,y+110,{size:22,w:700,col:C.green,a});txt('≈ 100–200 MB per partition',620,y+150,{size:19,col:'#4a4842',a})}
-  });
+S({title:[['why does groupBy ',C.ink],['shuffle?',C.brick]],
+ n:'Narrow operations like map and filter only need their own partition, so Spark fuses them into one task and streams each row straight through. groupByKey is different. To build the group for A, Spark needs every A from every input partition, and those rows live on other machines. So it has to wait for all the inputs and move data. That is a stage boundary, and a shuffle.',
+ hood:['narrow → pipelined','wide → ShuffleDependency','stage boundary'],
+ draw(u){const a1=seg(u,.2,.8);card(90,430,900,300,'NARROW · map → filter',{a:a1,border:C.green,lw:2.4});
+  box2(120,520,150,90,{a:a1,fill:C.pF});txt('partition',195,572,{size:17,w:700,align:'center',a:a1});
+  gear(420,565,38,NOW*1.5,{a:a1,col:C.green});txt('map',420,632,{size:16,w:700,align:'center',a:a1});gear(620,565,38,-NOW*1.5,{a:a1,col:C.green});txt('filter',620,632,{size:16,w:700,align:'center',a:a1});
+  box2(780,520,170,90,{a:a1,fill:mix('#ffffff',C.green,.15),stroke:C.green});txt('output',865,572,{size:17,w:700,align:'center',col:C.green,a:a1});
+  if(u>1&&u<3.6)for(let k=0;k<6;k++){const t=(NOW*.45+k/6)%1;box2(L(272,770,t)-9,556,18,18,{a:a1,fill:C.navy,r:4})}
+  txt('fused into ONE task · each row streams straight through',115,700,{size:17,w:700,col:C.green,a:seg(u,1.5,2)});
+  const a2=seg(u,3,3.6);card(90,760,900,330,'WIDE · groupByKey',{a:a2,border:C.brick,lw:2.4});
+  BEFORE.forEach((recs,p)=>{box2(120,815+p*88,330,74,{a:a2,fill:C.pF});txt(`in ${p}`,132,858+p*88,{size:14,w:700,col:C.mut,a:a2});recs.forEach(([k,v],j)=>chip(178+j*90,829+p*88,k,v,{w:84,h:44,size:14,a:a2,ring:u>4.4&&k==='A'}))});
+  box2(760,880,190,110,{a:a2,fill:mix('#ffffff',C.navy,.15),stroke:C.navy,lw:2.2});txt('group "A"',855,930,{size:20,w:700,col:C.navy,align:'center',a:a2});txt('needs every A',855,962,{size:15,col:C.mut,align:'center',a:a2});
+  const lp=seg(u,4.6,6);BEFORE.forEach((recs,p)=>recs.forEach(([k],j)=>{if(k!=='A')return;const s=[178+j*90+84,851+p*88];line(s,[L(s[0],760,lp),L(s[1],935,lp)],C.navy,{a:a2*(lp>0?1:0),lw:2.4})}));
+  const sb=seg(u,6.4,7);g.save();g.globalAlpha=sb;g.setLineDash([8,6]);g.strokeStyle=C.brick;g.lineWidth=2.6;g.beginPath();g.moveTo(610,790);g.lineTo(610,1078);g.stroke();g.restore();txt('stage boundary',620,1072,{size:15,w:700,col:C.brick,a:sb});
+  whyNote(90,1128,900,['the group for A needs every A, spread across other machines','→ wait for all inputs (stage boundary), then move rows (shuffle)'],seg(u,7.6,8.2));
  }});
-S({title:[['control ',C.ink],['the count',C.navy]],
- n:'You control the count in four places. spark.default.parallelism sets the default for RDD operations. spark.sql.shuffle.partitions, 200 by default, sets how many partitions a DataFrame shuffle produces. repartition does a full shuffle into any number of evenly sized partitions. coalesce only reduces the count, merging neighbors without a full shuffle.',
- hood:['spark.default.parallelism','spark.sql.shuffle.partitions = 200','repartition(n) · coalesce(n)'],
- draw(u){const c=[[440,140,'spark.default.parallelism','default partitions for RDD operations'],[600,140,'spark.sql.shuffle.partitions = 200','partitions produced by a DataFrame shuffle'],[760,230,'repartition(n)','full shuffle · up or down · even sizes'],[1010,230,'coalesce(n)','merges neighbors · no full shuffle · only down']];
-  c.forEach(([y,h,t,d],i)=>{const a=seg(u,.3+i*1.4,.9+i*1.4);card(90,y,900,h,'',{a});txt(t,115,y+52,{size:i<2?24:27,w:700,col:C.navy,a});txt(d,115,y+92,{size:19,f:F.sans,col:'#5f5b52',a})});
-  {const y=760,a=seg(u,4.5,5.1),p=seg(u,5.4,7),base=y+205,src=[60,140,40],sx=[560,622,684],tx=[790,842,894,946];
-   src.forEach((h,i)=>box2(sx[i],base-h,50,h,{a:a*(1-p*.6),fill:C.ochre,r:2}));
-   if(a>0&&p>0){for(let i=0;i<3;i++)for(let j=0;j<4;j++)line([sx[i]+25,base-src[i]],[L(sx[i]+25,tx[j]+20,p),L(base-src[i],base-60,p)],C.brick,{a:a*.45*(1-lin(u,7.2,7.8)),lw:1.4});tx.forEach(x=>box2(x,base-60,40,60,{a:a*p,fill:C.green,r:2}))}
-   txt('3 uneven → 4 even',870,y+40,{size:16,w:700,col:C.green,align:'center',a:seg(u,6.8,7.3)})}
-  {const y=1010,a=seg(u,5.9,6.5),p=seg(u,7.2,8.6),base=y+205,col=Object.values(KC);
-   const pos=[[600,base],[L(662,600,p),L(base,base-50,p)],[L(724,780,p),base],[L(786,780,p),L(base,base-50,p)]];
-   pos.forEach(([x,b],i)=>box2(x,b-50,50,50,{a,fill:col[i],r:2}));
-   txt('4 → 2, no shuffle',870,y+40,{size:16,w:700,col:C.green,align:'center',a:seg(u,8.4,8.9)})}
+S({title:[['how does the ',C.ink],['data move?',C.navy]],
+ n:'Each map task sorts its records by target partition and writes one file plus an index. Then each reduce task fetches its slice from every map file: 3 maps times 4 reducers is 12 blocks, some of them empty. Why write to disk instead of streaming? The files act as a checkpoint: reducers fetch at their own pace and can retry, and a failed reducer never forces the map tasks to run again.',
+ hood:['sort by target partition','one .data + .index per map','M × R blocks'],
+ draw(u){const mx=[80,410,740],MB=600;
+  BEFORE.forEach((recs,m)=>{pbox(mx[m],MB,260,150,40,{label:`MAP TASK ${m}`,ls:14,a:seg(u,.2+m*.2,.8+m*.2)});
+   const order=recs.map((r,j)=>j).sort((x,y)=>HP[recs[x][0]]-HP[recs[y][0]]),sp=seg(u,1.2,2.4);
+   recs.forEach(([k,v],j)=>{const y=MB-150+40+L(j,order.indexOf(j),sp)*34;chip(mx[m]+14,y,k,v,{w:150,h:30,size:15});txt(`→P${HP[k]}`,mx[m]+176,y+21,{size:14,w:700,col:PCOL[HP[k]],a:seg(u,.8,1.2)})});
+   const fa=seg(u,2.6,3.2);sheet(mx[m],MB+28,260,92,`map_${m}.data + .index`,{a:fa,ts:13});
+   for(let p=0;p<4;p++){const n=recs.filter(r=>HP[r[0]]===p).length,sx=mx[m]+12+p*60;g.save();g.globalAlpha=fa;if(n){g.fillStyle=PCOL[p];g.fillRect(sx,MB+76,54,30)}else{g.setLineDash([4,4]);g.strokeStyle=C.mut;g.lineWidth=1.2;g.strokeRect(sx,MB+76,54,30)}g.restore();txt(`P${p}`,sx+27,MB+97,{size:13,w:700,col:n?'#fff':C.mut,align:'center',a:fa})}});
+  const rx=[60,300,540,780],RB=1065;for(let p=0;p<4;p++)pbox(rx[p],RB,200,110,40,{label:`REDUCE P${p}`,ls:14,tint:PCOL[p],a:seg(u,3.2+p*.15,3.8+p*.15)});
+  
+  for(let m=0;m<3;m++)for(let p=0;p<4;p++){const n=BEFORE[m].filter(r=>HP[r[0]]===p).length,s=[mx[m]+12+p*60+27,MB+108],d=[rx[p]+100,RB-118],pr=seg(u,4.4+m*.6+p*.12,5.6+m*.6+p*.12);if(pr<=0)continue;
+   line(s,[L(s[0],d[0],pr),L(s[1],d[1],pr)],n?PCOL[p]:C.faint,{a:n?.75:.6,lw:n?2.2:1.2,dash:n?null:[4,5]});if(n&&pr<1)box2(L(s[0],d[0],pr)-15,L(s[1],d[1],pr)-11,30,22,{fill:PCOL[p],r:4})}
+  box2(250,786,580,38,{a:seg(u,3.6,4.2),fill:C.bg,stroke:C.ink,lw:1.4,r:19});txt('3 map files × 4 reducers = 12 blocks (some empty)',540,812,{size:19,w:700,align:'center',a:seg(u,3.6,4.2)});
+  whyNote(90,1116,900,['the files are a checkpoint: reducers fetch at their own pace, and retry','a failed reducer never forces the map tasks to run again','and it still works when the data is bigger than memory'],seg(u,7.6,8.2));
  }});
-S({title:[['narrow vs ',C.ink],['wide',C.brick]],
- n:'Transformations come in two kinds. Narrow ones like map, filter and flatMap: each output partition depends on one input partition, so data stays where it is. Wide ones like groupBy, join, distinct and sortByKey: an output partition needs data from many input partitions, so Spark has to shuffle.',
- hood:['narrow: map · filter · flatMap · union','wide: groupBy · join · distinct · sortByKey','wide ⇒ new stage'],
- draw(u){[[440,'NARROW · no shuffle',C.green,['map','filter','flatMap','union'],false],[860,'WIDE · causes a shuffle',C.brick,['groupBy','join','distinct','sortByKey'],true]].forEach(([y,t,col,ex,wide],i)=>{
-   const a=seg(u,.3+i*3.6,.9+i*3.6),p=seg(u,1+i*3.6,2.6+i*3.6);card(90,y,900,380,'',{a,border:col,lw:2.6});txt(t,115,y+48,{size:26,w:700,col,a});
-   for(let k=0;k<3;k++){box2(130,y+90+k*92,130,64,{a,fill:C.pF});txt(`in ${k+1}`,195,y+130+k*92,{size:17,w:700,align:'center',a});box2(500,y+90+k*92,130,64,{a:a*p,fill:mix('#ffffff',col,.15),stroke:col,lw:2});txt(`out ${k+1}`,565,y+130+k*92,{size:17,w:700,align:'center',col,a:a*p})}
-   for(let k=0;k<3;k++)for(let j=0;j<3;j++){if(!wide&&k!==j)continue;line([260,y+122+k*92],[L(260,500,p),L(y+122+k*92,y+122+j*92,p)],wide?[C.navy,C.green,C.ochre][j]:C.green,{a,lw:2.4})}
-   ex.forEach((s,j)=>pill(800,y+120+j*62,s,col,{dot:false,size:17,a:seg(u,2+i*3.6+j*.2,2.5+i*3.6+j*.2)}));
-  });
+S({title:[['after: ',C.ink],['keys meet',C.green]],
+ n:'After the shuffle, the hash has put every D in partition 0, every A in partition 1, every B in partition 2 and every C in partition 3. Each reduce task now holds complete groups, so it can sum them without asking anyone: A is 6, B is 6, C is 3 and D is 1. That independence is the whole point of paying for the shuffle.',
+ hood:['co-located by key','reduce per partition','no further movement'],
+ draw(u){txt('from the hash:  D→P0 · A→P1 · B→P2 · C→P3',540,490,{size:21,w:700,col:'#5f5b52',align:'center',a:seg(u,.2,.8)});
+  const xs=[70,306,542,778],groups=[['D',[1]],['A',[1,2,3]],['B',[1,2,3]],['C',[1,2]]];
+  groups.forEach(([k,vals],p)=>{const a=seg(u,.4+p*.25,1.1+p*.25);pbox(xs[p],880,210,300,40,{label:`P${p}`,ls:15,tint:PCOL[p],a});
+   vals.forEach((v,j)=>chip(xs[p]+20,880-300+50+j*66,k,v,{w:170,h:50,size:21,a:a*seg(u,1+p*.25+j*.12,1.5+p*.25+j*.12)}));
+   const sum=vals.reduce((s,x)=>s+x,0),ra=seg(u,4.2+p*.4,4.8+p*.4);vArrow(xs[p]+105,908,982,ra);g.save();g.globalAlpha=ra;rr(xs[p]+15,992,180,66,10);g.fillStyle=PCOL[p];g.fill();g.restore();txt(`${k} = ${sum}`,xs[p]+105,1036,{size:28,w:700,col:'#fff',align:'center',a:ra})});
+  whyNote(90,1128,900,['every group is now complete inside one partition','→ each reduce task finishes alone, with no more data movement'],seg(u,7.4,8));
  }});
-S({title:[['before ',C.ink],['the shuffle',C.navy]],
- n:'Here is a concrete example. Pairs are spread across three partitions, and we call groupByKey. Key A sits in partitions one and two, B is spread across all three, and C across two. To group them, matching keys must end up in the same partition.',
- hood:['rdd.groupByKey()','partitioned randomly','keys scattered'],
- draw(u){const code='pairs.groupByKey()';term(260,430,560,64,code,lin(u,.2,1.6)*code.length,{size:24,cursor:u<2});
-  const xs=[80,410,740];BEFORE.forEach((recs,p)=>{const a=seg(u,1+p*.3,1.7+p*.3);partBox(xs[p],1000,260,330,`PARTITION ${p+1}`,{a,d:50});
-   recs.forEach(([k,v],j)=>chip(xs[p]+24,1000-330+60+j*80,k,v,{w:210,h:56,size:24,a:a*seg(u,1.6+p*.3+j*.15,2.1+p*.3+j*.15),ring:u>4.6&&k===(u<6.4?'A':'B')}))});
-  txt(u<6.4?'where is A?  →  partitions 1 and 2':'where is B?  →  all three partitions',540,1080,{size:23,w:700,col:C.brick,align:'center',a:seg(u,4.6,5.2)});
-  pill(540,1170,'GOAL: SAME KEY → SAME PARTITION',C.navy,{a:seg(u,7.6,8.2)});
+S({title:[['why is the shuffle ',C.ink],['slow?',C.brick]],
+ n:'A narrow pipeline streams rows through memory. A shuffle breaks that pipeline: every byte is serialized, compressed, written to disk, read back, sent over the network, and decoded again. And because of the barrier, the next stage cannot start until the slowest map task is done, so one straggler delays everyone.',
+ hood:['materialized to disk','network + serialization','straggler = barrier delay'],
+ draw(u){const a=seg(u,.2,.8);card(90,430,900,250,'EVERY SHUFFLED BYTE GOES THROUGH',{a});
+  ['serialize','compress','write disk','read disk','network','decompress','deserialize'].forEach((s,i)=>{const r=i<4?0:1,c=r?i-4:i,x=110+c*215+(r?107:0),y=r?600:500,on=u>.8+i*.45;
+   box2(x,y,190,54,{a,fill:on?mix('#ffffff',C.brick,.18):C.card,stroke:on?C.brick:'#b9b3a3',lw:on?2.4:1.6});txt(s,x+95,y+34,{size:17,w:700,col:on?C.brick:C.mut,align:'center',a});if(i!==3&&i!==6)hArrow(x+192,x+213,y+27,a*(on?1:.3),C.brick)});
+  const ba=seg(u,3.8,4.4),grow=seg(u,4.4,7);card(90,710,900,380,'THE BARRIER',{a:ba});const W=[260,300,240,560];
+  W.forEach((w,i)=>{const y=780+i*48;txt(`map ${i}`,115,y+24,{size:16,w:700,a:ba});g.save();g.globalAlpha=ba;g.fillStyle=i===3?C.brick:C.navy;g.fillRect(220,y,w*grow,34);g.restore()});
+  if(grow>.98){line([780,770],[780,1080],C.brick,{dash:[8,6],lw:2.4});txt('slowest map task',790,770,{size:15,w:700,col:C.brick})}
+  for(let r=0;r<2;r++){const y=985+r*46;txt(`reduce ${r}`,115,y+24,{size:16,w:700,a:ba});g.save();g.globalAlpha=ba;if(u<7.2)hatch(220,y,560*grow,34,'#c9c3b1');else{g.fillStyle=C.green;g.fillRect(790,y,160*seg(u,7.2,8.4),34)}g.restore();if(u<7.2&&grow>.1)txt('waiting…',232,y+24,{size:15,col:'#6f6b60',a:ba})}
+  whyNote(90,1128,900,['narrow ops stream rows in memory; a shuffle materializes every byte','and the next stage starts only when the slowest map task finishes'],seg(u,8,8.6));
  }});
-S({title:[['the ',C.ink],['shuffle',C.brick]],
- n:'During the shuffle, every record is sent to the partition its key hashes to: A to partition one, B to two, C to three, D to four. Each source partition writes its records out grouped by destination, and each target partition fetches its share from all of them, usually over the network.',
- hood:['partition = hash(key) % 4','written to local disk','fetched over the network'],
- draw(u){const sx=[80,410,740],tx=[60,300,540,780];
-  BEFORE.forEach((recs,p)=>{partBox(sx[p],690,260,220,`PARTITION ${p+1}`,{d:40})});
-  for(let q=0;q<4;q++)partBox(tx[q],1250,200,200,`PARTITION ${q+1}`,{d:40,tint:KC[KEYS[q]],a:seg(u,.5+q*.15,1.1+q*.15)});
-  const na=seg(u,.8,1.4);box2(90,740,900,200,{a:na,fill:'rgba(255,255,255,.35)',stroke:C.ink,dash:[10,8],lw:2,r:14});txt('NETWORK',540,775,{size:16,col:C.mut,align:'center',ls:3,a:na});
-  pill(540,905,'partition = hash(key) % 4',C.navy,{dot:false,size:15,a:seg(u,1.2,1.8)});
-  let r=0;BEFORE.forEach((recs,p)=>recs.forEach(([k,v],j)=>{const q=KEYS.indexOf(k),kk=AFTER[k].indexOf(v),s0=2.2+r*.5,pr=seg(u,s0,s0+1.6);r++;
-   const src=[sx[p]+24,690-220+50+j*52],dst=[tx[q]+18,1250-200+50+kk*46];
-   if(pr<=0){chip(src[0],src[1],k,v,{w:210,h:40});return}
-   chip(src[0],src[1],k,v,{w:210,h:40,a:.25,dash:[5,5]});
-   if(pr<1){line([src[0]+105,src[1]+40],[dst[0]+80,dst[1]],KC[k],{a:.25,lw:1.5,dash:[4,5]});const pt=qpt(src,dst,20,pr);chip(pt[0],pt[1],k,v,{w:L(210,164,pr),h:40,size:18})}
-   else chip(dst[0],dst[1],k,v,{w:164,h:38,size:18})}));
+S({title:[['why reduceByKey ',C.ink],['wins',C.green]],
+ n:'Since the cost grows with the bytes moved, the cheapest shuffle is a smaller one. Picture a partition with a million word-and-one pairs but only a thousand distinct words. groupByKey ships all million records. reduceByKey adds them up on the map side first and ships only a thousand. Same answer, a thousand times less data on the network.',
+ hood:['groupByKey: mapSideCombine = false','reduceByKey: combine first','bytes moved = cost'],
+ draw(u){[[430,'groupByKey · ships every record',C.brick,1000000,false],[760,'reduceByKey · combines first',C.green,1000,true]].forEach(([y,t,col,n,comb],i)=>{
+   const a=seg(u,.2+i*3.4,.8+i*3.4);card(90,y,900,300,'',{a,border:col,lw:2.4});txt(t,115,y+46,{size:24,w:700,col,a});
+   box2(115,y+80,230,150,{a,fill:C.pF});txt('1,000,000 pairs',230,y+140,{size:19,w:700,align:'center',a});txt('1,000 distinct words',230,y+170,{size:15,col:C.mut,align:'center',a});
+   if(comb){const cp=seg(u,4.2,5);gear(395,y+155,28,NOW*2,{a:a*cp,col:C.green});txt('combine',395,y+206,{size:14,w:700,col:C.green,align:'center',a:a*cp})}
+   g.save();g.globalAlpha=a;g.setLineDash([8,6]);g.strokeStyle=C.mut;g.lineWidth=1.6;g.strokeRect(450,y+110,300,90);g.restore();txt('network',600,y+100,{size:14,col:C.mut,align:'center',a});
+   const t0=i?5:1,pr=lin(u,t0,t0+2.4),dens=comb?3:24;if(pr>0&&pr<1)for(let k=0;k<dens;k++){const ph=(NOW*.6+k/dens)%1;box2(L(452,736,ph),y+118+((k*37)%64),11,11,{a,fill:col,r:2})}
+   txt(Math.round(n*pr).toLocaleString('en-US'),870,y+150,{size:34,w:700,col,align:'center',a});txt('records shipped',870,y+182,{size:15,col:C.mut,align:'center',a})});
+  txt('same result · 1,000× less data on the network',540,1094,{size:22,w:700,col:C.green,align:'center',a:seg(u,7.6,8.1)});
+  whyNote(90,1130,900,['shuffle cost grows with the bytes that cross the network','so shrink the data before it leaves the machine'],seg(u,8.2,8.8));
  }});
-S({title:[['after ',C.ink],['the shuffle',C.green]],
- n:'After the shuffle, the data is partitioned by key: every A is in partition one, every B in partition two, and so on. Now each task can finish its keys on its own, with no more data movement. Summing the values gives A six, B six, C three, and D one.',
- hood:['partitioned by key','no more data movement','reduce per partition'],
- draw(u){const xs=[70,306,542,778];
-  KEYS.split('').forEach((k,q)=>{const a=seg(u,.3+q*.25,1+q*.25);partBox(xs[q],900,210,330,`PARTITION ${q+1}`,{d:40,tint:KC[k],a});
-   AFTER[k].forEach((v,j)=>chip(xs[q]+20,900-330+56+j*72,k,v,{w:170,h:52,size:22,a:a*seg(u,.8+q*.25+j*.12,1.3+q*.25+j*.12)}));
-   const sum=AFTER[k].reduce((s,x)=>s+x,0),ra=seg(u,5+q*.4,5.6+q*.4);vArrow(xs[q]+105,930,1010,ra);
-   g.save();g.globalAlpha=ra;rr(xs[q]+15,1020,180,70,10);g.fillStyle=KC[k];g.fill();g.restore();txt(`${k} = ${sum}`,xs[q]+105,1067,{size:30,w:700,col:'#fff',align:'center',a:ra})});
-  pill(540,1180,'NOW: ALL RECORDS WITH THE SAME KEY ARE TOGETHER',C.green,{size:15,a:seg(u,3,3.6)});
-  txt('each task sums its own keys · no more network',540,1250,{size:19,col:C.mut,align:'center',a:seg(u,7.4,8)});
+S({title:[['why coalesce ',C.ink],['doesn\'t shuffle',C.navy]],
+ n:'coalesce avoids a shuffle by gluing whole neighbouring partitions together on the same executor. That is a narrow dependency, so no row crosses the network. But it can never split a partition, so it cannot add partitions or fix uneven sizes. And because it is narrow, it shrinks its whole stage: a filter followed by coalesce of 1 runs that filter in a single task. repartition pays for a shuffle but keeps the upstream work parallel.',
+ hood:['coalesce → narrow (CoalescedRDD)','repartition → shuffle','coalesce(1) = 1 upstream task'],
+ draw(u){const a1=seg(u,.2,.8);card(90,430,900,300,'coalesce(2) · glue neighbours, no shuffle',{a:a1});
+  [[115,'EXECUTOR 1'],[555,'EXECUTOR 2']].forEach(([x,l])=>{box2(x,495,410,200,{a:a1,fill:'rgba(0,0,0,0)',stroke:C.navy,dash:[8,6]});txt(l,x+14,684,{size:14,w:700,col:C.navy,a:a1})});
+  const gp=seg(u,1.4,2.8);for(let p=0;p<4;p++){const base=p<2?135:575,x=base+(p%2)*L(190,170,gp);box2(x,520,170,120,{a:a1,fill:mix('#ffffff',PCOL[p],.2),stroke:PCOL[p],lw:2});txt(`P${p}`,x+85,588,{size:22,w:700,col:PCOL[p],align:'center',a:a1})}
+  if(gp>.95)[[131,'new P0'],[571,'new P1']].forEach(([x,l])=>{box2(x,514,348,132,{fill:'rgba(0,0,0,0)',stroke:C.ink,lw:3});txt(l,x+174,670,{size:15,w:700,align:'center'})});
+  txt('no row crosses the network',965,470,{size:16,w:700,col:C.green,align:'right',a:seg(u,2.8,3.3)});
+  const a2=seg(u,3.6,4.2),gr=seg(u,4.6,7.2);card(90,760,900,330,'THE CATCH · filter → coalesce(1) vs repartition(1)',{a:a2});
+  txt('coalesce(1)',115,850,{size:18,w:700,a:a2});g.save();g.globalAlpha=a2;g.fillStyle=C.brick;g.fillRect(320,826,620*gr,36);g.restore();txt('filter runs in 1 task',330,850,{size:15,w:700,col:'#fff',a:a2*(gr>.3?1:0)});
+  txt('repartition(1)',115,960,{size:18,w:700,a:a2});const f4=seg(u,4.6,5.4);for(let k=0;k<4;k++){g.save();g.globalAlpha=a2;g.fillStyle=C.navy;g.fillRect(320,918+k*20,150*f4,15);g.restore()}
+  hArrow(480,540,950,seg(u,5.4,5.8),C.brick);txt('shuffle',510,940,{size:13,w:700,col:C.brick,align:'center',a:seg(u,5.4,5.8)});g.save();g.globalAlpha=a2;g.fillStyle=C.green;g.fillRect(548,932,70*seg(u,5.8,6.3),36);g.restore();
+  txt('4 parallel filter tasks → shuffle → 1 writer',115,1050,{size:16,col:'#4a4842',a:seg(u,6.4,7)});
+  whyNote(90,1128,900,['coalesce only merges whole partitions: it can\'t split or rebalance','being narrow, it shrinks its whole stage, so the filter runs as 1 task'],seg(u,7.8,8.4));
  }});
-S({title:[['why it\'s ',C.ink],['expensive',C.brick]],cost:[1,2.2,3.4,4.6],
- n:'That movement is why shuffles are expensive. Records are serialized, written to disk, sent across the network, and deserialized again, and the next stage waits until all of it is done. So minimize data movement: filter rows and columns early, combine before shuffling with reduceByKey, and broadcast small tables instead of shuffling them.',
- hood:['network + disk I/O','stage boundary','minimize data movement'],
- draw(u){const steps=[['1 · serialize'],['2 · write to disk'],['3 · send over network'],['4 · read + deserialize']];
-  steps.forEach(([t],i)=>{const x=90+(i%2)*460,y=440+Math.floor(i/2)*200,a=seg(u,.6+i*1.2,1.2+i*1.2);card(x,y,440,180,'',{a,border:u>1+i*1.2?C.brick:undefined});txt(t,x+20,y+46,{size:22,w:700,col:C.brick,a});
-   if(i===0)bin(x+220,y+115,'01000001 00110001',{a,size:17});
-   if(i===1)disk(x+220,y+130,.5,a);
-   if(i===2){dashArc([x+60,y+150],[x+380,y+150],70,{a,p:lin(u,3,4.2),flow:true});box2(x+30,y+140,60,30,{a,fill:C.pF});box2(x+350,y+140,60,30,{a,fill:C.pF})}
-   if(i===3)for(let k=0;k<4;k++)chip(x+30+(k%2)*200,y+80+Math.floor(k/2)*48,KEYS[k],k+1,{w:180,h:40,size:17,a})});
-  txt('…and the next stage waits for all of it',540,880,{size:20,w:700,col:C.brick,align:'center',a:seg(u,5.2,5.8)});
-  const tips=[['filter rows & select columns early','less data to move'],['reduceByKey, not groupByKey','combine on the map side first'],['broadcast small tables','join without shuffling the big side']];
-  tips.forEach(([t,d],i)=>{const y=920+i*112,a=seg(u,6+i*.9,6.7+i*.9);card(90,y,900,96,'',{a,border:C.green});mark(125,y+48,true,a);txt(t,160,y+44,{size:23,w:700,a});txt(d,160,y+76,{size:18,f:F.sans,col:'#5f5b52',a})});
+S({title:[['why broadcast ',C.ink],['skips it',C.green]],
+ n:'A normal join shuffles both tables so matching keys meet. But if one side is small, under 10 megabytes by default, Spark broadcasts it instead: the driver collects it and sends one copy to every executor. Each task then joins its own slice of the big table against an in-memory hash table, locally. Moving 8 megabytes to each executor is far cheaper than shuffling a terabyte.',
+ hood:['BroadcastHashJoin','autoBroadcastJoinThreshold = 10MB','big side never moves'],
+ draw(u){sheet(440,440,200,110,'small · 8 MB',{a:seg(u,.2,.8),ts:16});txt('on the driver',540,580,{size:15,col:C.mut,align:'center',a:seg(u,.2,.8)});
+  const ex=[60,300,540,780],EB=990;ex.forEach((x,e)=>{const a=seg(u,.3+e*.15,.9+e*.15);pbox(x,EB,200,150,50,{label:`EXEC ${e+1}`,ls:14,lines:2,a});txt('big · 250 GB',x+100,EB-26,{size:16,w:700,align:'center',col:C.navy,a});if(u>6.6+e*.2)txt('join locally ✓',x+100,EB-62,{size:15,w:700,col:C.green,align:'center',a:seg(u,6.6+e*.2,7+e*.2)})});
+  const p1=seg(u,.9,2.4)*(1-seg(u,3.4,4));for(let i=0;i<4;i++)for(let j=0;j<4;j++){if(i===j)continue;dashArc(TA(ex[i],EB,150,90,25),TA(ex[j],EB,150,110,25),110,{a:p1*.75,col:C.brick,lw:2,flow:true})}
+  pill(540,690,'shuffle join: move both sides ≈ 1 TB',C.brick,{size:15,a:p1});pill(540,690,'broadcast: 8 MB × 4 executors = 32 MB',C.green,{size:15,a:seg(u,4.4,5)});
+  for(let e=0;e<4;e++){const pr=seg(u,4.2+e*.3,5.4+e*.3),dst=TA(ex[e],EB,150,70,25);if(pr<=0)continue;const q=pr<1?qpt([510,560],[dst[0],dst[1]-62],70,pr):[dst[0],dst[1]-62];sheet(q[0],q[1],60,48,'',{border:C.green})}
+  whyNote(90,1128,900,['copying a small table everywhere is far cheaper than moving the big one','the big side never leaves its executors'],seg(u,8,8.6));
  }});
-S({title:[['real-world ',C.ink],['analogy',C.navy]],
- n:'Think of a delivery company. Partitions are warehouses, each holding a mix of packages. The shuffle is the sorting center: every package is routed by its destination, its key, so all packages for the same city end up on the same truck. Sorting is necessary, but it costs time and fuel.',
- hood:['package = record','destination = key','sorting center = shuffle'],
- draw(u){const wx=[80,410,740];const pk=['ABDC','CBAD','DACB'];
-  wx.forEach((x,w)=>{partBox(x,640,240,110,`WAREHOUSE ${w+1}`,{d:70,a:seg(u,.2+w*.2,.8+w*.2)})});
-  const sa=seg(u,1,1.6);pbox(190,920,700,120,90,{a:sa,label:'SORTING CENTER  =  SHUFFLE',ls:16,lines:3});
-  g.save();g.globalAlpha=sa;g.strokeStyle=C.mut;g.lineWidth=2;g.setLineDash([14,10]);g.lineDashOffset=-NOW*40;g.beginPath();g.moveTo(230,880);g.lineTo(850,880);g.stroke();g.restore();
-  const tx=[60,300,540,780];KEYS.split('').forEach((k,q)=>{const a=seg(u,1.4+q*.15,2+q*.15);pbox(tx[q],1240,200,90,60,{a,label:`TRUCK · ${k}`,ls:14,tint:KC[k]});
-   g.save();g.globalAlpha=a;g.fillStyle=C.ink;[tx[q]+40,tx[q]+160].forEach(cx=>{g.beginPath();g.arc(cx,1244,13,0,7);g.fill()});g.restore()});
-  pk.forEach((s,w)=>[...s].forEach((k,j)=>{const q=KEYS.indexOf(k),home=TA(wx[w],640,110,30+j*48,30),mid=[300+(w*4+j)*40,860],dst=TA(tx[q],1240,90,30+w*48,24);
-   const p1=seg(u,2.4+w*.4+j*.12,3.4+w*.4+j*.12),p2=seg(u,4.8+q*.3+w*.15,6+q*.3+w*.15);let pt=home;if(p1>0)pt=p1<1?qpt(home,mid,60,p1):mid;if(p2>0)pt=p2<1?qpt(mid,dst,40,p2):dst;
-   tile(pt[0],pt[1],k,{col:KC[k],w:36,h:24,d:14,cs:12})}));
-  pill(300,1330,'package = record',C.navy,{dot:false,size:15,a:seg(u,7,7.5)});pill(560,1330,'city = key',C.navy,{dot:false,size:15,a:seg(u,7.3,7.8)});pill(810,1330,'sorting = shuffle',C.brick,{dot:false,size:15,a:seg(u,7.6,8.1)});
+S({title:[['why 200 is ',C.ink],['often wrong',C.brick]],
+ n:'For DataFrames, the number of shuffle partitions is a fixed 200, chosen before Spark has seen your data. Shuffle 2 gigabytes and each partition is a tiny 10 megabytes. Shuffle 2 terabytes and each one is 10 gigabytes and spills. Adaptive Query Execution fixes the first case at runtime: after the map side runs, it knows the real sizes and merges partitions toward 64 megabytes. For huge data, start high and let it merge down.',
+ hood:['spark.sql.shuffle.partitions = 200','AQE coalesce → 64 MB','start high, merge down'],
+ draw(u){const a1=seg(u,.2,.8),mp=seg(u,4.8,6.4);card(90,430,900,280,'2 GB shuffle ÷ 200 partitions',{a:a1});
+  for(let i=0;i<200;i++){g.save();g.globalAlpha=a1*(1-mp);g.fillStyle=C.navy;g.fillRect(115+i*4.25,650-14,3,14);g.restore()}
+  for(let i=0;i<32;i++){g.save();g.globalAlpha=a1*mp;g.fillStyle=C.green;g.fillRect(115+i*27,650-90*mp,22,90*mp);g.restore()}
+  line([110,650],[970,650],C.ink,{a:a1,lw:1.5});
+  txt('10 MB each → tiny tasks, overhead',115,690,{size:16,w:700,col:C.brick,a:seg(u,1.2,1.8)*(1-mp)});txt('AQE after the map side → 32 partitions × 64 MB',115,690,{size:16,w:700,col:C.green,a:mp});
+  const a2=seg(u,2.4,3);card(90,740,900,330,'2 TB shuffle ÷ 200 partitions',{a:a2});const memY=1000;
+  for(let i=0;i<20;i++){const h=220*seg(u,2.8+i*.03,3.6+i*.03),x=115+i*43;g.save();g.globalAlpha=a2;g.fillStyle=C.navy;g.fillRect(x,1040-Math.min(h,40),34,Math.min(h,40));if(h>40){g.fillStyle=C.brick;g.fillRect(x,1040-h,34,h-40)}g.restore()}
+  line([110,memY],[970,memY],C.ink,{a:a2,dash:[6,5],lw:1.6});txt('task memory',965,memY-8,{size:13,col:C.mut,align:'right',a:a2});
+  txt('10 GB each → spills, OOM risk',560,800,{size:16,w:700,col:C.brick,a:seg(u,3.6,4.2)});
+  whyNote(90,1104,900,['200 is fixed before Spark has seen any data','AQE decides after the map side runs, when real sizes are known','it only merges down, so for big data start high'],seg(u,7.2,7.8));
+ }});
+S({title:[['the ',C.ink],['whys',C.navy],[', in one place',C.ink]],
+ n:'So: Spark sizes splits so every core gets work and no task gets too much. One task per partition makes work independent, local and recoverable. Hashing sends the same key to the same place without coordination. Wide operations need every input, so they create a stage boundary and shuffle through files on disk. And since the cost follows the bytes moved: combine early, broadcast small tables, and size partitions well.',
+ hood:['partitions = parallelism','shuffle = co-locate keys','cost ∝ bytes moved'],
+ draw(u){[['split = total ÷ cores, max 128 MB','every core busy, no task too big'],['1 partition = 1 task','independent, local, recoverable'],['hash(key) % n','same key, same place, no coordination'],['wide op ⇒ stage boundary','it needs every input partition'],['map output written to disk','checkpoint: retries without rerunning maps'],['cost ∝ bytes moved','combine, broadcast, right-size partitions']].forEach(([t,d],i)=>{
+   const y=430+i*124,a=seg(u,.4+i*1.1,1+i*1.1);card(90,y,900,104,'',{a});g.save();g.globalAlpha=a;rr(112,y+28,48,48,8);g.fillStyle=C.navy;g.fill();g.restore();txt(String(i+1),136,y+62,{size:24,w:700,col:'#fff',align:'center',a});
+   txt(t,180,y+46,{size:23,w:700,a});txt('why: '+d,180,y+82,{size:19,f:F.sans,col:'#5f5b52',a})});
  }});
 S({k:'',title:[],center:true,end:true,
- n:'Partitions give you parallelism. The shuffle moves data so the same key lands together. Use enough partitions, and shuffle as little as you can.',
+ n:'Partitions give Spark parallelism, locality and recovery. The shuffle exists so the same key can meet in one place, and you pay for every byte it moves.',
  hood:[],
  draw(u){txt('SPARK INTERNALS / 02',540,640,{size:20,col:C.mut,align:'center',ls:5,a:seg(u,0,1)});
   txt('Partitions &',540,760,{size:72,w:700,align:'center',a:seg(u,.5,1.8)});txt('the Shuffle',540,850,{size:72,w:700,align:'center',col:C.navy,a:seg(u,.8,2.1)});
-  txt('partitions = parallelism · shuffle = moving data by key',540,930,{size:25,f:F.sans,col:'#6f6b60',align:'center',a:seg(u,1.6,2.8)});
-  KEYS.split('').forEach((k,i)=>{const on=Math.floor(NOW*1.2)%4===i,a=seg(u,2.4+i*.3,3.2+i*.3);g.save();g.globalAlpha=a;rr(320+i*120,1010,80,46,10);g.fillStyle=on?KC[k]:'#f6f3ea';g.fill();g.lineWidth=2;g.strokeStyle=on?KC[k]:C.ink;g.stroke();g.restore();txt(k,360+i*120,1041,{size:20,w:700,align:'center',col:on?'#fff':C.ink,a})});
-  for(let m=0;m<4;m++)partBox(90+m*235,1300,190,90,`P${m+1}`,{a:seg(u,3.4+m*.25,4.4+m*.25),d:56,tint:Object.values(KC)[m]});
+  txt('how it works · why it works that way',540,930,{size:26,f:F.sans,col:'#6f6b60',align:'center',a:seg(u,1.6,2.8)});
+  ['P0','P1','P2','P3'].forEach((s,i)=>{const on=Math.floor(NOW*1.2)%4===i,a=seg(u,2.4+i*.3,3.2+i*.3);g.save();g.globalAlpha=a;rr(320+i*120,1010,80,46,10);g.fillStyle=on?PCOL[i]:'#f6f3ea';g.fill();g.lineWidth=2;g.strokeStyle=on?PCOL[i]:C.ink;g.stroke();g.restore();txt(s,360+i*120,1041,{size:20,w:700,align:'center',col:on?'#fff':C.ink,a})});
  }});
-{let n=0;const tot=SC.filter(s=>!s.center).length;SC.forEach(s=>{if(!s.center)s.k=`STEP ${++n} / ${tot}`})}
+{let n=0;const tot=SC.filter(s=>!s.center).length;SC.forEach(s=>{if(!s.center)s.k=`STEP ${++n} / ${tot} · HOW + WHY`})}
 /* ---------- timeline ---------- */
 SC.forEach(s=>{s.words=s.n.split(/\s+/);s.dur=Math.max(8,Math.round(s.words.length/2.55+2))});
 const ST=[];let T=0;SC.forEach(s=>{ST.push(T);T+=s.dur});
@@ -300,7 +319,7 @@ function header(){txt('> SPARK INTERNALS / PARTITIONS / 02',60,128,{font:`400 25
  g.fillStyle='#cfc9b8';g.fillRect(60,150,960,2);g.fillStyle=C.navy;g.fillRect(60,149,960*(NOW/T),4)}
 function titleBlock(s,i,lt){const a=lin(lt,.1,.6);if(s.end)return;
  if(s.center){txt(s.k,540,250,{size:19,col:C.mut,align:'center',ls:4,a});let total=0;g.font=`700 54px ${F.mono}`;s.title.forEach(([t])=>total+=g.measureText(t).width);let x=540-total/2;s.title.forEach(([t,c])=>{txt(t,x,330,{size:54,w:700,col:c,a});g.font=`700 54px ${F.mono}`;x+=g.measureText(t).width});return}
- txt(s.k,90,250,{size:19,col:C.mut,ls:3,a});let x=90;s.title.forEach(([t,c])=>{txt(t,x,322,{size:50,w:700,col:c,a});g.font=`700 50px ${F.mono}`;x+=g.measureText(t).width})}
+ txt(s.k,90,250,{size:19,col:C.mut,ls:3,a});g.font=`700 50px ${F.mono}`;let tot=0;s.title.forEach(([t])=>tot+=g.measureText(t).width);const sz=Math.min(50,Math.floor(50*900/tot));let x=90;s.title.forEach(([t,c])=>{txt(t,x,322,{size:sz,w:700,col:c,a});g.font=`700 ${sz}px ${F.mono}`;x+=g.measureText(t).width})}
 function captions(i,lt){const s=SC[i],{lines,size,lh}=wrapped(i),n=s.words.length,span=s.dur*.86,wt=span/n;
  const y0=s.end?1480:1400;
  lines.forEach((l,li)=>l.forEach(([wd,j,x])=>{const a=cl((lt-j*wt)/.25);txt(wd,90+x,y0+li*lh,{size,w:500,f:F.sans,col:mix('#c4bfae',C.ink,a)})}));
