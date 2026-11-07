@@ -1,256 +1,402 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Spark Shuffle in 3D</title>
+<title>Spark Shuffle Explained</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Silkscreen&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0f1420;--fg:#e8ecf4;--mut:#8a94a8;--acc:#f5a524;--panel:#171e2e}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;padding:16px}
-h1{font-size:20px;margin:4px 0 2px}.sub{color:var(--mut);margin:0 0 10px;font-size:13px;text-align:center}
-.stage{width:100%;max-width:1000px;background:var(--panel);border-radius:14px;overflow:hidden;position:relative}
-canvas{display:block;width:100%;height:auto}
-.cap{padding:12px 16px;min-height:132px;border-top:1px solid #263049}.cap b.t{color:var(--acc)}
-.cap .hood{margin-top:8px;font-size:12px;color:var(--mut)}
-code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#222b42;padding:1px 5px;border-radius:4px;color:#ffd38a}
-.ctl{display:flex;gap:10px;align-items:center;padding:10px 16px;border-top:1px solid #263049;flex-wrap:wrap}
-button{background:#263049;color:var(--fg);border:0;border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit;font-size:13px}
-button.on{background:var(--acc);color:#111}input[type=range]{flex:1;min-width:160px;accent-color:var(--acc)}
-.ch{display:flex;gap:6px;flex-wrap:wrap}
+:root{--bg:#e2ddcf;--ink:#23221f;--mut:#8c887c;--paper:#f6f3ea;--h:min(86vh,calc((100vw - 24px) * 16 / 9))}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 "Space Mono",ui-monospace,monospace;display:flex;flex-direction:column;align-items:center;padding:12px}
+canvas{height:var(--h);width:auto;aspect-ratio:9/16;display:block;border-radius:14px;box-shadow:0 10px 40px rgba(60,50,25,.18);background:#ebe7da}
+.bar{width:calc(var(--h) * 9 / 16);min-width:300px;max-width:100%;display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+button{font:inherit;font-size:12px;background:var(--paper);color:var(--ink);border:1.5px solid var(--ink);border-radius:999px;padding:5px 11px;cursor:pointer}
+button.on{background:var(--ink);color:var(--paper)}
+input[type=range]{flex:1;min-width:120px;accent-color:#26429a}
+#tm{font-size:11px;color:var(--mut);min-width:78px;text-align:right}
+.ch{width:calc(var(--h) * 9 / 16);min-width:300px;max-width:100%;display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.ch button{padding:3px 8px;font-size:11px}
+.note{width:calc(var(--h) * 9 / 16);min-width:300px;max-width:100%;color:var(--mut);font-size:11px;margin-top:8px}
 </style></head><body>
-<h1>How a Spark Shuffle Works</h1><p class="sub">reduceByKey, end to end: partition → combine → spill → merge → MapStatus → fetch → recover → reduce</p>
-<div class="stage"><canvas id="c" width="1000" height="560" aria-label="Isometric animation of a Spark shuffle"></canvas>
-<div class="cap" id="cap"></div>
-<div class="ctl"><button id="pp">❚❚ Pause</button><input id="sc" type="range" min="0" max="10000" value="0" aria-label="Timeline"><span id="tm" style="color:var(--mut);font-size:12px;width:84px;text-align:right"></span><button id="vc">🔈 Voice</button></div>
-<div class="ctl ch" id="ch"></div></div>
+<canvas id="c" width="1080" height="1920" aria-label="Animated explainer: how a Spark shuffle works"></canvas>
+<div class="bar"><button id="pp">❚❚ pause</button><input id="sc" type="range" min="0" max="10000" value="0" aria-label="Timeline"><span id="tm"></span><button id="vc">🔈 voice</button><button id="rec">⏺ record .webm</button></div>
+<div class="ch" id="ch"></div>
+<div class="note">Space = play/pause · ← → = scenes · "record" plays it once from the start and downloads a 1080×1920 WebM (the voice is not captured). Sizes, offsets and the key→partition mapping are illustrative.</div>
 <script>
 "use strict";
-const cv=document.getElementById('c'),g=cv.getContext('2d'),W=1000,H=560;
-const DPR=Math.min(2,window.devicePixelRatio||1);cv.width=W*DPR;cv.height=H*DPR;g.scale(DPR,DPR);
-/* ---------- helpers ---------- */
+const cv=document.getElementById('c'),g=cv.getContext('2d'),W=1080,H=1920;
+/* ---------- palette & fonts ---------- */
+const C={bg:'#ebe7da',grid:'#dfdaca',ink:'#23221f',mut:'#8c887c',faint:'#cbc6b6',pT:'#f9f6ee',pF:'#f0ebdf',pR:'#dfd9c9',navy:'#26429a',green:'#2e7d5b',ochre:'#c0812f',brick:'#b4472f',orange:'#c8873a',card:'#faf8f2',term:'#1f1e1b'};
+const PC=[C.navy,C.green,C.ochre];
+const F={mono:'"Space Mono", ui-monospace, Menlo, monospace',sans:'"IBM Plex Sans", system-ui, sans-serif',pix:'"Silkscreen", "Space Mono", monospace'};
+/* ---------- math ---------- */
 const cl=(v,a=0,b=1)=>Math.max(a,Math.min(b,v)),L=(a,b,p)=>a+(b-a)*p;
 const ez=v=>{v=cl(v);return v<.5?4*v*v*v:1-Math.pow(-2*v+2,3)/2};
 const seg=(u,a,b)=>ez((u-a)/(b-a)),lin=(u,a,b)=>cl((u-a)/(b-a)),bump=p=>Math.sin(Math.PI*cl(p));
 const rgbOf=h=>{const n=parseInt(h.slice(1),16);return[n>>16,n>>8&255,n&255]};
 const mix=(a,b,p)=>{const x=rgbOf(a),y=rgbOf(b);return'#'+x.map((v,i)=>Math.round(L(v,y[i],cl(p))).toString(16).padStart(2,'0')).join('')};
 const sh=(h,f)=>mix(h,f<0?'#000000':'#ffffff',Math.abs(f));
-const S=28,OX=480,OY=130;
-const iso=(x,y,z=0)=>[OX+(x-y)*0.866*S,OY+(x+y)*0.5*S-z*S];
-function poly(pts,fill,stroke){g.beginPath();pts.forEach((p,i)=>{const s=iso(...p);i?g.lineTo(s[0],s[1]):g.moveTo(s[0],s[1])});g.closePath();if(fill){g.fillStyle=fill;g.fill()}g.strokeStyle=stroke||'rgba(0,0,0,.28)';g.lineWidth=1;g.stroke()}
-function boxNow(x,y,z,w,d,h,col,o={}){const a=o.a??1;if(a<=.003)return;g.save();g.globalAlpha*=a;
- poly([[x,y+d,z],[x+w,y+d,z],[x+w,y+d,z+h],[x,y+d,z+h]],sh(col,-.05));
- poly([[x+w,y,z],[x+w,y+d,z],[x+w,y+d,z+h],[x+w,y,z+h]],sh(col,-.3));
- poly([[x,y,z+h],[x+w,y,z+h],[x+w,y+d,z+h],[x,y+d,z+h]],sh(col,.16));
- if(o.glow){g.lineWidth=2;g.strokeStyle=o.glow;g.stroke()}
- if(o.txt){const[s,t]=iso(x+w/2,y+d/2,z+h);g.fillStyle=o.tc||'#fff';g.font=`700 ${o.ts||10}px system-ui`;g.textAlign='center';g.textBaseline='middle';g.fillText(o.txt,s,t)}
- g.restore()}
-let Q=[];
-const cube=(x,y,z,w,d,h,col,o)=>Q.push({k:(x+w/2)+(y+d/2)+z*.03,f:()=>boxNow(x,y,z,w,d,h,col,o)});
-const later=(k,f)=>Q.push({k,f});
-function flush(){Q.sort((a,b)=>a.k-b.k);Q.forEach(q=>q.f());Q=[]}
+/* ---------- drawing primitives (paper style) ---------- */
+function path(pts){g.beginPath();pts.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath()}
+function face(pts,fill){path(pts);g.fillStyle=fill;g.fill();g.stroke()}
 function rr(x,y,w,h,r){g.beginPath();if(g.roundRect)g.roundRect(x,y,w,h,r);else g.rect(x,y,w,h)}
-function txt(s,x,y,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;const sz=o.size||12;g.font=o.font||`${o.w||600} ${sz}px system-ui`;g.textAlign=o.align||'center';g.textBaseline='middle';
- if(o.bg){const w=g.measureText(s).width+12,h=sz+8;const bx=o.align==='left'?x-6:o.align==='right'?x-w+6:x-w/2;g.fillStyle=o.bg;rr(bx,y-h/2,w,h,5);g.fill();if(o.border){g.strokeStyle=o.border;g.stroke()}}
- g.fillStyle=o.col||'#e8ecf4';g.fillText(s,x,y);g.restore()}
-const ltxt=(s,x,y,z,o={})=>{const[a,b]=iso(x,y,z);txt(s,a+(o.dx||0),b+(o.dy||0),o)};
-function line3(a,b,col,o={}){const al=o.a??1;if(al<=.01)return;g.save();g.globalAlpha*=al;g.strokeStyle=col;g.lineWidth=o.w||1.4;if(o.dash){g.setLineDash(o.dash);g.lineDashOffset=o.off||0}
- const p=iso(...a),q=iso(...b);g.beginPath();g.moveTo(...p);if(o.arc){const c=iso((a[0]+b[0])/2,(a[1]+b[1])/2,Math.max(a[2],b[2])+o.arc);g.quadraticCurveTo(c[0],c[1],q[0],q[1])}else g.lineTo(...q);g.stroke();g.restore()}
-const arc=(a,b,p,h)=>[L(a[0],b[0],p),L(a[1],b[1],p),L(a[2],b[2],p)+bump(p)*h];
+const TA=(bx,by,bh,fx,fz)=>[bx+fx+.45*fz,by-bh-.315*fz]; // point on a box's top face
+// paper box, (x,y) = bottom-left of the front face
+function pbox(x,y,w,h,d,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;
+ const dx=.45*d,dy=-.315*d;let top=C.pT,front=C.pF,right=C.pR;
+ if(o.col){top=sh(o.col,.16);front=o.col;right=sh(o.col,-.22)}
+ if(o.tint){top=mix(C.pT,o.tint,.18);front=mix(C.pF,o.tint,.14);right=mix(C.pR,o.tint,.14)}
+ if(o.shadow!==false){g.save();g.shadowColor='rgba(70,58,30,.22)';g.shadowBlur=o.small?6:20;g.shadowOffsetY=o.small?3:12;path([[x,y],[x+w,y],[x+w+dx,y+dy],[x+w+dx,y-h+dy],[x+dx,y-h+dy],[x,y-h]]);g.fillStyle=front;g.fill();g.restore()}
+ g.lineWidth=o.lw||2;g.lineJoin='round';g.strokeStyle=o.ink||C.ink;if(o.dash)g.setLineDash(o.dash);
+ face([[x,y-h],[x+w,y-h],[x+w+dx,y-h+dy],[x+dx,y-h+dy]],top);
+ face([[x+w,y],[x+w+dx,y+dy],[x+w+dx,y-h+dy],[x+w,y-h]],right);
+ face([[x,y],[x+w,y],[x+w,y-h],[x,y-h]],front);g.setLineDash([]);
+ const tc=o.tc||(o.col?'#ffffff':C.ink);
+ if(o.label){g.fillStyle=tc;g.font=`700 ${o.ls||15}px ${F.mono}`;g.textAlign='left';g.textBaseline='alphabetic';g.fillText(o.label,x+12,y-h+26)}
+ if(o.lines){g.strokeStyle=o.col?'rgba(255,255,255,.35)':'#d3ccba';g.lineWidth=1.2;for(let i=0;i<o.lines;i++){const ly=y-h+42+i*14;if(ly>y-30)break;g.beginPath();g.moveTo(x+12,ly);g.lineTo(x+w-12,ly);g.stroke()}}
+ if(o.dot){g.fillStyle=o.dot;g.beginPath();g.arc(x+w-16,y-h+18,5.5,0,7);g.fill()}
+ if(o.bar!=null){const bx=x+12,by=y-20,bw=w-24;g.fillStyle='#e7e2d4';g.fillRect(bx,by,bw,9);g.fillStyle=o.barCol||C.green;g.fillRect(bx,by,bw*cl(o.bar),9);g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(bx,by,bw,9)}
+ if(o.center){g.fillStyle=tc;g.font=`700 ${o.cs||13}px ${F.mono}`;g.textAlign='center';g.textBaseline='middle';g.fillText(o.center,x+w/2,y-h/2+1)}
+ if(o.x){g.strokeStyle=C.brick;g.lineWidth=6;g.lineCap='round';g.beginPath();g.moveTo(x+w*.32,y-h*.82);g.lineTo(x+w*.68,y-h*.18);g.moveTo(x+w*.68,y-h*.82);g.lineTo(x+w*.32,y-h*.18);g.stroke()}
+ if(o.ring){g.strokeStyle=o.ring;g.lineWidth=3;g.strokeRect(x-5,y-h-5,w+10,h+10)}
+ g.restore()}
+function tile(x,y,key,o={}){pbox(x,y,o.w||40,o.h||22,o.d||14,{center:key,cs:o.cs||12,small:true,lw:1.6,...o})}
+function txt(s,x,y,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;g.font=o.font||`${o.w||400} ${o.size||20}px ${o.f||F.mono}`;g.textAlign=o.align||'left';g.textBaseline=o.base||'alphabetic';if(o.ls&&'letterSpacing'in g)g.letterSpacing=o.ls+'px';g.fillStyle=o.col||C.ink;g.fillText(s,x,y);g.restore()}
+function card(x,y,w,h,title,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;g.save();g.shadowColor='rgba(70,58,30,.18)';g.shadowBlur=18;g.shadowOffsetY=8;rr(x,y,w,h,8);g.fillStyle=o.fill||C.card;g.fill();g.restore();
+ rr(x,y,w,h,8);g.lineWidth=o.lw||1.8;g.strokeStyle=o.border||'#3b3934';g.stroke();
+ if(title)txt(title,x+18,y+30,{size:14,col:C.mut,ls:2});g.restore()}
+function pill(cx,cy,s,col,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;g.font=`700 ${o.size||16}px ${F.mono}`;const tw=g.measureText(s).width,dot=o.dot!==false;const w=tw+(dot?50:30),h=(o.size||16)+20;
+ rr(cx-w/2,cy-h/2,w,h,h/2);g.fillStyle=o.fill?col:'#f6f3ea';g.fill();g.lineWidth=2;g.strokeStyle=col;g.stroke();
+ if(dot){g.fillStyle=o.fill?'#fff':col;g.beginPath();g.arc(cx-w/2+20,cy,5.5,0,7);g.fill()}
+ g.fillStyle=o.fill?'#fff':col;g.textAlign='left';g.textBaseline='middle';g.fillText(s,cx-w/2+(dot?34:15),cy+1);g.restore()}
+function term(x,y,w,h,s,n,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;rr(x,y,w,h,6);g.fillStyle=C.term;g.fill();
+ g.font=`400 ${o.size||26}px ${F.mono}`;g.textBaseline='middle';g.textAlign='left';const p=o.prompt??'>>> ';g.fillStyle='#8d887b';g.fillText(p,x+22,y+h/2);const pw=g.measureText(p).width;
+ const vis=s.slice(0,Math.floor(n));g.fillStyle='#efe9dc';g.fillText(vis,x+22+pw,y+h/2);
+ if(o.cursor!==false&&Math.floor(NOW*2.2)%2===0){const cw=g.measureText(vis).width;g.fillStyle=C.orange;g.fillRect(x+24+pw+cw,y+h/2-14,13,28)}g.restore()}
+function bin(x,y,s,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;g.font=`400 ${o.size||18}px ${F.mono}`;const w=g.measureText(s).width+28;rr(x-w/2,y-19,w,38,4);g.fillStyle=C.term;g.fill();g.fillStyle='#e8e3d6';g.textAlign='center';g.textBaseline='middle';g.fillText(s,x,y+1);g.restore()}
+function disk(cx,cy,s=1,a=1){if(a<=.01)return;g.save();g.globalAlpha*=a;g.lineWidth=1.6;
+ g.save();g.shadowColor='rgba(70,58,30,.2)';g.shadowBlur=18;g.shadowOffsetY=10;g.beginPath();g.ellipse(cx,cy,80*s,27*s,0,0,7);g.fillStyle='#d8d4c8';g.fill();g.restore();
+ for(let i=0;i<6;i++){const y=cy-i*9*s;g.beginPath();g.ellipse(cx,y,80*s,27*s,0,0,7);g.fillStyle=i===5?'#f1eee6':'#dcd8cc';g.fill();g.strokeStyle='#8f8a7e';g.stroke()}
+ const ty=cy-45*s;g.beginPath();g.ellipse(cx,ty,14*s,5.5*s,0,0,7);g.fillStyle='#2a2926';g.fill();
+ txt('DISK',cx,cy+50*s,{size:14,col:C.mut,align:'center',ls:2});g.restore()}
+function sheet(x,y,w,h,title,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;const e=22;
+ g.save();g.shadowColor='rgba(70,58,30,.18)';g.shadowBlur=14;g.shadowOffsetY=7;path([[x,y],[x+w-e,y],[x+w,y+e],[x+w,y+h],[x,y+h]]);g.fillStyle='#fcfaf5';g.fill();g.restore();
+ path([[x,y],[x+w-e,y],[x+w,y+e],[x+w,y+h],[x,y+h]]);g.lineWidth=1.8;g.strokeStyle=o.border||C.ink;g.stroke();
+ g.beginPath();g.moveTo(x+w-e,y);g.lineTo(x+w-e,y+e);g.lineTo(x+w,y+e);g.stroke();
+ if(title)txt(title,x+14,y+28,{size:o.ts||15,w:700,col:o.tcol||C.ink});
+ if(o.strike){g.strokeStyle=C.brick;g.lineWidth=3;g.beginPath();g.moveTo(x+8,y+h/2);g.lineTo(x+8+(w-16)*o.strike,y+h/2);g.stroke()}
+ g.restore()}
+function qpt(a,b,hgt,p){const c=[(a[0]+b[0])/2,Math.min(a[1],b[1])-hgt];const q=1-p;return[q*q*a[0]+2*q*p*c[0]+p*p*b[0],q*q*a[1]+2*q*p*c[1]+p*p*b[1]]}
+function dashArc(a,b,hgt,o={}){const al=o.a??1,pr=o.p??1;if(al<=.01||pr<=0)return;g.save();g.globalAlpha*=al;g.strokeStyle=o.col||C.ink;g.lineWidth=o.lw||2.5;g.setLineDash(o.dash||[10,9]);g.lineDashOffset=-(o.flow?NOW*40:0);
+ g.beginPath();for(let i=0;i<=40;i++){const p=pr*i/40,q=qpt(a,b,hgt,p);i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1])}g.stroke();g.restore()}
+function hatch(x,y,w,h,col){g.save();g.beginPath();g.rect(x,y,w,h);g.clip();g.strokeStyle=col;g.lineWidth=2;for(let i=-h;i<w;i+=12){g.beginPath();g.moveTo(x+i,y+h);g.lineTo(x+i+h,y);g.stroke()}g.restore()}
+function check(x,y,on,col){g.save();g.lineWidth=1.8;g.strokeStyle=on?col:'#bdb8a8';if(on){g.fillStyle=col;g.fillRect(x,y,18,18)}g.strokeRect(x,y,18,18);g.restore()}
+function mark(x,y,ok,a=1){if(a<=.01)return;g.save();g.globalAlpha*=a;g.lineWidth=4;g.lineCap='round';g.strokeStyle=ok?C.green:C.brick;g.beginPath();if(ok){g.moveTo(x-9,y);g.lineTo(x-2,y+8);g.lineTo(x+11,y-9)}else{g.moveTo(x-8,y-8);g.lineTo(x+8,y+8);g.moveTo(x+8,y-8);g.lineTo(x-8,y+8)}g.stroke();g.restore()}
 /* ---------- data ---------- */
-const KC=['#4f8cff','#2fc28a','#ff6b6b'],NEU='#7d879c',ACC='#f5a524';
 const PID={A:0,B:1,C:2,D:0,E:1,F:2},PKEYS=[['A','D'],['B','E'],['C','F']];
 const MAPS=['ACABFDEDBA','BEBDCAFECD','FDAFCEBADC'].map(s=>[...s]);
 const BLK=MAPS.map(ks=>[0,1,2].map(p=>{const c={};ks.forEach(k=>{if(PID[k]===p)c[k]=(c[k]||0)+1});return Object.keys(c).sort().map(k=>({k,n:c[k]}))}));
 const blkN=(m,p)=>BLK[m][p].reduce((s,e)=>s+e.n,0);
 const ord=(a,b)=>PID[a]-PID[b]||a.localeCompare(b);
-// each map task processes its records in two memory-sized batches (rows)
-const ROWS=MAPS.map(ks=>[0,1].map(r=>{const idx=[0,1,2,3,4].map(c=>r*5+c);const keys=[...new Set(idx.map(i=>ks[i]))].sort(ord);
- return keys.map((k,j)=>({k,j,r,recs:idx.filter(i=>ks[i]===k)}))}));
-/* ---------- geometry ---------- */
-const EX=m=>m*5,RX=k=>k*5;
-const recXY=(m,i)=>[EX(m)-1.62+(i%5)*.72,i<5?-.85:.3];
-const slotXY=(m,r,j)=>[EX(m)-1.62+j*.72,r?.3:-.85];
-const SPY=[2.15,3.2],FINY=4.3,RETRYY=5.45,WALLY=6.95,STKY=8.9,TWRY=9.9;
-const segX=(m,p)=>EX(m)-1.75+p*1.1;
-const finXY=(m,p,j,y=FINY)=>[segX(m,p)+.04+j*.52,y];
-const stackXY=(m,k)=>[RX(k)-1.45+m*1.0,STKY];
-const DRV={x:14.4,y:2.9,w:3.4,d:3.2},drvTop=[16.1,4.5,1.45];
-/* ---------- chapters ---------- */
-const CH=[
- {t:'1 · One job, two stages',o:'textFile → map (narrow) → reduceByKey (wide ⇒ shuffle)',
-  c:'Our job is <code>textFile → map(w ⇒ (w,1)) → reduceByKey(_ + _)</code>. <code>map</code> is a <b>narrow</b> dependency, so it is pipelined inside one task. <code>reduceByKey</code> creates a <b>ShuffleDependency</b>: every output partition may need records from every input partition. The DAGScheduler cuts the job there into a <b>ShuffleMapStage</b> (executors, top) and a <b>ResultStage</b> (reducers, bottom). The wall between them is the shuffle.',
-  h:['DAGScheduler','ShuffleDependency','Exchange hashpartitioning (SQL plans)']},
- {t:'2 · Launching map tasks',o:'TaskScheduler → one ShuffleMapTask per input partition',
-  c:'The driver\'s TaskScheduler sends one <b>ShuffleMapTask</b> per input partition to the executors. Each task reads its partition and emits <code>(word, 1)</code> records. Keys A–F are scattered across all three executors, so no executor can finish any count on its own.',
-  h:['ShuffleMapTask','SortShuffleManager','BlockManager']},
- {t:'3 · Tag every record with a partition',o:'partition = nonNegativeMod(key.hashCode, 3)',
-  c:'The <b>HashPartitioner</b> computes <code>nonNegativeMod(key.hashCode, numPartitions)</code> for every record. With 3 reduce partitions: <b style="color:#4f8cff">A, D → 0</b>, <b style="color:#2fc28a">B, E → 1</b>, <b style="color:#ff6b6b">C, F → 2</b>. Nothing moves yet; each record just knows where it will go. For DataFrames the partition count is <code>spark.sql.shuffle.partitions</code> (200 by default).',
-  h:['HashPartitioner','RangePartitioner (sortByKey)','spark.default.parallelism']},
- {t:'4 · Combine in memory',o:'ExternalSorter.insertAll: (A,1) + (A,1) ⇒ (A,2)',
-  c:'reduceByKey has an aggregator, so each task\'s <b>ExternalSorter</b> inserts records into an in-memory <code>PartitionedAppendOnlyMap</code> keyed by (partition, key). A repeated key is merged in place: on Executor 1, (A,1) + (A,1) becomes <b>A×2</b>. Entries are ordered by partition, then key. Spark estimates the map\'s size by sampling. Once it passes the threshold (starting at 5 MB) and no more execution memory is available, it must <b>spill</b>.',
-  h:['PartitionedAppendOnlyMap','SizeTracker.estimateSize','spark.shuffle.spill.initialMemoryThreshold = 5 MB']},
- {t:'5 · Spill to disk',o:'spill(): sorted by (partitionId, key) → temp file',
-  c:'To free memory, the sorted entries are written to a temporary <b>spill file</b> on local disk, in serialized, compressed batches. The task keeps reading: the second batch is combined (D×2 on Executor 1, B×2 and F×2 elsewhere), sorted, and spilled too. The Spark UI shows this as <b>Spill (Memory)</b> and <b>Spill (Disk)</b>.',
-  h:['spark.shuffle.spill.compress = true (lz4)','spark.shuffle.spill.batchSize = 10000','spark.shuffle.file.buffer = 32k']},
- {t:'6 · Merge into one data file + index',o:'k-way merge → shuffle_0_<mapId>_0.data + .index',
-  c:'When the task ends, a <b>k-way merge</b> reads all spills together and combines matching keys again (A×2 + A×1 → <b>A×3</b>). It writes <b>one data file</b>, partition after partition, plus a tiny <b>index file</b> of numPartitions + 1 byte offsets. The spills are deleted. This is <b>SortShuffleWriter</b>. Without map-side combine, Spark would pick <b>BypassMergeSortShuffleWriter</b> (≤ 200 partitions: one file per partition, then concatenate) or <b>UnsafeShuffleWriter</b> (sorts 8-byte pointers to serialized records).',
-  h:['IndexShuffleBlockResolver','bypassMergeThreshold = 200','2 files per map task (old hash shuffle: M × R)']},
- {t:'7 · MapStatus and the barrier',o:'MapStatus(location, blockSizes[]) → MapOutputTracker',
-  c:'Each finished map task sends a <b>MapStatus</b> to the driver: its BlockManager location and the size of each of its 3 blocks. The driver\'s <b>MapOutputTracker</b> fills a map × partition table (the tiles on the driver). Only when every map output is registered does the DAGScheduler open the barrier and launch the <b>reduce tasks</b>, usually on the same executors.',
-  h:['CompressedMapStatus','HighlyCompressedMapStatus (> 2000 partitions)','MapOutputTrackerMaster']},
- {t:'8 · Where are my blocks?',o:'getMapSizesByExecutorId → index → bytes [offset[k], offset[k+1])',
-  c:'Each reduce task asks the MapOutputTracker where every block of its partition lives and how big it is. A block on its own executor is read <b>locally</b>; the rest are <b>remote</b>. On the source side, the <b>index file</b> turns "partition k" into an exact byte range of the data file: bytes offset[k] to offset[k+1].',
-  h:['getMapSizesByExecutorId','block id shuffle_0_<map>_<reduce>','FileSegmentManagedBuffer']},
- {t:'9 · Fetch over the network',o:'≤ 48 MB in flight · random request order · local reads skip network',
-  c:'<b>ShuffleBlockFetcherIterator</b> sends fetch requests in random order and keeps at most <b>48 MB in flight</b> per reduce task. Remote blocks stream over Netty from the executor\'s BlockManager, or from the <b>External Shuffle Service</b> (port 7337). Local blocks skip the network. Blocks are decompressed and deserialized as they arrive. Executor 2\'s blocks are still queued behind the in-flight limit…',
-  h:['spark.reducer.maxSizeInFlight = 48m','maxReqsInFlight / maxBlocksInFlightPerAddress','spark.shuffle.service.enabled']},
- {t:'10 · An executor dies',o:'FetchFailedException → resubmit map 1 only → refetch',
-  c:'Executor 2 crashes, and its shuffle files go with it. Its fetches fail (after <code>spark.shuffle.io.maxRetries</code> = 3) with a <b>FetchFailedException</b>. The DAGScheduler unregisters map 1\'s output and <b>re-runs only that map task</b>, here on Executor 3, then the reducers fetch the missing blocks from the new file. With the External Shuffle Service, the files would have survived a lost executor process.',
-  h:['spark.stage.maxConsecutiveAttempts = 4','spark.shuffle.io.retryWait = 5s','decommission shuffle-block migration (3.1+)']},
- {t:'11 · Reduce: merge the combiners',o:'combineCombinersByKey: A = 3 + 1 + 2 = 6',
-  c:'Each reducer feeds its blocks into an <b>ExternalAppendOnlyMap</b>, merging the partial counts. For A: 3 from Executor 1, 1 from map 1 (recomputed), 2 from Executor 3 = <b>6</b>. This map can spill too if one reducer receives too much data. That is what a skewed key does. Results go to the next stage, or back to the driver for <code>collect()</code>.',
-  h:['Aggregator.combineCombinersByKey','ExternalAppendOnlyMap','A=6 B=5 C=5 D=6 E=4 F=4']},
- {t:'12 · Where the cost is and how to cut it',o:'',
-  c:'A shuffle costs <b>disk I/O</b> (spills, data files), <b>serialization</b>, and an <b>all-to-all network transfer</b>, and skew can leave one reducer straggling. To reduce it, shuffle less data: use <code>reduceByKey</code> over <code>groupByKey</code>, and broadcast joins under <code>autoBroadcastJoinThreshold</code> = 10 MB. Let <b>AQE</b> coalesce small partitions toward 64 MB and split skewed ones (> 5× median and > 256 MB). <b>Push-based shuffle</b> (Spark 3.2+) merges blocks per partition on the shuffle service for fewer, larger reads.',
-  h:['spark.sql.adaptive.enabled (default since 3.2)','skewedPartitionFactor = 5 · threshold = 256MB','spark.shuffle.push.enabled']},
-];
-CH.forEach(c=>{const w=c.c.replace(/<[^>]+>/g,'').split(/\s+/).length;c.d=Math.max(12,Math.round(w/2.8+2))});
-const ST=[];let T=0;CH.forEach(c=>{ST.push(T);T+=c.d});
-let NOW=0;
-const U=i=>cl((NOW-ST[i])/CH[i].d)*10;   // chapter i progress in 0..10 (0 before, 10 after)
-/* ---------- timing tables ---------- */
-const combWin=(m,r,c)=>r===0?[3,1+c*.35+m*.2,2.6+c*.35+m*.2]:[4,3.5+c*.3+m*.15,4.8+c*.3+m*.15];
-const spillWin=(m,r,j)=>r===0?[4,.4+j*.18+m*.15,1.8+j*.18+m*.15]:[4,7+j*.18+m*.15,8.4+j*.18+m*.15];
-const mergeWin=(m,k,r)=>{const s=1+PID[k]*2+r*.45+m*.12;return[5,s,s+1.4]};
-const W_=(w)=>seg(U(w[0]),w[1],w[2]);
-const FETCH=[[0,0],[2,1],[0,2],[2,0],[0,1],[2,2]];
-const fetchWin=(m,k)=>{if(m===1)return[9,7.8+k*.55,9.4+k*.55];const i=FETCH.findIndex(f=>f[0]===m&&f[1]===k);return[8,1+i*1.1,(m===k?2.5:3.2)+i*1.1]};
-const towerWin=m=>[10,1+m*1.2,2.3+m*1.2];
-/* ---------- the scene ---------- */
-function draw(){
- g.clearRect(0,0,W,H);const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#141b2b');bg.addColorStop(1,'#0f1420');g.fillStyle=bg;g.fillRect(0,0,W,H);
- const crash=seg(U(9),.5,1.5),retryOn=U(9)>=6.2;
- const redA=L(.35,1,seg(U(6),6,8.5));
- const cost=U(11);
- // ----- platforms
- for(let m=0;m<3;m++){const dd=m===1?crash:0;const base=mix('#2a3550','#3a3a3a',dd);
-  boxNow(EX(m)-1.8,-1.5,0,3.6,3.2,.3,base);
-  const dk=mix('#30343f','#262626',dd);const pulse=cost>.3&&cost<3.6?.25*bump((cost-.3)/3.3)*(.6+.4*Math.sin(NOW*6)):0;
-  boxNow(EX(m)-1.8,2.0,0,3.9,(m===2&&retryOn)?4.45:3.3,.1,sh(dk,pulse),{glow:pulse>.05?'#ff8a8a':null});
- }
- for(let k=0;k<3;k++){const sk=cost>6.6?.25*bump((cost-6.6)/3.2):0;boxNow(RX(k)-1.8,8.2,0,3.6,3.0,.3,sh('#3a2f55',sk),{a:redA,glow:sk>.05&&k===0?'#ffcf70':null})}
- // driver
- boxNow(DRV.x,DRV.y,0,DRV.w,DRV.d,.3,'#4d3c18');boxNow(DRV.x+.2,DRV.y+.2,.3,3.0,2.8,.85,'#a07c2c');
- // MapOutputTracker tiles on the driver
- for(let m=0;m<3;m++){const arrived=seg(U(6),1.6+m*.6,2.1+m*.6);const lost=m===1?lin(U(9),4.4,4.8)*(1-lin(U(9),7.2,7.6)):0;
-  for(let p=0;p<3;p++){const col=lost>.5?'#ff3b3b':mix('#6b5420',KC[p],arrived);boxNow(DRV.x+.45+p*.95,DRV.y+.4+m*.85,1.15,.8,.7,.1,col)}}
- // ----- stage boundary wall
- const wa=seg(U(0),4,6),pass=seg(U(6),4.5,5.5);
- const wc=pass>.5?'47,194,138':'245,165,36';
- poly([[-2.2,WALLY,0],[12.2,WALLY,0],[12.2,WALLY,.45],[-2.2,WALLY,.45]],`rgba(${wc},${.22*wa*(1-.4*pass)})`,`rgba(${wc},${.75*wa})`);
- // ----- network lines (fetch)
- const net=lin(U(8),.5,1.2)*(1-lin(U(10),0,1))+(cost>3.6&&cost<6.6?bump((cost-3.6)/3):0);
- if(net>0)for(let m=0;m<3;m++)for(let k=0;k<3;k++){if(m===k)continue;const sm=m===1&&retryOn?2:m;const sy=m===1&&retryOn?RETRYY:FINY;line3([segX(sm,k)+.5,sy+.75,.15],[RX(k),8.2,.3],KC[k],{dash:[4,6],off:-NOW*30,a:.32*net*(m===1&&crash>.5&&!retryOn?.2:1)})}
- // ----- spill slabs / data files / index / retry
- for(let m=0;m<3;m++){
-  SPY.forEach((y,r)=>{const appear=lin(U(4),r?6.6:0,r?7.1:.5),gone=lin(U(5),8,9);const a=appear*(1-gone);if(a>0)later(EX(m)-2+y,()=>boxNow(EX(m)-1.7,y-.08,.1,3.5,.82,.06,'#575d6c',{a}))});
-  const fa=lin(U(5),.4,1)*(m===1?1-crash*.5:1);if(fa>0)later(EX(m)-2+FINY,()=>boxNow(EX(m)-1.8,FINY-.1,.1,3.4,.95,.06,m===1&&crash>.5?'#3d3d3d':'#69718a',{a:fa}));
-  const ia=lin(U(5),7.5,8.3);if(ia>0)later(EX(m)+FINY,()=>boxNow(EX(m)+1.68,FINY-.1,.1,.38,.95,.32,m===1&&crash>.5?'#4a4a4a':'#9a7b33',{a:ia}));
- }
- if(retryOn){const ra=lin(U(9),6.2,6.8);later(EX(2)-2+RETRYY,()=>boxNow(EX(2)-1.8,RETRYY-.1,.1,3.4,.95,.06,'#69718a',{a:ra}));later(EX(2)+RETRYY,()=>boxNow(EX(2)+1.68,RETRYY-.1,.1,.38,.95,.32,'#9a7b33',{a:ra}))}
- // ----- records → entries (combine, spill, merge)
- for(let m=0;m<3;m++)MAPS[m].forEach((k,i)=>{
-  const ap=seg(U(1),3.6+m*.35+i*.08,4.2+m*.35+i*.08);if(ap<=0)return;
-  const r=i<5?0:1,c=i%5,e=ROWS[m][r].find(e=>e.k===k),leader=e.recs[0]===i,p=PID[k];
-  const tag=seg(U(2),1+m*.6+i*.12,1.6+m*.6+i*.12);const col=mix(NEU,KC[p],tag);
-  const cw=combWin(m,r,c),pc=W_(cw);
-  let[x,y]=recXY(m,i);let z=.3+(1-ap)*1.6,h=.55,w=.55;
-  const[tx,ty]=slotXY(m,r,e.j);
-  if(!leader&&pc>=1)return;
-  x=L(x,tx,pc);y=L(y,ty,pc);z+=bump(pc)*.7+(leader?0:pc*.55);
-  const n=e.recs.filter(ri=>W_(combWin(m,r,ri%5))>=1).length;
-  let label=k+(n>1?'×'+n:'');
-  if(leader){const sp=W_(spillWin(m,r,e.j));const sx=EX(m)-1.62+e.j*.69,sy=SPY[r];
-   x=L(x,sx,sp);y=L(y,sy,sp);z=L(z,.16,sp)+bump(sp)*1.4;h=L(h,.26,sp);
-   const mp=W_(mergeWin(m,k,r));if(mp>=1)return;
-   if(mp>0){const fj=BLK[m][p].findIndex(b=>b.k===k);const[fx,fy]=finXY(m,p,fj);x=L(x,fx,mp);y=L(y,fy,mp);z=L(z,.16,mp)+bump(mp)*1.3;w=L(w,.48,mp)}
-  }else label=k;
-  const glow=(m===0&&leader&&n>1&&U(3)>3&&U(3)<6)?'#ffcf70':null;
-  const mf=U(3)>7&&U(4)<.5&&r===0&&leader?'#ff8a8a':null;
-  cube(x,y,z,w,.55,h,col,{txt:label,ts:n>1?9:10,glow:glow||mf});
-  if(tag>0&&U(2)>0&&U(2)<8.6)later(99,()=>ltxt('→'+p,x+.27,y+.27,z+h+.25,{size:9.5,w:800,col:KC[p],a:tag*(1-lin(U(2),7.8,8.6))}));
- });
- // ----- final data file entries
- const dead=crash>.5;
- for(let m=0;m<3;m++)for(let p=0;p<3;p++)BLK[m][p].forEach((b,j)=>{
-  let n=0;[0,1].forEach(r=>{const e=ROWS[m][r].find(e=>e.k===b.k);if(e&&W_(mergeWin(m,b.k,r))>=1)n+=e.recs.length});if(!n)return;
-  if(m!==1&&W_(fetchWin(m,p))>0)return;
-  const[x,y]=finXY(m,p,j);const hl=U(7)>4&&U(8)<1&&!(m===1&&dead);
-  const pend=m===1&&U(8)>1&&!dead?(Math.sin(NOW*5)>0?'#ffcf70':null):null;
-  cube(x,y,.16,.48,.55,.26,m===1&&dead?'#4a4a4a':KC[p],{txt:b.k+(n>1?'×'+n:''),ts:9,glow:hl?'#ffffff':pend});
- });
- if(retryOn)for(let p=0;p<3;p++)BLK[1][p].forEach((b,j)=>{if(W_(fetchWin(1,p))>0)return;const a=seg(U(9),6.4+p*.2+j*.1,7+p*.2+j*.1);const[x,y]=finXY(2,p,j,RETRYY);cube(x,y,.16+(1-a)*1.2,.48,.55,.26,KC[p],{a,txt:b.k+(b.n>1?'×'+b.n:''),ts:9})});
- // ----- task tokens / packets
- const tok=(a,b,p,col,t,s=.55)=>{if(p<=0||p>=1)return;const q=arc(a,b,p,3);cube(q[0]-s/2,q[1]-s/2,q[2],s,s,.35,col,{txt:t,tc:'#222',ts:9})};
- for(let m=0;m<3;m++)tok(drvTop,[EX(m),0,.4],seg(U(1),.6+m*.5,2.6+m*.5),ACC,'T'+m);
- for(let m=0;m<3;m++)tok([EX(m),FINY+.4,.3],drvTop,seg(U(6),.4+m*.6,1.6+m*.6),'#e9cf8f','MS',.45);
- for(let k=0;k<3;k++)tok(drvTop,[RX(k),9.6,.4],seg(U(6),6+k*.35,7.8+k*.35),'#b48cff','R'+k);
- for(let k=0;k<3;k++){tok([RX(k),9.6,.4],drvTop,seg(U(7),.5+k*.2,1.8+k*.2),'#b48cff','?',.4);tok(drvTop,[RX(k),9.6,.4],seg(U(7),2.2+k*.2,3.5+k*.2),'#e9cf8f','≡',.4)}
- for(let k=0;k<3;k++)tok([RX(k),9.6,.4],drvTop,seg(U(9),3.4+k*.15,4.5+k*.15),'#ff6b6b','!',.4);
- tok(drvTop,[EX(2),0,.4],seg(U(9),5,6.2),ACC,'T1');
- for(let k=0;k<3;k++)tok([RX(k),TWRY,.6],drvTop,seg(U(10),6.4+k*.3,8.2+k*.3),KC[k],'',.45);
- // failed fetch attempts from dead executor 2
- for(let k=0;k<3;k++){const p=seg(U(9),2+k*.2,3+k*.2);if(p>0&&U(9)<4.2){const q=arc([segX(1,k)+.2,FINY,.16],[...stackXY(1,k),.3],p*.5,3.2);cube(q[0],q[1],q[2],.5,.5,.3,'#ff6b6b',{txt:'✕',a:1-lin(U(9),3.6,4.2)})}}
- // ----- shuffle blocks flying to reducers, then merging into totals
- for(let m=0;m<3;m++)for(let k=0;k<3;k++){const fp=W_(fetchWin(m,k));if(fp<=0)continue;
-  const src=m===1?[segX(2,k)+.15,RETRYY,.16]:[segX(m,k)+.15,FINY,.16];const[sx,sy]=stackXY(m,k);const hgt=.12*blkN(m,k)+.15;
-  const tw=W_(towerWin(m));if(tw>=1)continue;
-  let q=arc(src,[sx,sy,.3],fp,m===k?1.2:3.6);
-  if(tw>0)q=[L(q[0],RX(k)-.6,tw),L(q[1],TWRY,tw),q[2]+bump(tw)*.9];
-  cube(q[0],q[1],q[2],.8,.8,hgt*(1-tw*.6),KC[k],{txt:'m'+m,ts:10,a:1-tw*.6,glow:fp<1?'#ffffff':null});
- }
- for(let k=0;k<3;k++)PKEYS[k].forEach((key,j)=>{let n=0;for(let m=0;m<3;m++)if(W_(towerWin(m))>=1){const e=BLK[m][k].find(e=>e.k===key);if(e)n+=e.n}
-  if(n)cube(RX(k)-1.1+j*1.5,TWRY,.3,.85,.85,.15*n,KC[k],{txt:key+'='+n,ts:11})});
- flush();
- // ----- labels in the scene
- const wtag=U(5)>.5&&U(6)<1;
- for(let m=0;m<3;m++){const dd=m===1&&crash>.5;
-  ltxt(`Executor ${m+1}`,EX(m)-1.8,-1.5,.3,{dy:-24,size:12.5,w:700,col:dd?'#888':'#c9d2e6'});
-  ltxt(dd?'LOST':(wtag?'SortShuffleWriter':`map task ${m}`),EX(m)-1.8,-1.5,.3,{dy:-10,size:10.5,w:dd?800:600,col:dd?'#ff6b6b':(wtag?ACC:'#7f8aa3')})}
- for(let k=0;k<3;k++)ltxt(`Reducer ${k} · partition ${k}`,RX(k)+1.8,11.2,0,{dy:16,size:12,w:700,col:KC[k],a:Math.max(redA,.45)});
- ltxt('Driver',DRV.x+DRV.w,DRV.y+DRV.d,0,{dy:14,size:12.5,w:700,col:'#e9cf8f'});
- ltxt('MapOutputTracker',DRV.x+DRV.w,DRV.y+DRV.d,0,{dy:29,size:10.5,col:'#bfa36a'});
- ltxt('local disk',EX(2)+2.1,2.0,.1,{align:'left',dx:6,size:10.5,col:'#7f8aa3'});
- if(U(3)>1&&U(5)<9)ltxt('in-memory map',EX(2)+1.8,-1.5,.3,{align:'left',dx:6,dy:4,size:10.5,col:'#9aa4b8',a:lin(U(3),1,2)});
- if(U(4)>0&&U(5)<9)ltxt('spill files (temp)',EX(2)+2.1,SPY[0]+.8,.1,{align:'left',dx:6,size:10.5,col:'#c3c8d4',a:lin(U(4),.3,1)*(1-lin(U(5),8,9))});
- if(U(5)>.5)ltxt('.data + .index',EX(2)+2.1,FINY+.85,.1,{align:'left',dx:6,size:10.5,col:'#c3c8d4',a:lin(U(5),.5,1)});
- if(retryOn)ltxt('map 1 (re-run)',EX(2)+2.1,RETRYY+.85,.1,{align:'left',dx:6,size:10.5,w:700,col:'#7fe0b0',a:lin(U(9),6.4,7)});
- ltxt(pass>.5?'barrier passed ✓':'stage boundary (ShuffleDependency)',-2.2,WALLY,.45,{align:'right',dx:-6,size:11,w:700,col:pass>.5?'#7fe0b0':ACC,a:wa});
- if(U(7)>4&&U(8)<1)ltxt('index → bytes [offset[k], offset[k+1])',EX(1)+1.6,FINY+.95,.1,{dy:16,size:10.5,w:700,col:'#e9cf8f',a:lin(U(7),4,4.6)});
- if(U(8)>1&&U(9)<.5)ltxt('queued (in-flight limit)',EX(1)+1.6,FINY+.95,.1,{dy:16,size:10.5,col:'#ffcf70'});
- if(U(9)>2.8&&U(9)<7.5)txt('FetchFailedException (shuffle 0, map 1)',OX+40,500,{size:13,w:800,col:'#ff8a8a',bg:'rgba(40,10,10,.88)',border:'#ff6b6b',a:lin(U(9),2.8,3.2)*(1-lin(U(9),7,7.5))});
- if(U(10)>8.4)txt('collect() → A=6  B=5  C=5  D=6  E=4  F=4',OX+40,500,{size:13,w:700,col:'#7fe0b0',bg:'rgba(9,24,16,.9)',border:'#2fc28a',a:lin(U(10),8.4,8.9)*(1-lin(U(11),0,.4))});
- if(cost>0){const t=cost<3.6?['① disk I/O + serialization: spills & shuffle files','#ff8a8a']:cost<6.6?['② network: every executor → every reducer','#8fb3ff']:['③ skew: one hot key ⇒ one straggling reducer (AQE splits it)','#ffcf70'];txt(t[0],OX+40,500,{size:13,w:700,col:t[1],bg:'rgba(9,13,24,.9)'})}
- // ----- headline overlay (like the first version)
- const ci=chapterAt(NOW);let o=CH[ci].o;if(ci===11)o=cost<3.6?'cost ① disk + serialization':cost<6.6?'cost ② all-to-all network':'cost ③ skew → AQE · push-based shuffle';
- const oa=lin(NOW-ST[ci],0,.6);
- g.save();g.globalAlpha=oa;g.font='600 16px ui-monospace,Menlo,monospace';g.fillStyle=ACC;g.textAlign='left';g.textBaseline='alphabetic';g.fillText(o,24,40);g.restore();
- if(ci===8){let fl=0;for(const[m,k]of FETCH){const p=W_(fetchWin(m,k));if(p>0&&p<1&&m!==k)fl++}g.fillStyle='#222b42';rr(24,54,220,8,4);g.fill();g.fillStyle=ACC;rr(24,54,Math.max(3,220*Math.min(1,fl/3)),8,4);g.fill();txt('bytes in flight (reduce side)',250,58,{align:'left',size:10.5,col:'#8a94a8'})}
- g.font='600 12px system-ui';g.fillStyle='#6f7a92';g.textAlign='right';g.fillText('Stage 0: map side (shuffle write)',980,24);g.fillText('Stage 1: reduce side (shuffle read)',980,540);
+function batch(keys){const ents=[];keys.forEach((k,c)=>{let e=ents.find(e=>e.k===k);if(!e){e={k,slot:ents.length,recs:[]};ents.push(e)}e.recs.push(c)});[...ents].sort((a,b)=>ord(a.k,b.k)).forEach((e,j)=>e.sorted=j);return ents}
+const B1=batch(MAPS[0].slice(0,5)),B2=batch(MAPS[0].slice(5));
+/* ---------- shared layout bits ---------- */
+const EXX=[70,395,720],EW=250,EH=120,ED=100;
+const tileXY=(m,i,y)=>TA(EXX[m],y,EH,14+(i%5)*46,i<5?60:16);
+function execRow(y,o={}){
+ for(let m=0;m<3;m++){const a=o.appear?o.appear(m):1;if(a<=0)continue;const yy=y+(1-a)*40;
+  pbox(EXX[m],yy,EW,EH,ED,{a,label:`EXECUTOR ${m+1}`,lines:4,dot:C.green,bar:o.bar?o.bar(m):null});
+  for(const row of[0,1])for(let c=0;c<5;c++){const i=row*5+c,ta=o.tile?o.tile(m,i):1;if(ta<=0)continue;const[tx,ty]=tileXY(m,i,yy);const k=MAPS[m][i];
+   const st=o.style?o.style(m,i,k):{};tile(tx,ty-(1-ta)*50,k,{a:ta*a,...st})}}}
+function costCard(si,u){if(si<4||si>11)return;const on=[si>4||u>=2.2,si>4||u>=3.6,si>8||(si===8&&u>=2.6),si>10||(si===10&&u>=1.5)];
+ const a=si===4?lin(u,1.6,2.2):1;const x=730,y=200;card(x,y,290,200,'SHUFFLE COST',{a});
+ g.save();g.globalAlpha*=a;const n=on.filter(Boolean).length;g.fillStyle='#ebe6d8';g.fillRect(x+18,y+46,254,12);g.fillStyle=C.brick;g.fillRect(x+18,y+46,254*n/4,12);g.strokeStyle=C.ink;g.lineWidth=1.2;g.strokeRect(x+18,y+46,254,12);
+ ['serialize','disk I/O','network I/O','deserialize'].forEach((s,i)=>{check(x+18,y+74+i*30,on[i],C.brick);txt(s,x+48,y+89+i*30,{size:18,col:on[i]?C.ink:'#bdb8a8'})});g.restore()}
+/* ---------- scenes ---------- */
+const SC=[];const S=o=>SC.push(o);
+S({k:'SPARK INTERNALS · SHUFFLE',title:[['one line, ',C.ink],['two stages',C.navy]],center:true,
+ n:'One line of Spark: map every word to a pair of word and one, then reduceByKey. map is a narrow dependency, so it stays inside the task. reduceByKey is wide: every output partition needs data from every input partition. So the DAGScheduler splits the job into two stages, and the gap between them is the shuffle.',
+ hood:['ShuffleDependency','DAGScheduler','Exchange (in SQL plans)'],
+ draw(u){const code='words.map(w => (w, 1)).reduceByKey(_ + _)';
+  term(90,440,900,76,code,lin(u,.3,3)*code.length,{size:25,cursor:u<3.4});
+  const a0=seg(u,3.2,4.2),a1=seg(u,3.6,4.6);
+  pbox(110,960+(1-a0)*40,290,170,110,{a:a0,label:'STAGE 0 · MAP',lines:6,dot:C.green,bar:1});
+  pbox(640,960+(1-a1)*40,290,170,110,{a:a1,label:'STAGE 1 · REDUCE',lines:6,dot:C.mut,bar:0});
+  pill(255,1030,'map() · narrow',C.green,{a:a0,size:15});pill(785,1030,'reduceByKey() · wide',C.brick,{a:a1,size:15});
+  const w=seg(u,5,6.6);for(let i=0;i<3;i++)for(let j=0;j<3;j++){const A=[400,820+i*40],B=[640,820+j*40];g.save();g.globalAlpha=w*.8;g.strokeStyle=PC[j];g.lineWidth=2;g.beginPath();g.moveTo(...A);g.lineTo(L(A[0],B[0],w),L(A[1],B[1],w));g.stroke();g.restore()}
+  const s=seg(u,6.4,7.6);txt('SHUFFLE',540,700,{size:64,w:700,align:'center',a:s});g.save();g.globalAlpha=s;g.fillStyle=C.navy;g.fillRect(540-150*s,716,300*s,6);g.restore();
+  txt('ShuffleDependency → stage boundary',540,1120,{size:20,col:C.mut,align:'center',a:seg(u,7.4,8.4)});
+ }});
+S({k:'STEP 1 / 11',title:[['keys are ',C.ink],['scattered',C.brick]],
+ n:'The driver sends one ShuffleMapTask to each executor. Each task reads its partition and emits records. But look at key A: it is on every executor. No machine holds all the values for any key, so nothing can be counted yet.',
+ hood:['ShuffleMapTask','TaskScheduler','SortShuffleManager'],
+ draw(u){card(390,440,300,96,'DRIVER',{a:seg(u,0,.8)});txt('TaskScheduler',410,512,{size:22,w:700,a:seg(u,0,.8)});
+  execRow(900,{appear:m=>seg(u,.3+m*.3,1.2+m*.3),bar:m=>seg(u,3,9)*.7,tile:(m,i)=>seg(u,3.4+m*.3+i*.06,4+m*.3+i*.06),
+   style:(m,i,k)=>u>6.6&&k==='A'?{col:C.navy,ring:C.navy}:{}});
+  for(let m=0;m<3;m++){const p=seg(u,1.4+m*.4,2.7+m*.4);if(p>0&&p<1){const a=[540,540],b=TA(EXX[m],900,EH,110,50);const q=qpt(a,b,120,p);tile(q[0]-22,q[1],'T'+m,{col:C.ink,w:44})}}
+  pill(540,990,'3 MAP TASKS RUNNING',C.green,{a:seg(u,4.5,5.2)});
+  txt('where is every "A"?  →  on every executor',540,1080,{size:22,col:C.navy,align:'center',w:700,a:seg(u,6.6,7.4)});
+ }});
+S({k:'STEP 2 / 11',title:[['same key → ',C.ink],['same partition',C.navy]],
+ n:'First, every record gets a destination. The HashPartitioner takes the key\'s hash modulo the number of partitions. A and D go to partition zero, B and E to one, C and F to two. Nothing moves yet. For DataFrames, there are two hundred partitions by default.',
+ hood:['HashPartitioner','nonNegativeMod(key.hashCode, n)','spark.sql.shuffle.partitions = 200'],
+ draw(u){const code='partition = hash(key) % 3';term(260,430,560,64,code,lin(u,.2,1.8)*code.length,{size:23,prompt:'',cursor:u<2});
+  const tag=(m,i)=>seg(u,2.6+m*.5+i*.09,3.2+m*.5+i*.09);
+  execRow(760,{style:(m,i,k)=>{const t=tag(m,i);return t>0?{col:mix(C.pF,PC[PID[k]],t),tc:t>.5?'#fff':C.ink}:{}}});
+  for(let k=0;k<3;k++){const a=seg(u,1.6+k*.25,2.4+k*.25),x=EXX[k],y=1220+(1-a)*30;
+   pbox(x,y,EW,36,ED,{a,label:`PARTITION · ${k}`,ls:14,tint:PC[k]});
+   if(a>0){g.save();g.globalAlpha=a;g.setLineDash([6,5]);g.strokeStyle=PC[k];g.lineWidth=1.6;const p1=TA(x,y,36,14,10),p2=TA(x,y,36,EW-14,10),p3=TA(x,y,36,EW-14,ED-10),p4=TA(x,y,36,14,ED-10);path([p1,p2,p3,p4]);g.stroke();g.restore();
+    txt(PKEYS[k].join(' · '),TA(x,y,36,EW/2,ED/2)[0],TA(x,y,36,EW/2,ED/2)[1]+7,{size:20,w:700,col:PC[k],align:'center',a})}}
+  'ABCDEF'.split('').forEach((K,n)=>{const m=n%3,i=MAPS[m].indexOf(K),p=PID[K];const pr=seg(u,5.6+n*.35,6.6+n*.35);if(pr<=0)return;
+   const[tx,ty]=tileXY(m,i,760);const dst=TA(EXX[p],1220,36,40+PKEYS[p].indexOf(K)*110,48);
+   dashArc([tx+20,ty-24],[dst[0]+20,dst[1]-10],90,{p:pr,col:PC[p],lw:2,a:1-lin(u,9.2,9.8)*.6});
+   if(pr>=1)tile(dst[0],dst[1],K,{dash:[4,4],ink:PC[p],tc:PC[p],shadow:false})});
+  txt('nothing moves yet: records are only tagged',540,1300,{size:20,col:C.mut,align:'center',a:seg(u,7.5,8.3)});
+ }});
+S({k:'STEP 3 / 11',title:[['combine ',C.ink],['in memory',C.navy]],
+ n:'reduceByKey has an aggregator, so each map task combines values before shuffling. Records go into an in-memory map keyed by partition and key. Two A\'s become A times two. Spark estimates the map\'s size by sampling, and when execution memory runs out, it has to spill.',
+ hood:['ExternalSorter','PartitionedAppendOnlyMap','initialMemoryThreshold = 5 MB'],
+ draw(u){drawMapTask(u,'combine')}});
+S({k:'STEP 4 / 11',title:[['spill ',C.ink],['to disk',C.brick]],
+ n:'Spilling means sorting the entries by partition, then key, serializing and compressing them, and writing a temporary spill file to local disk. Memory is freed and the task keeps reading. The next batch fills up and spills too. That is our first cost: serialization and disk I/O.',
+ hood:['spill.compress = true (lz4)','spill.batchSize = 10000','shuffle.file.buffer = 32k'],
+ draw(u){drawMapTask(u,'spill')}});
+S({k:'STEP 5 / 11',title:[['merge: ',C.ink],['data + index',C.navy]],
+ n:'When the task finishes, a k-way merge reads every spill at once and combines matching keys again. A times two plus A times one is A times three. The output is one data file, written partition by partition, plus a small index file of byte offsets. Two files per map task.',
+ hood:['shuffle_<id>_<map>_0.data','IndexShuffleBlockResolver','hash shuffle (old): M × R files'],
+ draw(u){drawMerge(u)}});
+S({k:'STEP 6 / 11',title:[['which ',C.ink],['writer?',C.navy]],
+ n:'Spark picks one of three writers. Bypass writes a file per partition and concatenates them, but only without map-side combine and with at most two hundred partitions. Unsafe sorts tiny eight-byte pointers to serialized bytes. Our reduceByKey combines on the map side, so it gets SortShuffleWriter.',
+ hood:['bypassMergeThreshold = 200','PackedRecordPointer (8 bytes)','SortShuffleManager.registerShuffle'],
+ draw(u){drawWriters(u)}});
+S({k:'STEP 7 / 11',title:[['wait for ',C.ink],['every map',C.brick]],
+ n:'Each finished map task sends a MapStatus to the driver: where its file lives and how big each block is. The MapOutputTracker fills in this table. Reduce tasks cannot start until every map task has reported. That is the shuffle barrier.',
+ hood:['MapStatus','MapOutputTrackerMaster','HighlyCompressedMapStatus (> 2000 parts)'],
+ draw(u){drawBarrier(u)}});
+S({k:'STEP 8 / 11',title:[['fetch over ',C.ink],['network',C.brick]],
+ n:'Each reducer asks the driver where its blocks are, then pulls them. The index file turns partition zero into a single byte range. Local blocks are read straight from disk. Remote blocks stream over the network, at most forty-eight megabytes in flight per reducer. Cost number two: network I/O.',
+ hood:['ShuffleBlockFetcherIterator','maxSizeInFlight = 48m','External Shuffle Service :7337'],
+ draw(u){drawFetch(u)}});
+S({k:'STEP 9 / 11',title:[['an executor ',C.ink],['dies',C.brick]],
+ n:'Now Executor 2 dies, and its shuffle files die with it. The reducers\' fetches fail with a FetchFailedException. The DAGScheduler re-runs only the lost map task, here on Executor 3, and the reducers fetch again. An External Shuffle Service would have kept those files alive.',
+ hood:['FetchFailedException','stage.maxConsecutiveAttempts = 4','shuffle.io.maxRetries = 3'],
+ draw(u){drawFail(u)}});
+S({k:'STEP 10 / 11',title:[['aggregate',C.navy]],
+ n:'Finally, each reducer deserializes its blocks and merges the partial counts in an ExternalAppendOnlyMap. For A, that is three plus one plus two: six. If one key is huge, its reducer becomes the straggler that everyone waits for.',
+ hood:['ExternalAppendOnlyMap','combineCombinersByKey','A=6 B=5 C=5 D=6 E=4 F=4'],
+ draw(u){drawAggregate(u)}});
+S({k:'STEP 11 / 11',title:[['shuffle ',C.ink],['overhead',C.brick]],
+ n:'So every shuffle pays for serialization, disk, network and deserialization, and stage one waits for all of it. To cut it: combine before you shuffle, broadcast small tables, let AQE coalesce small partitions and split skewed ones, and on big clusters, try push-based shuffle.',
+ hood:['spark.sql.adaptive.enabled','skewedPartitionFactor = 5','spark.shuffle.push.enabled'],
+ draw(u){drawOverhead(u)}});
+S({k:'',title:[],center:true,end:true,
+ n:'Partition, combine, spill, merge, fetch, reduce. That is a Spark shuffle.',
+ hood:[],
+ draw(u){txt('SPARK INTERNALS / 01',540,640,{size:20,col:C.mut,align:'center',ls:5,a:seg(u,0,1)});
+  txt('How a Spark',540,760,{size:72,w:700,align:'center',a:seg(u,.5,1.8)});txt('Shuffle Works',540,850,{size:72,w:700,align:'center',col:C.navy,a:seg(u,.8,2.1)});
+  txt('partition → combine → spill → merge → fetch → reduce',540,930,{size:27,f:F.sans,col:'#6f6b60',align:'center',a:seg(u,1.6,2.8)});
+  ['P0','P1','P2'].forEach((s,i)=>{const on=Math.floor(NOW*1.2)%3===i;const a=seg(u,2.4+i*.3,3.2+i*.3);g.save();g.globalAlpha=a;rr(380+i*120,1010,80,46,10);g.fillStyle=on?PC[i]:'#f6f3ea';g.fill();g.lineWidth=2;g.strokeStyle=on?PC[i]:C.ink;g.stroke();g.restore();txt(s,420+i*120,1041,{size:20,w:700,align:'center',col:on?'#fff':C.ink,a})});
+  for(let m=0;m<3;m++)pbox(150+m*270,1300,190,90,70,{a:seg(u,3.4+m*.25,4.4+m*.25),label:`EXECUTOR ${m+1}`,ls:13,dot:C.green,bar:1,lines:2});
+ }});
+/* ---------- complex scenes ---------- */
+const MX=90,MY=760,MW=400,MH=150,MD=120; // big executor in map-task scenes
+const mtile=(r,c)=>TA(MX,MY,MH,22+c*74,r?82:25);
+const rowY=s=>545+s*74;
+function mapRow(e,y,n,o={}){const a=o.a??1;if(a<=.01)return;g.save();g.globalAlpha*=a;const p=PID[e.k];
+ if(o.flash){g.fillStyle=`rgba(38,66,154,${.14*o.flash})`;g.fillRect(575,y-34,410,58)}
+ tile(588,y+12,e.k,{col:PC[p],w:46,h:28,d:12,cs:14});txt(`(P${p}, ${e.k})`,660,y+5,{size:22});txt(n>1?`×${n}`:'×1',975,y+5,{size:26,w:700,align:'right',col:n>1?C.navy:C.ink});g.restore()}
+function drawMapTask(u,mode){
+ const spill=mode==='spill';
+ pbox(MX,MY,MW,MH,MD,{label:'EXECUTOR 1 · MAP TASK 0',lines:5,dot:C.green,bar:spill?.4+u*.05:u*.04});
+ // tiles on the executor
+ for(const r of[1,0])for(let c=0;c<5;c++){const k=MAPS[0][r*5+c];const[tx,ty]=mtile(r,c);
+  let gone=0;if(r===0){gone=mode==='combine'?seg(u,1+c*1.15,1.9+c*1.15):1}else{gone=spill?seg(u,4.8+c*.45,5.4+c*.45):0}
+  if(gone>=1)continue;const a=r===1&&!spill?.45:1;
+  if(gone>0){const dst=[588,rowY(r===0?B1.find(e=>e.k===k).slot:B2.find(e=>e.k===k).slot)+12];const q=qpt([tx,ty],dst,140,gone);tile(q[0],q[1],k,{col:PC[PID[k]],w:46,h:28,d:12,cs:14})}
+  else tile(tx,ty,k,{col:PC[PID[k]],w:50,h:28,d:16,cs:14,a})}
+ if(!spill)txt('next batch',MX+MW+60,MY-MH-60,{size:15,col:C.mut,a:.8});
+ // in-memory map card
+ card(560,450,440,400,'IN-MEMORY MAP');txt('PartitionedAppendOnlyMap',578,500,{size:15,col:C.mut});
+ const arrived=(b,e,t0,dt,dur)=>e.recs.filter(c=>u>=t0+c*dt+dur).length;
+ if(mode==='combine'){B1.forEach(e=>{const n=arrived(B1,e,1,1.15,.9);if(!n)return;const last=1+e.recs[n-1]*1.15+.9;mapRow(e,rowY(e.slot),n,{flash:n>1?1-lin(u,last,last+.8):0})});
+  card(90,910,910,130,'EXECUTION MEMORY');const ents=B1.filter(e=>arrived(B1,e,1,1.15,.9)>0).length;const full=ents>=4;
+  g.fillStyle='#ebe6d8';g.fillRect(115,962,860,24);g.fillStyle=full?C.brick:C.navy;g.fillRect(115,962,860*Math.min(1,ents/4),24);g.strokeStyle=C.ink;g.lineWidth=1.4;g.strokeRect(115,962,860,24);
+  txt('size is estimated by sampling (SizeTracker)',115,1018,{size:15,col:C.mut});txt('threshold',975,1018,{size:15,col:C.mut,align:'right'});
+  pill(540,1095,'MEMORY FULL → SPILL',C.brick,{a:seg(u,7.2,7.8)});
+  return}
+ // spill mode
+ const s1=u<4.8;const sortP=s1?seg(u,.4,1.8):seg(u,7.1,7.7);
+ const B=s1?B1:B2,t0=s1?-99:4.8,dt=.45,dur=.6;
+ const out=e=>seg(u,(s1?2.6:7.9)+e.sorted*.22,(s1?3.5:8.7)+e.sorted*.22);
+ B.forEach(e=>{const n=s1?e.recs.length:arrived(B2,e,4.8,.45,.6);if(!n)return;const y=L(rowY(e.slot),rowY(e.sorted),sortP);const o=out(e);
+  if(o<=0)mapRow(e,y,n);else if(o<1){const q=qpt([588,y+12],[250,1150],120,o);tile(q[0],q[1],e.k+(n>1?'×'+n:''),{col:PC[PID[e.k]],w:L(46,30,o),h:L(28,18,o),d:10,cs:12,a:1-o*.5})}});
+ const ba=lin(u,1.8,2.3)*(1-lin(u,3.6,4))+lin(u,7.6,7.9)*(1-lin(u,8.8,9.2));bin(780,895,'01000001 00110010 01000010 …',{a:ba});txt('serialize + compress (lz4)',780,945,{size:15,col:C.mut,align:'center',a:ba});
+ disk(270,1180,1);
+ const sp=(x,ents,a,lbl)=>{sheet(x,1050,190,180,lbl,{a});if(a>0)ents.slice().sort((p,q)=>p.sorted-q.sorted).forEach((e,j)=>{g.save();g.globalAlpha=a;g.fillStyle=PC[PID[e.k]];g.fillRect(x+14,1090+j*32,162,24);g.restore();txt(e.k+(e.recs.length>1?' ×'+e.recs.length:''),x+24,1108+j*32,{size:15,w:700,col:'#fff',a})})};
+ sp(460,B1,lin(u,3.4,4),'spill_1');sp(690,B2,lin(u,8.5,9.1),'spill_2');
 }
+function drawMerge(u){
+ const S1=B1.slice().sort((a,b)=>a.sorted-b.sorted),S2=B2.slice().sort((a,b)=>a.sorted-b.sorted);
+ const srcPos=(si,j)=>[si?460:130,505+j*46];
+ const del=lin(u,8.2,9);
+ [S1,S2].forEach((Sx,si)=>{const x=si?440:110;sheet(x,450,300,250,`spill_${si+1}`,{a:1-del*.6,strike:del});
+  Sx.forEach((e,j)=>{const[sx,sy]=srcPos(si,j);const w=mergeW(e.k,si);const gone=u>=w[0];g.save();g.globalAlpha=(1-del*.6)*(gone?.22:1);g.fillStyle=PC[PID[e.k]];g.fillRect(sx,sy,260,34);g.restore();txt(e.k+(e.recs.length>1?' ×'+e.recs.length:''),sx+12,sy+24,{size:17,w:700,col:'#fff',a:(1-del*.6)*(gone?.3:1)})})});
+ if(del>0)txt('deleted',425,590,{size:26,w:700,col:C.brick,align:'center',a:del});
+ txt('↓  k-way merge · same keys combine again',430,760,{size:19,col:C.mut,align:'center',a:seg(u,.5,1.2)});
+ sheet(110,800,640,300,'shuffle_0_0_0.data',{a:seg(u,.3,.9)});
+ const colX=p=>130+p*205;
+ for(let p=0;p<3;p++){const a=seg(u,.5+p*.15,1.1+p*.15);g.save();g.globalAlpha=a;g.fillStyle=PC[p];g.fillRect(colX(p),842,190,28);g.restore();txt(`PARTITION ${p}`,colX(p)+95,862,{size:14,w:700,col:'#fff',align:'center',a})}
+ // destination chips
+ const fin=[['A','D'],['B','E'],['C','F']];
+ fin.forEach((ks,p)=>ks.forEach((k,j)=>{const srcs=[[S1,0],[S2,1]].flatMap(([Sx,si])=>Sx.filter(e=>e.k===k).map(e=>({e,si})));
+  let n=0,lastArr=-9;srcs.forEach(({e,si})=>{const w=mergeW(k,si);if(u>=w[1]){n+=e.recs.length;lastArr=Math.max(lastArr,w[1])}});
+  srcs.forEach(({e,si})=>{const w=mergeW(k,si);if(u>=w[0]&&u<w[1]){const pr=ez((u-w[0])/(w[1]-w[0]));const s=srcPos(si,(si?S2:S1).indexOf(e));const d=[colX(p)+10,890+j*56];const q=qpt(s,d,60,pr);g.save();g.fillStyle=PC[p];g.fillRect(q[0],q[1],L(260,170,pr),34);g.restore();txt(k,q[0]+12,q[1]+24,{size:17,w:700,col:'#fff'})}});
+  if(n){const fl=1-lin(u,lastArr,lastArr+.7);g.save();g.fillStyle=mix(PC[p],'#ffffff',.82);g.fillRect(colX(p)+10,890+j*56,170,42);g.strokeStyle=PC[p];g.lineWidth=2+fl*2;g.strokeRect(colX(p)+10,890+j*56,170,42);g.restore();txt(k+(n>1?' ×'+n:''),colX(p)+24,918+j*56,{size:20,w:700,col:PC[p]})}}));
+ const ia=seg(u,6.2,6.9);sheet(785,800,185,300,'.index',{a:ia});
+ ['0','412','798','1180'].forEach((s,i)=>txt(s,805,880+i*50,{size:24,w:700,col:i<3?PC[i]:C.mut,a:ia}));
+ const la=seg(u,6.9,7.8);for(let i=0;i<3;i++){g.save();g.globalAlpha=la*.7;g.setLineDash([5,5]);g.strokeStyle=PC[i];g.lineWidth=1.6;g.beginPath();g.moveTo(800,872+i*50);g.lineTo(colX(i)+4,836);g.stroke();g.restore()}
+ pill(540,1160,'2 FILES PER MAP TASK',C.navy,{a:seg(u,7.6,8.3)});txt('(the old hash shuffle wrote one file per reducer: M × R)',540,1220,{size:16,col:C.mut,align:'center',a:seg(u,8,8.7)});
+}
+function mergeW(k,si){const p=PID[k];const order=['A','D','B','E','C','F'].indexOf(k);const s=1+p*1.7+(order%2)*.55+si*.3;return[s,s+1]}
+function drawWriters(u){
+ const cards=[{t:'BypassMergeSortShuffleWriter',c:[['no map-side combine',false],['partitions ≤ 200',true]]},
+  {t:'UnsafeShuffleWriter',c:[['serializer can relocate bytes',true],['no map-side combine',false],['partitions ≤ 16,777,216',true]]},
+  {t:'SortShuffleWriter',c:[['anything else (fallback)',true]]}];
+ cards.forEach((cd,i)=>{const y=440+i*240,a=seg(u,.3+i*.5,1+i*.5),chosen=i===2&&u>7.4,dim=i<2&&u>3.8+i*1.4+cd.c.length*.4?.5:1;
+  card(90,y,900,210,'',{a:a*dim,border:chosen?C.navy:undefined,lw:chosen?3.5:1.8});
+  txt(`${i+1}`,120,y+52,{size:22,w:700,col:C.mut,a:a*dim});txt(cd.t,155,y+52,{size:27,w:700,col:chosen?C.navy:C.ink,a:a*dim});
+  cd.c.forEach(([s,ok],j)=>{txt(s,175,y+100+j*36,{size:20,col:'#4a4842',a:a*dim});mark(140,y+93+j*36,ok,seg(u,3.6+i*1.4+j*.35,3.9+i*1.4+j*.35)*dim)});
+  // tiny illustrations
+  const ix=760,iy=y+70;
+  if(i===0){const cat=seg(u,1.8,3.4);for(let p=0;p<3;p++){g.save();g.globalAlpha=a*dim;const x=L(ix+p*68,ix+20+p*58,cat);g.fillStyle=PC[p];g.fillRect(x,iy+20,L(52,58,cat),70);g.strokeStyle=C.ink;g.lineWidth=1.4;g.strokeRect(x,iy+20,L(52,58,cat),70);g.restore()}txt('concat',ix+105,iy+120,{size:14,col:C.mut,align:'center',a:a*dim})}
+  if(i===1){const ks='CAEBFD',srt=[...ks].map((k,j)=>j).sort((p,q)=>ord(ks[p],ks[q]));const sp=seg(u,2.4,4.2);[...ks].forEach((k,j)=>{const x=L(ix+j*34,ix+srt.indexOf(j)*34,sp);g.save();g.globalAlpha=a*dim;g.fillStyle=PC[PID[k]];g.fillRect(x,iy+30+bump(sp)*(j%2?-16:16),28,40);g.restore()});txt('8-byte pointers',ix+100,iy+120,{size:14,col:C.mut,align:'center',a:a*dim})}
+  if(i===2){const m=seg(u,2.8,4.4);tile(ix+20+m*45,iy+80,'A',{col:C.navy,w:50,h:30,d:14,cs:14,a:a*(1-lin(u,4.3,4.5))});tile(ix+110-m*45,iy+80,m>=1?'A×2':'A',{col:C.navy,w:50,h:30,d:14,cs:14,a});txt('combine on map side',ix+90,iy+120,{size:14,col:C.mut,align:'center',a})}
+  if(chosen)pill(540,y+210,'USED BY reduceByKey',C.navy,{fill:true,size:15,a:seg(u,7.4,8)});
+ });
+ txt('checked in this order by SortShuffleManager.registerShuffle()',540,1210,{size:17,col:C.mut,align:'center',a:seg(u,8,8.8)});
+}
+function drawBarrier(u){
+ const xs=[110,410,710];
+ xs.forEach((x,m)=>pbox(x,610,220,100,70,{label:`MAP ${m} ✓`,ls:14,lines:2,dot:C.green,bar:1}));
+ card(240,690,600,280,'DRIVER · MAPOUTPUTTRACKER');
+ const cols=[270,370,560,660,760];['map','where','P0','P1','P2'].forEach((s,i)=>txt(s,cols[i],765,{size:16,col:C.mut}));
+ for(let m=0;m<3;m++){const at=1+m*.9+1;const a=lin(u,at,at+.3);txt(`${m}`,cols[0],815+m*46,{size:20,a});txt(`exec ${m+1}`,cols[1],815+m*46,{size:20,a});
+  for(let p=0;p<3;p++)txt(`${blkN(m,p)*3} KB`,cols[2+p],815+m*46,{size:20,w:700,col:PC[p],a});
+  const pr=seg(u,1+m*.9,2+m*.9);if(pr>0&&pr<1){const q=qpt(TA(xs[m],610,100,110,35),[540,760],150,pr);tile(q[0]-24,q[1],'MS',{w:48,h:26,col:'#efe3c4',tc:C.ink})}}
+ const ready=seg(u,4.6,5.2);pill(540,1020,'ALL MAP OUTPUTS REGISTERED',C.green,{a:ready});
+ for(let k=0;k<3;k++){const y=1090+k*72;txt(`STAGE 1 · TASK ${k}`,140,y-10,{size:15,col:C.mut});
+  g.save();g.fillStyle='#f4f0e5';g.fillRect(140,y,760,40);if(u<5.2){const w=760*L(.15,.55,lin(u,0,5));hatch(140,y,w,40,'#c9c3b1')}else{g.fillStyle=C.green;g.fillRect(140,y,760*seg(u,5.4+k*.3,9.5),40)}
+  g.strokeStyle=C.ink;g.lineWidth=1.6;g.strokeRect(140,y,760,40);g.restore();
+  txt(u<5.2?'waiting for map output…':'fetching…',156,y+27,{size:17,col:u<5.2?'#6f6b60':'#fff'})}
+ g.save();g.translate(960,1040);g.rotate(Math.PI*seg(u,5,5.6));g.strokeStyle=C.ink;g.lineWidth=3;g.beginPath();g.moveTo(-16,-22);g.lineTo(16,-22);g.lineTo(-16,22);g.lineTo(16,22);g.closePath();g.stroke();g.restore();
+}
+function drawFetch(u){
+ sheet(90,440,330,210,'shuffle_0_1_0.data');
+ for(let p=0;p<3;p++){g.save();g.fillStyle=PC[p];g.fillRect(106+p*102,486,96,26);g.restore();txt(`P${p}`,154+p*102,505,{size:14,w:700,col:'#fff',align:'center'});
+  BLK[1][p].forEach((e,j)=>{g.save();g.fillStyle=mix(PC[p],'#ffffff',.8);g.fillRect(110+p*102,522+j*48,88,38);g.restore();txt(e.k+(e.n>1?'×'+e.n:''),154+p*102,548+j*48,{size:17,w:700,col:PC[p],align:'center'})})}
+ const ix=seg(u,.8,1.6);if(ix>0){g.save();g.globalAlpha=ix;g.strokeStyle=C.navy;g.lineWidth=4;g.strokeRect(102,480,104,140);g.restore();txt('index → bytes [0, 412)',440,478,{size:19,w:700,col:C.navy,a:ix});txt('one contiguous byte range',440,506,{size:16,col:C.mut,a:ix})}
+ pbox(90,880,300,130,90,{label:'EXECUTOR 2',lines:4,dot:C.green,bar:1});
+ pbox(650,880,300,130,90,{label:'REDUCER 0',lines:4,dot:C.navy,bar:seg(u,6,8.2)});
+ const A=TA(90,880,130,150,45),B=TA(650,880,130,150,45);
+ const ap=seg(u,1.6,2.8);dashArc([A[0],A[1]-10],[B[0],B[1]-10],200,{p:ap,flow:true});
+ const top=qpt([A[0],A[1]-10],[B[0],B[1]-10],200,.5);txt('NETWORK',top[0],top[1]-40,{size:14,col:C.mut,align:'center',ls:2,a:ap});pill(top[0],top[1]-6,'+ network I/O',C.brick,{dot:false,a:seg(u,2.4,3)});
+ for(let w=0;w<2;w++){const p=lin(u,3+w*1.4,5+w*1.4);if(p>0&&p<1){const q=qpt([A[0],A[1]-10],[B[0],B[1]-10],200,p);bin(q[0],q[1]+30,'01000001 00110011',{size:15})}}
+ const bp=seg(u,6,8);if(bp>0){const q=bp<1?qpt([A[0],A[1]-10],[B[0],B[1]-10],200,bp):TA(650,880,130,120,40);tile(q[0]-30,q[1]+(bp<1?0:0),'m1 · P0',{col:C.navy,w:70,h:28,d:14,cs:13})}
+ disk(240,1060,.6);txt('read from local disk',330,1066,{size:15,col:C.mut});
+ pill(540,1115,'EXECUTOR 1 → REDUCER 0 · LOCAL READ',C.green,{size:14,a:seg(u,8.2,8.8)});
+ card(90,1150,900,150,'SHUFFLEBLOCKFETCHERITERATOR');
+ const fl=.35+.45*Math.abs(Math.sin(NOW*1.3));g.fillStyle='#ebe6d8';g.fillRect(110,1200,860,22);g.fillStyle=C.navy;g.fillRect(110,1200,860*fl*seg(u,2.5,3.5),22);g.strokeStyle=C.ink;g.lineWidth=1.4;g.strokeRect(110,1200,860,22);
+ txt('bytes in flight ≤ 48 MB',110,1252,{size:16,w:700});txt('random request order · Netty / ESS',970,1252,{size:15,col:C.mut,align:'right'});
+}
+function drawFail(u){
+ const xs=[110,410,710],EY=600,RY=1240;
+ const crash=seg(u,1,1.8),retry=seg(u,7,7.8);
+ const src=m=>[xs[m]+110,EY+8],dst=k=>{const p=TA(xs[k],RY,100,110,35);return[p[0],p[1]-6]};
+ for(let m=0;m<3;m++)for(let k=0;k<3;k++){const dead=m===1&&crash>.5;const a=m===1?(1-lin(u,4,5)):1;
+  if(m===1&&u>2.4&&u<5){const p=seg(u,2.4+k*.2,3.4+k*.2)*.5;dashArc(src(m),dst(k),60,{p,col:C.brick,lw:2.2,a});if(p>=.49){const q=qpt(src(m),dst(k),60,.5);mark(q[0],q[1],false,a)}}
+  else if(!dead)dashArc(src(m),dst(k),60,{col:PC[k],lw:1.8,a:.55*a,flow:true,dash:[7,8]})}
+ if(retry>0)for(let k=0;k<3;k++)dashArc([xs[2]+170,EY+8],dst(k),80,{p:seg(u,8+k*.25,9.2+k*.25),col:C.green,lw:2.6,flow:true});
+ xs.forEach((x,m)=>{const dead=m===1;pbox(x,EY,220,100,70,{label:`EXECUTOR ${m+1}`,ls:14,lines:2,dot:dead&&crash>.5?C.brick:C.green,bar:1,ink:dead&&crash>.5?C.brick:C.ink,x:dead&&crash>.6,tint:dead&&crash>.5?C.brick:null});
+  const[sx,sy]=TA(x,EY,100,40,40);sheet(sx,sy-58,60,48,'',{a:dead?1-crash*.7:1});
+  if(m===2&&retry>0){const[rx,ry]=TA(x,EY,100,120,40);sheet(rx,ry-58,60,48,'',{a:retry,border:C.green});txt('map 1 ↻',rx+30,ry-66,{size:14,w:700,col:C.green,align:'center',a:retry})}});
+ pill(520,450,'EXECUTOR 2 LOST',C.brick,{a:seg(u,1.4,2)});
+ xs.forEach((x,k)=>pbox(x,RY,220,100,70,{label:`REDUCER ${k}`,ls:14,lines:2,dot:PC[k],bar:u>8?seg(u,8.5,9.8):.4}));
+ const fa=seg(u,3,3.6)*(1-seg(u,7.8,8.3));pill(540,770,'FetchFailedException',C.brick,{fill:true,dot:false,a:fa});
+ const da=seg(u,4.4,5)*(1-seg(u,8.6,9));card(300,830,480,120,'DAGSCHEDULER',{a:da});txt('resubmit map 1 only → executor 3',320,905,{size:20,w:700,a:da});
+ const tp=seg(u,5.6,6.8);if(tp>0&&tp<1){const q=qpt([540,830],TA(xs[2],EY,100,140,40),160,tp);tile(q[0]-22,q[1],'T1',{col:C.ink,w:44})}
+ pill(540,770,'RECOVERED · REFETCHED',C.green,{a:seg(u,8.6,9.2)});
+}
+function drawAggregate(u){
+ const xs=[90,405,720],RY=1180;
+ for(let k=0;k<3;k++){pbox(xs[k],RY,250,120,90,{label:`REDUCER ${k}`,lines:3,dot:PC[k],bar:seg(u,3,8)});txt(PKEYS[k].join(' · '),xs[k]+12,RY-56,{size:15,w:700,col:PC[k]});
+  for(let m=0;m<3;m++){const p=seg(u,.4+m*.45+k*.15,1.2+m*.45+k*.15);if(p<=0)continue;const[tx,ty]=TA(xs[k],RY,120,18+m*76,40);tile(tx,ty-(1-p)*240,'m'+m,{col:PC[k],w:58,h:28,d:14,cs:13,a:p})}}
+ const ca=seg(u,2.8,3.6);card(290,450,500,320,'COUNT · KEY = A',{a:ca});
+ txt('3 + 1 + 2',540,560,{size:38,w:700,align:'center',col:'#6f6b60',a:seg(u,3.4,4.2)});
+ txt('m0   m1   m2',540,596,{size:16,col:C.mut,align:'center',a:seg(u,3.4,4.2)});
+ const n=Math.round(6*seg(u,4.4,5.6));txt(String(n),540,730,{size:150,w:700,align:'center',col:C.navy,a:seg(u,4.2,4.6)});
+ const ar=seg(u,3,3.8);if(ar>0)dashArc(TA(xs[0],RY,120,125,45),[540,775],80,{p:ar,col:C.navy,lw:2});
+ const res=[['A',6],['B',5],['C',5],['D',6],['E',4],['F',4]];
+ res.forEach(([k,v],i)=>{const a=seg(u,6.3+i*.25,6.9+i*.25),x=120+i*143,y=820;g.save();g.globalAlpha=a;rr(x,y,120,52,10);g.fillStyle=PC[PID[k]];g.fill();g.restore();txt(`${k}  ${v}`,x+60,y+35,{size:22,w:700,col:'#fff',align:'center',a})});
+ txt('merged in an ExternalAppendOnlyMap (it can spill too)',540,920,{size:17,col:C.mut,align:'center',a:seg(u,7.6,8.4)});
+}
+function drawOverhead(u){
+ pbox(110,640,210,110,70,{label:'STAGE 0',lines:3,dot:C.green,bar:1});pbox(770,640,210,110,70,{label:'STAGE 1',lines:3,dot:C.mut,bar:.1});
+ ['SERIAL.','DISK I/O','NETWORK','DESER.'].forEach((s,i)=>{const a=seg(u,.5+i*.4,1.2+i*.4);pbox(360+i*98,640-(1-a)*40,86,62,44,{col:C.brick,center:s,cs:11,a,small:true})});
+ txt('stage 1 waits for all of this',555,690,{size:17,col:C.brick,align:'center',a:seg(u,2.4,3)});
+ const tips=[['combine before you shuffle','reduceByKey / aggregateByKey, not groupByKey'],['broadcast small tables','joins under 10 MB (autoBroadcastJoinThreshold) skip it'],['let AQE fix partitions','coalesce toward 64 MB · split skew (> 5× median, > 256 MB)'],['push-based shuffle','Spark 3.2+: blocks merged per partition → fewer reads']];
+ tips.forEach(([t,d],i)=>{const a=seg(u,3.4+i*1.1,4.2+i*1.1),y=760+i*125,x=90+(1-a)*60;card(x,y,900,108,'',{a});
+  g.save();g.globalAlpha=a;rr(x+20,y+24,60,60,8);g.fillStyle=C.navy;g.fill();g.restore();txt(String(i+1),x+50,y+66,{size:28,w:700,col:'#fff',align:'center',a});
+  txt(t,x+104,y+48,{size:24,w:700,a});txt(d,x+104,y+82,{size:19,f:F.sans,col:'#5f5b52',a})});
+}
+/* ---------- timeline ---------- */
+SC.forEach(s=>{s.words=s.n.split(/\s+/);s.dur=Math.max(8,Math.round(s.words.length/2.55+2))});
+const ST=[];let T=0;SC.forEach(s=>{ST.push(T);T+=s.dur});
+let NOW=0;const wrapCache=new Map();
+function wrapped(i){if(wrapCache.has(i))return wrapCache.get(i);g.font=`500 40px ${F.sans}`;const lines=[];let cur=[],w=0;const sp=g.measureText(' ').width;
+ SC[i].words.forEach((wd,j)=>{const ww=g.measureText(wd).width;if(cur.length&&w+sp+ww>900){lines.push(cur);cur=[];w=0}cur.push([wd,j,w+(cur.length?sp:0)]);w+=(cur.length>1?sp:0)+ww});if(cur.length)lines.push(cur);
+ lines.forEach(l=>{let x=0;l.forEach(it=>{it[2]=x;x+=g.measureText(it[0]).width+sp})});wrapCache.set(i,lines);return lines}
+function background(){g.fillStyle=C.bg;g.fillRect(0,0,W,H);g.strokeStyle=C.grid;g.lineWidth=1;g.beginPath();for(let x=0;x<=W;x+=36){g.moveTo(x+.5,0);g.lineTo(x+.5,H)}for(let y=0;y<=H;y+=36){g.moveTo(0,y+.5);g.lineTo(W,y+.5)}g.stroke();
+ const v=g.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,H*.75);v.addColorStop(0,'rgba(255,255,255,0)');v.addColorStop(1,'rgba(120,105,70,.10)');g.fillStyle=v;g.fillRect(0,0,W,H)}
+function header(){txt('> SPARK INTERNALS / SHUFFLE / 01',60,128,{font:`400 25px ${F.pix}`,col:'#3a3833',ls:4});
+ g.save();g.font=`400 25px ${F.pix}`;if('letterSpacing'in g)g.letterSpacing='4px';const w=g.measureText('> SPARK INTERNALS / SHUFFLE / 01').width;g.restore();
+ if(Math.floor(NOW*2)%2===0){g.fillStyle=C.orange;g.fillRect(60+w+8,106,14,24)}
+ g.fillStyle='#cfc9b8';g.fillRect(60,150,960,2);g.fillStyle=C.navy;g.fillRect(60,149,960*(NOW/T),4)}
+function titleBlock(s,i,lt){const a=lin(lt,.1,.6);if(s.end)return;
+ if(s.center){txt(s.k,540,250,{size:19,col:C.mut,align:'center',ls:4,a});let total=0;g.font=`700 54px ${F.mono}`;s.title.forEach(([t])=>total+=g.measureText(t).width);let x=540-total/2;s.title.forEach(([t,c])=>{txt(t,x,330,{size:54,w:700,col:c,a});g.font=`700 54px ${F.mono}`;x+=g.measureText(t).width});return}
+ txt(s.k,90,250,{size:19,col:C.mut,ls:3,a});let x=90;s.title.forEach(([t,c])=>{txt(t,x,322,{size:50,w:700,col:c,a});g.font=`700 50px ${F.mono}`;x+=g.measureText(t).width})}
+function captions(i,lt){const s=SC[i],lines=wrapped(i),n=s.words.length,span=s.dur*.86,wt=span/n;
+ const y0=s.end?1480:1400;
+ lines.forEach((l,li)=>l.forEach(([wd,j,x])=>{const a=cl((lt-j*wt)/.25);txt(wd,90+x,y0+li*60,{size:40,w:500,f:F.sans,col:mix('#c4bfae',C.ink,a)})}));
+ let x=90;const cy=1820;g.font=`400 15px ${F.mono}`;s.hood.forEach((h,k)=>{const w=g.measureText(h).width+26;if(x+w>990)return;const a=lin(lt,1+k*.3,1.6+k*.3);g.save();g.globalAlpha=a;rr(x,cy-17,w,34,17);g.strokeStyle='#8c887c';g.lineWidth=1.4;g.stroke();g.restore();txt(h,x+13,cy+5,{size:15,col:'#5f5b52',a});x+=w+10});
+ txt(`${String(i+1).padStart(2,'0')} / ${SC.length}`,990,1880,{size:15,col:C.mut,align:'right'});
+}
+function frame(){const i=chapterAt(NOW),s=SC[i],lt=NOW-ST[i],u=lt/s.dur*10;
+ background();header();titleBlock(s,i,lt);
+ g.save();const ap=ez(lt/.45);g.globalAlpha=ap;g.translate(0,(1-ez(lt/.6))*28);s.draw(u,lt);g.restore();
+ costCard(i,u);captions(i,lt)}
 /* ---------- player ---------- */
 const chapterAt=tt=>{let i=0;for(let j=0;j<ST.length;j++)if(ST[j]<=tt)i=j;return i};
-const cap=document.getElementById('cap'),sc=document.getElementById('sc'),pp=document.getElementById('pp'),tm=document.getElementById('tm'),ch=document.getElementById('ch'),vc=document.getElementById('vc');
-const btns=CH.map((c,i)=>{const b=document.createElement('button');b.textContent=c.t;b.onclick=()=>{t=ST[i]+.01;cur=-1;if(voice)speechSynthesis.cancel()};ch.appendChild(b);return b});
-let t=0,play=true,last=performance.now(),cur=-1,voice=false;
-pp.onclick=()=>{play=!play;if(play&&t>=T)t=0;pp.textContent=play?'❚❚ Pause':'▶ Play';if(voice){play?speechSynthesis.resume():speechSynthesis.pause()}};
+const $=id=>document.getElementById(id);const pp=$('pp'),sc=$('sc'),tm=$('tm'),vc=$('vc'),recB=$('rec'),ch=$('ch');
+const btns=SC.map((s,i)=>{const b=document.createElement('button');b.textContent=i===0?'intro':s.end?'end':String(i);b.title=s.title.map(x=>x[0]).join('')||'end';b.onclick=()=>go(i);ch.appendChild(b);return b});
+let t=0,play=true,last=performance.now(),cur=-1,voice=false,rec=null;
+function go(i){t=ST[cl(i,0,SC.length-1)]+.01;cur=-1;if(voice)speechSynthesis.cancel()}
+pp.onclick=()=>{play=!play;if(play&&t>=T)t=0;pp.textContent=play?'❚❚ pause':'▶ play';if(voice){play?speechSynthesis.resume():speechSynthesis.pause()}};
 sc.oninput=()=>{t=sc.value/10000*T;if(voice)speechSynthesis.cancel()};
-vc.onclick=()=>{if(!('speechSynthesis' in window)){vc.textContent='No voice';return}voice=!voice;vc.classList.toggle('on',voice);vc.textContent=voice?'🔊 Voice':'🔈 Voice';if(voice)cur=-1;else speechSynthesis.cancel()};
-document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();pp.click()}});
-function speak(i){if(!voice)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(CH[i].c.replace(/<[^>]+>/g,'').replace(/×/g,' times ').replace(/[→⇒]/g,' to ').replace(/≤/g,' at most ').replace(/…/g,'.'));u.rate=1.03;speechSynthesis.speak(u)}
+vc.onclick=()=>{if(!('speechSynthesis'in window)){vc.textContent='no voice';return}voice=!voice;vc.classList.toggle('on',voice);vc.textContent=voice?'🔊 voice':'🔈 voice';if(voice)cur=-1;else speechSynthesis.cancel()};
+recB.onclick=()=>{if(rec){rec.stop();return}if(!cv.captureStream||!window.MediaRecorder){recB.textContent='not supported';return}
+ const mt=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(m=>MediaRecorder.isTypeSupported(m));const chunks=[];
+ rec=new MediaRecorder(cv.captureStream(30),{mimeType:mt,videoBitsPerSecond:8e6});rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+ rec.onstop=()=>{const url=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));const a=document.createElement('a');a.href=url;a.download='spark-shuffle.webm';a.click();rec=null;recB.textContent='⏺ record .webm';recB.classList.remove('on')};
+ if(voice)vc.click();t=0;play=true;pp.textContent='❚❚ pause';rec.start(1000);recB.textContent='■ stop';recB.classList.add('on')};
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();pp.click()}else if(e.key==='ArrowRight')go(chapterAt(t)+1);else if(e.key==='ArrowLeft')go(chapterAt(t)-(t-ST[chapterAt(t)]<1.5?1:0))});
+function speak(i){if(!voice)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(SC[i].n);u.rate=1.02;speechSynthesis.speak(u)}
 const fmt=x=>`${Math.floor(x/60)}:${String(Math.floor(x%60)).padStart(2,'0')}`;
 function loop(now){const dt=Math.min(.1,(now-last)/1000);last=now;
- if(play){const i0=chapterAt(Math.min(t,T-.001));const hold=voice&&speechSynthesis.speaking&&t+dt>=ST[i0]+CH[i0].d-.05&&i0<CH.length-1;if(!hold)t+=dt;if(t>=T+3)t=0}
- NOW=Math.min(t,T-.001);draw();
- sc.value=Math.round(NOW/T*10000);tm.textContent=`${fmt(NOW)} / ${fmt(T)}`;
- const i=chapterAt(NOW);if(i!==cur){cur=i;cap.innerHTML=`<b class="t">${CH[i].t}</b><br>${CH[i].c}<div class="hood">Under the hood: ${CH[i].h.map(x=>`<code>${x}</code>`).join(' ')}</div>`;btns.forEach((b,j)=>b.classList.toggle('on',j===i));if(play)speak(i)}
+ if(play){const i0=chapterAt(Math.min(t,T-.001));const hold=voice&&speechSynthesis.speaking&&t+dt>=ST[i0]+SC[i0].dur-.05&&i0<SC.length-1;if(!hold)t+=dt;
+  if(t>=T){if(rec){t=T;rec.stop()}else{t=T;play=false;pp.textContent='▶ replay'}}}
+ NOW=Math.min(t,T-.001);frame();sc.value=Math.round(NOW/T*10000);tm.textContent=`${fmt(NOW)} / ${fmt(T)}`;
+ const i=chapterAt(NOW);if(i!==cur){cur=i;btns.forEach((b,j)=>b.classList.toggle('on',j===i));if(play)speak(i)}
  requestAnimationFrame(loop)}
-requestAnimationFrame(loop);
+const fontsReady=document.fonts?Promise.race([Promise.all([`700 50px "Space Mono"`,`400 20px "Space Mono"`,`500 40px "IBM Plex Sans"`,`25px "Silkscreen"`].map(f=>document.fonts.load(f))),new Promise(r=>setTimeout(r,2500))]):Promise.resolve();
+fontsReady.then(()=>{wrapCache.clear();last=performance.now();requestAnimationFrame(loop)});
+if(document.fonts)document.fonts.addEventListener('loadingdone',()=>wrapCache.clear());
 </script></body></html>
