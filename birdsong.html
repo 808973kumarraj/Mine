@@ -1,0 +1,1117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Birdsong Lab · how a bird sings with two voices</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{color:#2a2521;font-family:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua","Noto Serif",Georgia,serif;
+  background:radial-gradient(130% 100% at 50% 38%,#fcfaf3 0%,#f9f6ec 55%,#f1ebdc 100%) fixed #f8f5ea;
+  overflow:hidden;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit}
+html.tall body{overflow-y:auto;overflow-x:hidden}
+
+/* the sheet: laid out at a fixed size and scaled to the window by the script */
+#fit{position:absolute;overflow:hidden}
+html.tall #fit{position:relative}
+#app{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0}
+html.tall #app{width:640px;height:auto}
+
+/* ---- left: the play button and the birds ---- */
+#main{display:flex;align-items:center;justify-content:center;gap:13px;width:100%;height:52px;font-weight:600;font-size:20px;letter-spacing:.2px;cursor:pointer;
+  background:#fbf9f2;border:1.5px solid #cfc6b6;box-shadow:inset 0 0 0 3px #fbf9f2,inset 0 0 0 4px #ddd5c6}
+#main .ico{width:0;height:0;border-left:14px solid #2a2521;border-top:8.5px solid transparent;border-bottom:8.5px solid transparent}
+#main.on{color:#8f2f22;background:#f3ddd2;border-color:#bf6f5b;box-shadow:inset 0 0 0 3px #f3ddd2,inset 0 0 0 4px #dba696}
+#main.on .ico{width:15px;height:15px;border:0;border-left:5.5px solid #a43a2c;border-right:5.5px solid #a43a2c}
+.sp{display:grid;grid-template-columns:40px 1fr;column-gap:15px;align-content:center;width:100%;height:58px;margin-top:6.5px;padding:0 12px;text-align:left;cursor:pointer;
+  background:#fbf9f2;border:1.5px solid #d8d0c2}
+#species .sp:first-child{margin-top:9px}
+.sp .hd{grid-row:1 / span 2;width:38px;height:38px;align-self:center}
+.sp b{font-weight:600;font-size:19.5px;line-height:1.12;letter-spacing:.2px}
+.sp i{font-size:15px;line-height:1.3;color:#6d655c}
+.sp.on{border-color:#a43a2c;box-shadow:inset 0 0 0 2.5px #fdfaf4,inset 0 0 0 4px #a43a2c;background:#fdfaf4}
+.sp.on i{color:#a43a2c}
+.sp[data-id=synth].on{border-color:#2c6b62;box-shadow:inset 0 0 0 2.5px #f6f8f2,inset 0 0 0 4px #2c6b62;background:#f6f8f2}
+.sp[data-id=synth].on i{color:#2c6b62}
+
+/* ---- centre: the bird (still layer) and its voice box (animated layer) ---- */
+#scene svg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden}
+#fx{pointer-events:none}
+#fx text{font-family:inherit}
+#fx .hit{pointer-events:all;fill:transparent;cursor:grab;touch-action:none}
+#fx .knob{fill:#fffdf8;stroke:#2a2521;stroke-width:2.1}
+#fx .knob.hot{stroke:#a43a2c;stroke-width:3;fill:#fff}
+#fx .lead{stroke:#b9b0a3;stroke-width:1.3;stroke-dasharray:3.5 4.5}
+#fx .lead.hot{stroke:#a43a2c;stroke-width:1.7}
+#fx .nm{font-weight:600;font-size:19.5px;fill:#2a2521;letter-spacing:.2px}
+#fx .sb{font-style:italic;font-size:15px;fill:#6d655c}
+#fx .lab.hot .nm,#fx .lab.hot .sb{fill:#a43a2c}
+
+/* ---- bottom: the spectrogram ---- */
+#spec .ax{position:absolute;right:100%;top:0;bottom:0;width:70px;margin-right:9px;font-style:italic;font-size:15.5px;color:#6d655c}
+#spec .ax i{position:absolute;right:0;transform:translateY(-50%);white-space:nowrap}
+#sg{position:absolute;left:0;top:0;width:100%;height:100%;border:1.5px solid #cfc6b6;background:#faf7ef}
+#spec .gl{position:absolute;left:1px;right:1px;height:1px;background:rgba(120,105,90,.17);pointer-events:none}
+
+/* ---- right: the SynthBird panel ---- */
+#synth{padding:17px 19px 16px;background:#fbf9f2;border:1.5px solid #cfc6b6;box-shadow:inset 0 0 0 3px #fbf9f2,inset 0 0 0 4px #ddd5c6}
+#synth[hidden]{display:none}
+#synth button{cursor:pointer;background:#fbf9f2;border:1.5px solid #d3cabb}
+#synth .pre{display:grid;grid-template-columns:1fr 1fr;gap:7px 8px}
+#synth .pre button{height:36px;padding:0 9px;text-align:left;font-size:17.5px;font-weight:600;white-space:nowrap}
+#synth .pre i{font-style:normal;font-weight:400;color:#8a8177;margin-right:6px;font-size:15px}
+#synth .pre button.on{background:#e6efe9;border-color:#2c6b62;box-shadow:inset 0 0 0 1px #2c6b62;color:#234f49}
+#synth .modes{display:flex;justify-content:space-between;align-items:center;margin:15px 0 14px;padding:14px 0 0;border-top:1.5px solid #ddd5c6;font:600 13.5px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.5px}
+#synth .modes button{height:30px;padding:0 8px;font:inherit}
+#synth .seg{display:flex}#synth .seg button+button{border-left:0}
+#synth .modes button.on{background:#34576b;border-color:#34576b;color:#fff}
+#synth .oct{display:flex;align-items:center;border:1.5px solid #d3cabb;height:30px}
+#synth .oct button{border:0;height:27px;padding:0 9px;font-size:15px}#synth .oct b{padding:0 4px}
+#synth .sl{display:grid;grid-template-columns:1fr 1fr;gap:9px 10px}
+#synth .s{display:grid;grid-template-columns:1fr auto;align-items:baseline;padding:6px 8px 5px;border:1.5px solid #e2dbcd;font-size:17px;font-weight:600}
+#synth .s output{font:400 13.5px ui-monospace,Menlo,Consolas,monospace;color:#5d564e}
+#synth .s input{grid-column:1 / span 2;-webkit-appearance:none;appearance:none;width:100%;height:20px;margin:1px 0 0;background:transparent;cursor:pointer;touch-action:none}
+#synth .s input::-webkit-slider-runnable-track{height:2.5px;background:linear-gradient(90deg,#8d8d8d,#c57663)}
+#synth .s input::-moz-range-track{height:2.5px;background:linear-gradient(90deg,#8d8d8d,#c57663)}
+#synth .s input::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:17px;margin-top:-7.5px;background:#fffdf8;border:1.6px solid #2a2521;border-radius:1.5px}
+#synth .s input::-moz-range-thumb{width:8px;height:14px;background:#fffdf8;border:1.6px solid #2a2521;border-radius:1.5px}
+#synth .tg{display:grid;grid-template-columns:1fr 1fr;gap:5px;align-content:center;font:600 13.5px ui-monospace,Menlo,Consolas,monospace}
+#synth .tg button{height:25px;font:inherit}
+#synth .tg button.on{background:#34576b;border-color:#34576b;color:#fff}
+#synth .kb{position:relative;height:92px;margin-top:14px;border:1.5px solid #cfc6b6;background:#fffdf8;touch-action:none;user-select:none;-webkit-user-select:none}
+#synth .wk{position:absolute;top:0;bottom:0;width:9.0909%;border-right:1px solid #ddd5c6;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:3px;cursor:pointer;touch-action:none}
+#synth .wk b{font:600 13px ui-monospace,Menlo,Consolas,monospace}#synth .wk i{font-style:normal;font-size:10px;color:#9a9186;line-height:1.1}
+#synth .wk.down{background:#f1cfc5}
+#synth .bk{position:absolute;top:0;height:56%;width:6%;margin-left:-3%;background:#26211e;color:#fff;display:flex;justify-content:center;align-items:flex-end;padding-bottom:3px;cursor:pointer;z-index:2;touch-action:none}
+#synth .bk b{font:600 12.5px ui-monospace,Menlo,Consolas,monospace}
+#synth .bk.down{background:#a43a2c}
+#synth .hint{margin-top:10px;font-size:15.5px;color:#5d564e;white-space:nowrap}#synth .hint b{color:#2a2521}
+
+/* ---- wide screens: everything pinned to its place on the 1920 x 1080 sheet ---- */
+html.wide #side{position:absolute;left:36px;top:30px;width:343px;z-index:3}
+html.wide #scene{position:absolute;left:0;top:0;width:1920px;height:1080px}
+html.wide #synth{position:absolute;left:1500px;top:30px;width:392px;z-index:3}
+html.wide #spec{position:absolute;left:126px;top:933px;width:1656px;height:108px}
+html.wide #parts{display:none}
+
+/* ---- narrow screens: one column, the labels move into a list under the bird ---- */
+html.tall #side{padding:16px 16px 0}
+html.tall #species{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px}
+html.tall .sp{height:54px;margin:0!important;padding:0 7px;grid-template-columns:32px 1fr;column-gap:7px}
+html.tall .sp .hd{width:32px;height:32px}
+html.tall .sp b{font-size:15.5px;grid-row:1 / span 2;align-self:center}
+html.tall .sp i{display:none}
+html.tall #scene{position:relative;height:738px}
+html.tall #fx .labs,html.tall #fx .leads{display:none}
+html.tall #spec{position:relative;margin:0 16px 0 78px;height:96px}
+html.tall #parts{display:grid;grid-template-columns:1fr 1fr;gap:9px 16px;padding:16px 16px 26px}
+html.tall.synthOpen #parts{display:none}
+#parts .pt{padding-left:11px;border-left:3px solid #ddd5c6}
+#parts .pt b{display:block;font-weight:600;font-size:17.5px;line-height:1.15}
+#parts .pt i{display:block;font-size:15px;line-height:1.3;color:#6d655c}
+#parts .pt.hot{border-left-color:#a43a2c}#parts .pt.hot b,#parts .pt.hot i{color:#a43a2c}
+html.tall #synth{margin:16px 16px 26px}
+</style>
+</head>
+<body>
+<div id="fit"><div id="app">
+  <div id="side">
+    <button id="main" type="button"><span class="ico"></span><span>Auto-Sing Bird Song</span></button>
+    <div id="species"></div>
+  </div>
+  <div id="scene">
+    <svg id="art" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+    <svg id="fx" viewBox="0 0 1920 1080" role="img" aria-label="A bird with its voice box exposed; drag the round handles to play it"></svg>
+  </div>
+  <div id="spec">
+    <div class="ax"><i style="top:25%">6 kHz</i><i style="top:50%">4 kHz</i><i style="top:75%">2 kHz</i></div>
+    <canvas id="sg"></canvas>
+    <div class="gl" style="top:25%"></div><div class="gl" style="top:50%"></div><div class="gl" style="top:75%"></div>
+  </div>
+  <div id="parts"></div>
+  <div id="synth" hidden></div>
+</div></div>
+<script>
+/* ==========================================================================
+   Birdsong Lab
+   A playable model of the songbird voice box (the syrinx): two independent
+   sound sources, one on each side, feeding a windpipe, a throat chamber and
+   a beak. Everything is drawn and synthesised in code; nothing is embedded.
+   ========================================================================== */
+'use strict';
+
+/* ---------- small helpers ---------- */
+const $ = (sel, root = document) => root.querySelector(sel);
+const SVGNS = 'http://www.w3.org/2000/svg';
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, p) => a + (b - a) * p;
+const frac = x => x - Math.floor(x);
+const TAU = Math.PI * 2;
+/* "2.4 kHz" / "710 Hz" */
+const fmtHz = f => f >= 1000 ? (f / 1000).toFixed(1) + ' kHz' : Math.round(f / 10) * 10 + ' Hz';
+
+function svg(tag, attrs, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function html(tag, cls, parent, inner) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (inner != null) e.innerHTML = inner;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+/* ---------- the birds ----------
+   tube  : windpipe length x width in mm (sets the resonances of the vocal tract)
+   rest  : the pitch each side of the syrinx settles on when played by hand [left, right] in Hz
+   throat: how far the throat chamber is expanded while singing (1 = wide and warm, 0 = tight and bright) */
+const SPECIES = [
+  { id: 'thrush',      name: 'Wood Thrush',        tag: 'Warm Two-Voice Flute Duet',    tube: [40, 2.7], rest: [2400, 3600], throat: .82 },
+  { id: 'cardinal',    name: 'Northern Cardinal',  tag: 'Sweeping Whistle Handoff',     tube: [46, 2.9], rest: [1900, 3800], throat: .70 },
+  { id: 'canary',      name: 'Waterslager Canary', tag: 'Left-Dominant Water Rolls',    tube: [31, 2.1], rest: [1300, 2600], throat: .62 },
+  { id: 'finch',       name: 'Zebra Finch',        tag: 'Buzzy Notes & Fast Rhythms',   tube: [32, 1.9], rest: [520, 1300],  throat: .30 },
+  { id: 'nightingale', name: 'Common Nightingale', tag: 'Soft-to-Loud Whistle & Trill', tube: [34, 2.3], rest: [1800, 3400], throat: .66 },
+  { id: 'lyrebird',    name: 'Superb Lyrebird',    tag: 'Whistles, Clicks & Mimicry',   tube: [84, 4.6], rest: [900, 2400],  throat: .60 },
+  { id: 'synth',       name: 'SynthBird',          tag: 'Playable bird simulation',     tube: [36, 3.1], rest: [220, 330],   throat: .58 },
+];
+
+/* ==========================================================================
+   Sound engine (Web Audio)
+
+     left voice  ─ oscillator → membrane (wave-shaper) → gate ─┐
+     right voice ─ oscillator → membrane (wave-shaper) → gate ─┼→ breath → windpipe (2 resonances)
+     clicks      ─ noise → band-pass → gate ───────────────────┘        → throat chamber (low-pass)
+                                                                         → beak (low-pass + level) → out
+
+   Two ways of driving it:
+     score mode  – pitch / loudness / roughness of the three sources are scheduled a little ahead of
+                   time from a function of time (a bird's song, or the resting state when played by hand);
+     direct mode – the SynthBird keyboard sets them immediately.
+   The player's own adjustments (breath, pitch bend, balance, windpipe, throat, beak) always go through
+   separate "direct" parameters, so dragging a part responds at once in either mode.
+   ========================================================================== */
+const Sound = (() => {
+  let ctx = null, n = null, schedT = 0;
+  const STEP = 0.002;            // spacing of scheduled control points (s)
+  const AHEAD = 0.14;            // how far ahead the score is scheduled (s)
+  const DRIVE = d => 0.04 + 0.96 * Math.pow(clamp(d, 0, 1), 1.6);                          // membrane drive → input level
+  const LEVEL = p => 2 / (Math.tanh(6 * p + .5) - Math.tanh(-6 * p + .5));                 // keeps loudness even as drive changes
+
+  function build(c) {
+    const gain = (v = 1) => { const g = c.createGain(); g.gain.value = v; return g; };
+    const filter = (type, f, q, db) => { const b = c.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; if (db != null) b.gain.value = db; return b; };
+    /* one shared two-second noise buffer (clicks, breath hiss, membrane roughness) */
+    const len = Math.floor(c.sampleRate * 2), buf = c.createBuffer(1, len, c.sampleRate), data = buf.getChannelData(0);
+    let seed = 22222;
+    for (let i = 0; i < len; i++) { seed = (seed * 16807) % 2147483647; data[i] = seed / 1073741823.5 - 1; }
+    const noise = offset => { const s = c.createBufferSource(); s.buffer = buf; s.loop = true; s.start(0, offset); return s; };
+    /* the vibrating membrane: gentle at low drive (a pure whistle), saturating and lopsided at high drive (a buzz rich in harmonics) */
+    const curve = new Float32Array(2049);
+    for (let i = 0; i < curve.length; i++) { const x = i / 1024 - 1; curve[i] = Math.tanh(6 * x + .5) - Math.tanh(.5); }
+
+    const sum = gain(1);
+    function voice(noiseOffset) {
+      const osc = c.createOscillator(); osc.type = 'sine'; osc.frequency.value = 1000;
+      const pre = gain(DRIVE(.1)), shaper = c.createWaveShaper(), level = filter('highpass', 28, .5), vca = gain(0), bal = gain(1);
+      shaper.curve = curve; shaper.oversample = '2x';
+      /* the lopsided membrane adds a steady offset; `level` removes it before the gate so notes start without a thump */
+      osc.connect(pre); pre.connect(shaper); shaper.connect(level); level.connect(vca); vca.connect(bal); bal.connect(sum);
+      /* roughness: slow noise wobbling the pitch (one amount from the score, one from the player) */
+      const jitter = noise(noiseOffset), slow = filter('lowpass', 420, .5), gritScore = gain(0), gritUser = gain(0);
+      jitter.connect(slow); slow.connect(gritScore); slow.connect(gritUser);
+      gritScore.connect(osc.frequency); gritUser.connect(osc.frequency);
+      osc.start();
+      return { osc, pre, vca, bal, gritScore, gritUser };
+    }
+    const L = voice(0.13), R = voice(0.91);
+    /* clicks */
+    const clickBand = filter('bandpass', 3000, 1.3), clickGate = gain(0);
+    noise(0.47).connect(clickBand); clickBand.connect(clickGate); clickGate.connect(sum);
+    /* breath hiss */
+    const hissBand = filter('highpass', 2600, .7), hiss = gain(0);
+    noise(1.31).connect(hissBand); hissBand.connect(hiss); hiss.connect(sum);
+    /* vocal tract */
+    const breath = gain(0);
+    const tube1 = filter('peaking', 2200, 4.5, 9), tube2 = filter('peaking', 6600, 4.5, 6);
+    const throat = filter('lowpass', 9000, .9), beak = filter('lowpass', 9000, .7);
+    const rumble = filter('highpass', 45, .7), mouth = gain(.8);
+    const comp = c.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 5; comp.attack.value = .004; comp.release.value = .12;
+    const master = gain(.55);
+    sum.connect(breath); breath.connect(tube1); tube1.connect(tube2); tube2.connect(throat); throat.connect(beak);
+    beak.connect(rumble); rumble.connect(mouth); mouth.connect(comp); comp.connect(master); master.connect(c.destination);
+    /* what the spectrogram listens to */
+    const analyser = c.createAnalyser(); analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0;
+    analyser.minDecibels = -92; analyser.maxDecibels = -24;
+    mouth.connect(analyser);
+    /* SynthBird's wobble (LFO): one slow oscillator that can be sent to the throat, the pitch, the windpipe or the roughness */
+    const lfo = c.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 3;
+    const lfoWah = gain(0), lfoPitch = gain(0), lfoTube = gain(0), lfoGrit = gain(0);
+    lfo.connect(lfoWah); lfo.connect(lfoPitch); lfo.connect(lfoTube); lfo.connect(lfoGrit);
+    lfoWah.connect(throat.detune); lfoPitch.connect(L.osc.detune); lfoPitch.connect(R.osc.detune);
+    lfoTube.connect(tube1.detune); lfoTube.connect(tube2.detune); lfoGrit.connect(L.gritUser.gain); lfoGrit.connect(R.gritUser.gain);
+    lfo.start();
+    return { L, R, clickBand, clickGate, hiss, breath, tube1, tube2, throat, beak, mouth, master, analyser, lfo, lfoWah, lfoPitch, lfoTube, lfoGrit };
+  }
+
+  /* create the audio context on the first user gesture */
+  function start() {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC({ latencyHint: 'interactive' });
+      n = build(ctx); schedT = ctx.currentTime;
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  const now = () => ctx ? ctx.currentTime : 0;
+  /* the scheduled ("fast") parameters and how a state object maps onto them */
+  const fastParams = () => [n.L.osc.frequency, n.L.pre.gain, n.L.vca.gain, n.L.gritScore.gain, n.R.osc.frequency, n.R.pre.gain, n.R.vca.gain, n.R.gritScore.gain, n.clickBand.frequency, n.clickGate.gain];
+  function fastValues(s) {
+    const pl = DRIVE(s.dL), pr = DRIVE(s.dR);
+    return [s.fL, pl, s.aL * LEVEL(pl) * .5, s.gL * s.fL * .09, s.fR, pr, s.aR * LEVEL(pr) * .5, s.gR * s.fR * .09, s.fN, s.aN * 1.6];
+  }
+  /* forget everything scheduled from now on (used when the bird or the mode changes) */
+  function reset() {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    for (const p of fastParams()) { if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(t); else { const v = p.value; p.cancelScheduledValues(t); p.setValueAtTime(v, t); } }
+    schedT = t;
+  }
+  /* score mode: schedule control points up to AHEAD seconds from now; stateAt(time) describes the three sources */
+  function schedule(stateAt, until) {
+    if (!ctx) return;
+    const t0 = ctx.currentTime, horizon = until || t0 + AHEAD, P = fastParams();
+    if (schedT < t0) schedT = t0;                                 // we fell behind (tab was busy): start again from now
+    while (schedT < horizon) {
+      schedT += STEP;
+      const v = fastValues(stateAt(schedT));
+      for (let i = 0; i < P.length; i++) P[i].linearRampToValueAtTime(v[i], schedT);
+    }
+  }
+  /* direct mode (SynthBird): move straight to a state; `glide` is the pitch slide time, `attack` the loudness time */
+  function play(s, glide, attack) {
+    if (!ctx) return;
+    const t = ctx.currentTime, P = fastParams(), v = fastValues(s);
+    const tc = [glide, .02, attack, .03, glide, .02, attack, .03, .01, .005];
+    for (let i = 0; i < P.length; i++) { if (i === 9) continue; P[i].cancelScheduledValues(t); P[i].setTargetAtTime(v[i], t, Math.max(.001, tc[i])); }
+  }
+  /* a pitch that starts high and falls onto the note (the "pluck") */
+  function pluck(side, f, semitones, glide) {
+    if (!ctx) return;
+    const p = n[side].osc.frequency, t = ctx.currentTime;
+    p.cancelScheduledValues(t); p.setValueAtTime(f * Math.pow(2, semitones / 12), t); p.setTargetAtTime(f, t, Math.max(.012, glide));
+  }
+  /* one short noise click */
+  function click(amount, f) {
+    if (!ctx || amount <= 0) return;
+    const t = ctx.currentTime, g = n.clickGate.gain;
+    n.clickBand.frequency.setValueAtTime(f, t);
+    g.cancelScheduledValues(t); g.setValueAtTime(amount * 1.6, t); g.setTargetAtTime(0, t + .003, .011);
+  }
+  /* the slow, player-controlled side of the model. `d` is a plain object:
+     breath 0..1.4 · balL/balR 0..1 · bendL/bendR (octaves) · grit 0..1 · hiss 0..1
+     tubeLen/tubeWid (mm) · throatHz/throatQ · beak 0..1 (gape) */
+  function direct(d) {
+    if (!ctx) return;
+    const t = ctx.currentTime, set = (p, v, tc = .012) => p.setTargetAtTime(v, t, tc);
+    set(n.breath.gain, d.breath); set(n.L.bal.gain, d.balL); set(n.R.bal.gain, d.balR);
+    set(n.L.osc.detune, d.bendL * 1200); set(n.R.osc.detune, d.bendR * 1200);
+    set(n.L.gritUser.gain, d.grit * d.fL * .12); set(n.R.gritUser.gain, d.grit * d.fR * .12);
+    set(n.hiss.gain, d.hiss * .012);
+    const f1 = clamp(87500 / d.tubeLen, 300, 9000), q = clamp(7.4 - d.tubeWid, 1.4, 6.5);       // quarter-wave tube: c / 4L
+    set(n.tube1.frequency, f1); set(n.tube2.frequency, Math.min(3 * f1, 15000)); set(n.tube1.Q, q); set(n.tube2.Q, q);
+    set(n.throat.frequency, clamp(d.throatHz, 200, 16000), .02); set(n.throat.Q, d.throatQ, .02);
+    set(n.beak.frequency, 500 * Math.pow(28, clamp(d.beak, 0, 1)), .02);
+    set(n.mouth.gain, .16 + .84 * Math.sqrt(clamp(d.beak, 0, 1)), .02);
+  }
+  /* SynthBird's wobble: rate in Hz, depth 0..1, target 'wah' | 'pitch' | 'tube' | 'grit' | null */
+  function wobble(rate, depth, target, fMean) {
+    if (!ctx) return;
+    const t = ctx.currentTime, set = (p, v) => p.setTargetAtTime(v, t, .03);
+    set(n.lfo.frequency, rate);
+    set(n.lfoWah.gain, target === 'wah' ? depth * 2400 : 0);          // cents
+    set(n.lfoPitch.gain, target === 'pitch' ? depth * 300 : 0);       // cents
+    set(n.lfoTube.gain, target === 'tube' ? depth * 1500 : 0);        // cents
+    set(n.lfoGrit.gain, target === 'grit' ? depth * fMean * .25 : 0); // Hz of pitch wobble
+  }
+  function spectrum(bins) { if (n) n.analyser.getByteFrequencyData(bins); }
+  return { start, now, reset, schedule, play, pluck, click, direct, wobble, spectrum,
+           get ctx() { return ctx; }, get binCount() { return n ? n.analyser.frequencyBinCount : 512; }, get rate() { return ctx ? ctx.sampleRate : 48000; } };
+})();
+
+/* ==========================================================================
+   Songs
+   A song is a list of notes for three sources: L (left side of the syrinx, the low voice),
+   R (right side, the high voice) and N (noise clicks). note(voice, start, length, f0, f1, options):
+     a     loudness 0..1              k     shape of the glide from f0 to f1 (1 = even)
+     dr    membrane drive 0..1        gr    roughness 0..1
+     arc   bump in octaves            vib   [rate Hz, depth octaves]  vibrato
+     saw   [rate Hz, depth octaves]   repeated downward sweeps (canary rolls)
+     trem  [rate Hz, depth 0..1, duty] loudness pulses
+     att / rel  attack and release times in seconds
+   voice 'B' writes the same note to both sides, the right one slightly detuned.
+   ========================================================================== */
+function makeSong(len, write) {
+  const V = { L: [], R: [], N: [] };
+  const note = (v, t, d, f0, f1, o = {}) => {
+    if (v === 'B') { note('L', t, d, f0, f1, o); note('R', t, d, f0 * (o.det || .972), f1 * (o.det || .972), o); return; }
+    V[v].push(Object.assign({ t, d, f0, f1, a: .8, k: 1, dr: .1, gr: 0, att: .008, rel: .014 }, o));
+  };
+  write(note);
+  for (const k in V) V[k].sort((a, b) => a.t - b.t);
+  return { len, V };
+}
+/* what one source is doing at time t (seconds into the song) */
+function voiceAt(notes, t) {
+  let upcoming = null;
+  for (const m of notes) {
+    if (t < m.t) { upcoming = m; break; }
+    const u = t - m.t;
+    if (u <= m.d) {
+      const p = u / m.d;
+      let f = m.f0 * Math.pow(m.f1 / m.f0, Math.pow(p, m.k));
+      if (m.arc) f *= Math.pow(2, m.arc * Math.sin(Math.PI * p));
+      if (m.vib) f *= Math.pow(2, m.vib[1] * Math.sin(TAU * m.vib[0] * u));
+      if (m.saw) f *= Math.pow(2, -m.saw[1] * frac(m.saw[0] * u));
+      let e = Math.min(1, u / m.att) * Math.min(1, (m.d - u) / m.rel);
+      e = e * e * (3 - 2 * e);
+      if (m.trem) {
+        const ph = frac(m.trem[0] * u), duty = m.trem[2];
+        const pulse = duty ? (ph < duty ? Math.sin(Math.PI * ph / duty) : 0) : .5 - .5 * Math.cos(TAU * ph);
+        e *= 1 - m.trem[1] + m.trem[1] * pulse;
+      }
+      return { f, a: m.a * e, d: m.dr, g: m.gr, on: true };
+    }
+  }
+  const m = upcoming || notes[0];                       // silent: wait on the pitch of the next note
+  return m ? { f: m.f0, a: 0, d: m.dr, g: 0, on: false } : { f: 1000, a: 0, d: .1, g: 0, on: false };
+}
+/* the whole song at time t, in the shape the sound engine wants */
+function songAt(song, t) {
+  t = ((t % song.len) + song.len) % song.len;
+  const l = voiceAt(song.V.L, t), r = voiceAt(song.V.R, t), c = voiceAt(song.V.N, t);
+  return { fL: l.f, aL: l.a, dL: l.d, gL: l.g, fR: r.f, aR: r.a, dR: r.d, gR: r.g, fN: c.f, aN: c.a };
+}
+
+const SONGS = {
+  /* Wood Thrush: soft low "bup" notes, a flute phrase with the two sides singing a chord, then a trill where each side shimmers at its own speed */
+  thrush: makeSong(3.7, n => {
+    n('L', .00, .05, 1750, 1650, { a: .3 }); n('L', .11, .05, 1750, 1650, { a: .36 }); n('L', .22, .05, 1800, 1700, { a: .3 });
+    n('R', .36, .22, 3500, 3550, { a: .8, att: .02 }); n('L', .36, .30, 2450, 2500, { a: .6, att: .03 });
+    n('R', .60, .14, 4700, 4750, { a: .7 }); n('L', .68, .16, 2050, 2000, { a: .7 });
+    n('R', .90, .42, 5300, 5200, { a: .75, trem: [58, .9], vib: [58, .03] }); n('L', .90, .42, 4250, 4300, { a: .6, trem: [43, .85] });
+    n('L', 1.78, .05, 1600, 1550, { a: .3 }); n('L', 1.89, .05, 1600, 1550, { a: .36 });
+    n('L', 2.03, .20, 2050, 2900, { a: .7, k: .6 }); n('R', 2.05, .36, 3100, 3150, { a: .5 }); n('L', 2.25, .16, 2900, 2050, { a: .7 });
+    n('R', 2.45, .26, 4100, 4050, { a: .7 }); n('L', 2.45, .26, 2700, 2750, { a: .6 });
+    n('R', 2.75, .40, 6200, 6000, { a: .6, trem: [62, .9] }); n('L', 2.75, .40, 3300, 3350, { a: .55, trem: [31, .8] });
+  }),
+  /* Northern Cardinal: each whistle sweeps so far that one side starts it and the other finishes it */
+  cardinal: makeSong(3.5, n => {
+    for (let i = 0; i < 5; i++) { const t = .05 + i * .33; n('R', t, .135, 6500, 3550, { a: .85, k: .8, dr: .14 }); n('L', t + .12, .15, 3700, 1750, { a: .9, k: .9, dr: .14 }); }
+    for (let i = 0; i < 4; i++) { const t = 1.9 + i * .30; n('L', t, .105, 1800, 3450, { a: .9, dr: .14 }); n('R', t + .092, .11, 3300, 6100, { a: .85, dr: .14 }); }
+  }),
+  /* Waterslager Canary: long rolls of tiny falling notes, almost all from the left side, with a low "water" roll */
+  canary: makeSong(3.8, n => {
+    n('L', .05, 1.45, 1520, 1460, { a: .8, saw: [22, .42], trem: [22, .78, .7], dr: .3 });
+    n('L', 1.62, 1.15, 960, 900, { a: .85, saw: [30, .17], trem: [30, .82, .6], dr: .44 });
+    n('R', 2.94, .07, 2500, 2100, { a: .6 }); n('R', 3.05, .07, 2450, 2050, { a: .6 }); n('R', 3.16, .08, 2400, 2000, { a: .6 });
+  }),
+  /* Zebra Finch: low, buzzy notes stacked with harmonics, in a quick fixed rhythm */
+  finch: makeSong(2.75, n => {
+    for (let i = 0; i < 4; i++) n('B', .05 + i * .105, .07, 480, 460, { a: .7, dr: .95 });
+    const motif = t => {
+      n('L', t, .12, 640, 500, { a: .8, dr: .9 }); n('R', t, .12, 620, 480, { a: .5, dr: .9 });
+      n('R', t + .15, .09, 1400, 1150, { a: .7, dr: .6 }); n('L', t + .15, .09, 470, 470, { a: .6, dr: .9 });
+      n('L', t + .27, .06, 520, 520, { a: .7, dr: 1, gr: .8 }); n('N', t + .27, .06, 4000, 4000, { a: .22 });
+      n('B', t + .36, .17, 560, 520, { a: .85, dr: .95 });
+      n('R', t + .56, .06, 3600, 2400, { a: .6, dr: .4 });
+      n('B', t + .65, .09, 500, 450, { a: .8, dr: .95 });
+    };
+    motif(.55); motif(1.45);
+  }),
+  /* Common Nightingale: whistles that grow from a whisper, then a loud rattling trill and a flourish */
+  nightingale: makeSong(4.3, n => {
+    for (let i = 0; i < 6; i++) n('R', .1 + i * .27, .19, 3350, 3050, { a: .1 + .16 * i, att: .02 });
+    for (let i = 0; i < 14; i++) { const t = 1.85 + i * .058; n('L', t, .034, 3900, 1900, { a: .9, k: .7, dr: .3 }); if (i % 2) n('R', t + .032, .02, 7000, 6500, { a: .5 }); }
+    n('L', 2.75, .09, 1700, 1500, { a: .9, dr: .5 }); n('R', 2.87, .22, 4200, 4600, { a: .8 }); n('L', 2.87, .22, 2100, 2300, { a: .6 });
+  }),
+  /* Superb Lyrebird: a mimic. A whistle, chips and clicks, borrowed calls, a whip-crack, "laser" notes and a camera shutter */
+  lyrebird: makeSong(5.7, n => {
+    n('R', .05, .30, 3050, 2050, { a: .9 });
+    for (let i = 0; i < 5; i++) { const t = .5 + i * .115; n('N', t, .03, 2600, 2600, { a: .7 }); n('L', t + .01, .05, 2900, 2100, { a: .6, dr: .5 }); }
+    n('L', 1.25, .22, 1050, 1050, { a: .8, dr: .7 }); n('R', 1.25, .22, 3000, 3050, { a: .5 });
+    n('L', 1.50, .18, 820, 800, { a: .8, dr: .7 }); n('R', 1.50, .18, 2400, 2300, { a: .5 });
+    n('L', 1.70, .25, 700, 1000, { a: .8, dr: .7 }); n('R', 1.70, .25, 2000, 2600, { a: .5 });
+    n('L', 2.15, .30, 1300, 2400, { a: .7 }); n('R', 2.42, .26, 2300, 4200, { a: .9 });
+    n('R', 2.70, .045, 7000, 1200, { a: 1, k: .5 }); n('N', 2.70, .04, 5000, 5000, { a: .6 });
+    for (let i = 0; i < 3; i++) n('R', 3.05 + i * .16, .09, 4800, 1500, { a: .8, k: .6 });
+    n('R', 3.65, .5, 2600, 2600, { a: .85, arc: .55, att: .03, rel: .05 });
+    for (const t of [4.35, 4.75]) { n('N', t, .02, 3500, 3500, { a: .8 }); n('L', t + .03, .12, 330, 300, { a: .7, dr: 1 }); n('N', t + .17, .02, 3000, 3000, { a: .8 }); }
+  }),
+};
+
+/* ==========================================================================
+   Artwork: each bird, its perch and its card icon are drawn as SVG from a few numbers.
+   Coordinates are in the 1920 x 1080 design space; the voice box sits in the same place for every bird.
+   ========================================================================== */
+const LOOK = {
+  thrush:      { belly: '#f3efe3', mantle: '#a8693f', head: '#b4522b', wing: '#6c6a46', wing2: '#4f4f36', tail: '#6a5a41', leg: '#c9a48f', beakU: '#4a413a', beakL: '#c7a181', beak: [68, 21], tailTo: [690, 794], tailW: 24, perch: 'leaf', marks: 'spots' },
+  cardinal:    { cover: 1, belly: '#cf2a2f', mantle: '#b01f29', head: '#d42b2e', wing: '#9a1c26', wing2: '#6f141d', tail: '#a81f28', leg: '#8a5b4a', beakU: '#e8562b', beakL: '#d94a25', beak: [46, 36], tailTo: [672, 806], tailW: 34, perch: 'leaf', marks: 'cardinal' },
+  canary:      { cover: 1, belly: '#f6dc4a', mantle: '#eccb2e', head: '#f5d83c', wing: '#e3c64a', wing2: '#b99f2f', tail: '#d9bb35', leg: '#d8a78c', beakU: '#e9b592', beakL: '#e0a985', beak: [34, 21], tailTo: [706, 780], tailW: 28, perch: 'leaf', marks: 'canary' },
+  finch:       { belly: '#f4f1e8', mantle: '#8c8a86', head: '#9aa0a5', wing: '#8a8279', wing2: '#665f58', tail: '#1f1c1a', leg: '#e08a4c', beakU: '#e3452c', beakL: '#d63c26', beak: [38, 32], tailTo: [716, 772], tailW: 30, perch: 'gum', marks: 'finch' },
+  nightingale: { belly: '#efe7d8', mantle: '#98694a', head: '#9c6b4b', wing: '#8a5a3c', wing2: '#6a432c', tail: '#b4502d', leg: '#cdaa96', beakU: '#4d423a', beakL: '#c3a084', beak: [54, 16], tailTo: [676, 806], tailW: 34, perch: 'leaf', marks: 'plain' },
+  lyrebird:    { belly: '#b7aea4', mantle: '#7c6e65', head: '#7a6c64', wing: '#8e4f34', wing2: '#6a3826', tail: '#6c5f57', leg: '#4a4440', beakU: '#3c3531', beakL: '#4a423d', beak: [58, 21], tailTo: [730, 720], tailW: 26, perch: 'fern', marks: 'lyre' },
+  synth:       { cover: 1, belly: '#8fa7b3', mantle: '#4f6b7b', head: '#587686', wing: '#3f5b6c', wing2: '#2c4352', tail: '#415c6c', leg: '#93a2aa', beakU: '#6b7f8a', beakL: '#c2a04c', beak: [70, 18], tailTo: [682, 800], tailW: 30, perch: 'cable', marks: 'metal' },
+};
+const BODY = 'M1124,262 C1118,246 1100,238 1082,240 C1058,242 1040,258 1036,282 C1032,314 1012,344 990,376 C956,424 906,500 868,556 C858,572 850,588 846,600 L880,624 C930,632 1005,630 1050,616 C1092,602 1118,548 1127,486 C1134,430 1132,372 1124,330 C1120,312 1122,298 1126,286 Z';
+const WING = 'M990,398 C972,404 950,428 930,458 C894,516 846,580 774,664 C812,646 846,626 872,604 C890,590 902,580 912,566 C950,540 990,490 1004,440 C1008,420 1002,402 990,398 Z';
+const HINGE = [1124, 274];                                   // where the lower half of the beak pivots
+
+/* the two halves of the beak (drawn on the animated layer so the lower one can open) */
+function beakPaths(L) {
+  const [len, dep] = L.beak, x = HINGE[0], y = HINGE[1];
+  return {
+    upper: `M${x - 2},${y - dep * .52} C${x + len * .32},${y - dep * .56} ${x + len * .76},${y - dep * .2} ${x + len},${y + 2} L${x - 2},${y + 3} Z`,
+    lower: `M${x - 2},${y + 2} L${x + len * .92},${y + 3} C${x + len * .62},${y + dep * .44} ${x + len * .26},${y + dep * .5} ${x - 2},${y + dep * .44} Z`,
+    tip: [x + len, y + 2],
+  };
+}
+function leaf(x, y, len, deg, fill, vein) {
+  const w = len * .3;
+  return `<g transform="translate(${x} ${y}) rotate(${deg})"><path d="M0,0 C${len * .28},${-w} ${len * .78},${-w * .82} ${len},0 C${len * .78},${w * .82} ${len * .28},${w} 0,0 Z" fill="${fill}"/><path d="M2,0 L${len - 4},0" stroke="${vein}" stroke-width="1.2" fill="none"/></g>`;
+}
+function flower(x, y, r, petal, heart) {
+  let s = '';
+  for (let i = 0; i < 5; i++) { const a = i * TAU / 5 - .3; s += `<circle cx="${(x + Math.cos(a) * r).toFixed(1)}" cy="${(y + Math.sin(a) * r).toFixed(1)}" r="${r * .82}" fill="${petal}" stroke="#d9d3c2" stroke-width=".6"/>`; }
+  return s + `<circle cx="${x}" cy="${y}" r="${r * .55}" fill="${heart}"/>`;
+}
+function frond(x, y, deg, len, col) {                          // a fern frond: a stem with leaflets on both sides
+  let s = `<g transform="translate(${x} ${y}) rotate(${deg})"><path d="M0,0 Q${len * .5},${-len * .12} ${len},0" stroke="#5f7d4f" stroke-width="2" fill="none"/>`;
+  for (let i = 1; i < 16; i++) {
+    const p = i / 16, px = len * p, py = -len * .12 * 4 * p * (1 - p) * .5 - 0, l = (1 - p * .75) * len * .2;
+    s += `<path d="M${px},${py} l${l * .35},${-l} M${px},${py} l${l * .2},${l}" stroke="${col}" stroke-width="${3.2 - p * 1.6}" stroke-linecap="round" fill="none"/>`;
+  }
+  return s + '</g>';
+}
+
+function perch(kind) {
+  const twig = 'M586,771 C760,742 900,722 1010,721 C1150,720 1300,734 1440,745 L1440,748 C1300,741 1150,729 1010,730 C900,732 760,753 588,775 Z';
+  if (kind === 'cable') {
+    let s = `<path d="M600,762 C760,742 900,724 1010,722 C1150,721 1280,734 1360,741" stroke="#3f3632" stroke-width="9" fill="none" stroke-linecap="round"/>
+      <path d="M600,762 C760,742 900,724 1010,722 C1150,721 1280,734 1360,741" stroke="#7b6a5c" stroke-width="2.4" stroke-dasharray="5 6" fill="none"/>
+      <rect x="596" y="756" width="26" height="12" fill="#a9b1b5" stroke="#4a4f52" transform="rotate(-7 600 762)"/>
+      <rect x="1356" y="735" width="38" height="13" rx="2" fill="#c9a548" stroke="#7a6226" transform="rotate(4 1375 741)"/>
+      <path d="M1394,739 l40,3 l10,2 l-10,3 l-40,1 Z" fill="#b8c0c4" stroke="#5a6266" transform="rotate(1 1394 742)"/>
+      <path d="M1196,720 C1240,700 1270,742 1232,752 C1205,758 1190,738 1212,728" stroke="#a0473c" stroke-width="2.2" fill="none"/>`;
+    for (const [x, y] of [[716, 716], [1280, 708]]) s += `<path d="M${x - 9},${y + 14} v-26 a9,10 0 0 1 18,0 v26 Z" fill="#eef1ee" fill-opacity=".8" stroke="#69757b" stroke-width="1.6"/><rect x="${x - 4}" y="${y - 8}" width="8" height="16" fill="#9aa5ab"/><rect x="${x - 11}" y="${y + 14}" width="22" height="9" fill="#c9a548" stroke="#7a6226"/>`;
+    for (const [x, y] of [[797, 716], [1197, 712]]) s += `<rect x="${x - 7}" y="${y}" width="14" height="6" rx="2" fill="#3f7a80"/><rect x="${x - 6}" y="${y - 8}" width="12" height="6" rx="2" fill="#4a8a90"/><rect x="${x - 4}" y="${y - 15}" width="8" height="6" rx="2" fill="#3f7a80"/><rect x="${x - 8}" y="${y + 6}" width="16" height="6" fill="#c9a548"/>`;
+    return { back: '', branch: s, front: '' };
+  }
+  const branch = `<path d="${twig}" fill="#8b705c"/><path d="M700,756 C740,742 790,733 830,730" stroke="#8b705c" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+  if (kind === 'fern') {
+    return { back: frond(1230, 742, -62, 150, '#7fa66d') + frond(700, 752, -150, 130, '#7fa66d'),
+             branch,
+             front: frond(1245, 746, -18, 200, '#5f8f55') + frond(1250, 748, 22, 160, '#6b9a5e') + frond(720, 756, 168, 190, '#5f8f55') + frond(735, 760, 205, 150, '#6b9a5e') };
+  }
+  if (kind === 'gum') {                                       // narrow gum leaves and yellow blossom
+    const g1 = '#7f9a6b', g2 = '#93ad80', v = '#5d7550';
+    return { back: leaf(730, 748, 120, 200, g2, v) + leaf(1290, 736, 110, -28, g2, v),
+             branch,
+             front: leaf(720, 752, 135, 158, g1, v) + leaf(735, 756, 110, 120, g1, v) + leaf(1296, 738, 130, 14, g1, v) + leaf(1300, 742, 105, 48, g1, v) + flower(738, 738, 6, '#f1df6a', '#d9b53a') + flower(726, 748, 5, '#f1df6a', '#d9b53a') + flower(1302, 728, 6, '#f1df6a', '#d9b53a') };
+  }
+  const g1 = '#4f8a45', g2 = '#9dbf8b', v = '#356b30';
+  return { back: leaf(712, 716, 110, 232, g2, '#7ea06f') + leaf(1262, 724, 100, -62, g2, '#7ea06f'),
+           branch,
+           front: leaf(716, 722, 118, 196, g1, v) + leaf(700, 742, 112, 142, '#5a9550', v) + leaf(722, 732, 92, 262, '#63a058', v) + leaf(1290, 736, 122, 24, g1, v) + leaf(1300, 740, 96, 68, '#5a9550', v) + leaf(1276, 730, 84, -18, '#63a058', v) + flower(731, 716, 7.5, '#fbfaf3', '#e9d889') + flower(1303, 729, 7.5, '#fbfaf3', '#e9d889') };
+}
+
+function tail(L, kind) {
+  const [tx, ty] = L.tailTo, w = L.tailW;
+  if (kind === 'lyre') {                                      // a fan of filmy plumes edged by two long banded feathers
+    let s = '';
+    for (let i = 0; i < 30; i++) {
+      const p = i / 29, a = lerp(184, 226, p) * Math.PI / 180, r = lerp(250, 400, Math.sin(p * Math.PI) * .5 + p * .5) + 26 * Math.sin(i * 2.3);
+      const ex = 872 + Math.cos(a) * r, ey = 606 - Math.sin(a) * r * .8;
+      s += `<path d="M872,606 Q${((872 + ex) / 2).toFixed(0)},${((606 + ey) / 2 - 22 + p * 30).toFixed(0)} ${ex.toFixed(0)},${ey.toFixed(0)}" stroke="#8f8279" stroke-width="1" fill="none" opacity=".7"/>`;
+    }
+    for (const d of ['M874,600 C790,596 700,606 612,640', 'M880,614 C820,668 760,730 708,800'])
+      s += `<path d="${d}" stroke="#efe6d6" stroke-width="9" fill="none" stroke-linecap="round"/><path d="${d}" stroke="#9a6a50" stroke-width="7" fill="none" stroke-linecap="butt" stroke-dasharray="8 5"/>`;
+    return s;
+  }
+  const bx = 842, by = 596, cx = 876, cy = 620, dx = tx - (bx + cx) / 2, dy = ty - (by + cy) / 2, l = Math.hypot(dx, dy), nx = -dy / l * w / 2, ny = dx / l * w / 2;
+  let s = `<path d="M${bx},${by} L${tx + nx},${ty + ny} L${tx - nx},${ty - ny} L${cx},${cy} Z" fill="${L.tail}"/>`;
+  s += `<path d="M${(bx + cx) / 2},${(by + cy) / 2} L${tx},${ty} M${bx + 9},${by + 6} L${tx + nx * .5},${ty + ny * .5}" stroke="rgba(0,0,0,.22)" stroke-width="1.4" fill="none"/>`;
+  if (kind === 'finch') for (let i = 1; i < 6; i++) { const p = .2 + i * .14; s += `<path d="M${lerp(bx, tx + nx, p)},${lerp(by, ty + ny, p)} L${lerp(cx, tx - nx, p)},${lerp(cy, ty - ny, p)}" stroke="#f6f3ea" stroke-width="9"/>`; }
+  return s;
+}
+
+function markings(kind, L) {
+  let s = '';
+  if (kind === 'spots') {                                     // spotted breast
+    const P = [[1118, 372], [1112, 404], [1121, 438], [1108, 462], [1118, 494], [1100, 522], [1108, 552], [1082, 568], [1090, 596], [1060, 588], [1040, 606], [1016, 600], [990, 606], [962, 596], [940, 588], [972, 566], [952, 552], [990, 540], [1004, 574], [984, 520]];
+    for (const [x, y] of P) s += `<circle cx="${x}" cy="${y}" r="6.2" fill="#1d1916"/>`;
+  } else if (kind === 'cardinal') {                           // crest and black mask
+    s += `<path d="M1046,268 C1040,236 1026,214 1006,196 C1040,198 1076,216 1096,242 Z" fill="${L.head}"/><path d="M1104,252 C1128,250 1136,268 1132,296 C1124,308 1108,306 1100,292 C1094,276 1096,260 1104,252 Z" fill="#1c1513"/>`;
+  } else if (kind === 'canary') {
+    s += `<path d="M1000,420 C960,470 900,540 820,620" stroke="#f8efb4" stroke-width="5" fill="none" opacity=".8"/>`;
+  } else if (kind === 'finch') {                              // orange cheek, barred throat, breast band, spotted chestnut flank
+    s += `<ellipse cx="1076" cy="296" rx="21" ry="19" fill="#e8782a"/><path d="M1108,292 l-3,22" stroke="#1d1916" stroke-width="3"/>`;
+    for (let i = 0; i < 7; i++) s += `<path d="M${1098 - i * 1.5},${322 + i * 8} q14,5 28,-1" stroke="#2a2522" stroke-width="2.2" fill="none"/>`;
+    s += `<path d="M1086,384 q24,8 44,-2" stroke="#1d1916" stroke-width="7" fill="none"/><path d="M1010,520 C980,560 950,590 915,606 C960,618 1010,596 1030,548 Z" fill="#b5552f"/>`;
+    for (const [x, y] of [[990, 560], [968, 582], [1004, 584], [946, 598], [1016, 552]]) s += `<circle cx="${x}" cy="${y}" r="3.4" fill="#fbf8ef"/>`;
+  } else if (kind === 'lyre') {
+    s += `<path d="M1096,300 C1118,300 1130,330 1126,372 C1104,366 1088,340 1096,300 Z" fill="#b3543a" opacity=".9"/>`;
+  } else if (kind === 'metal') {                              // seams, rivets, antennae, a brass shoulder
+    s += `<path d="M1040,300 C1080,318 1110,316 1128,306 M1000,372 C1050,392 1100,392 1132,380 M930,470 C990,500 1070,500 1128,480 M890,548 C950,580 1040,584 1104,560" stroke="#2f4755" stroke-width="1.4" fill="none" opacity=".7"/>`;
+    for (const [x, y] of [[1052, 306], [1090, 316], [1016, 380], [1068, 392], [1112, 388], [950, 482], [1010, 498], [1090, 494], [912, 560], [980, 578], [1060, 578]]) s += `<circle cx="${x}" cy="${y}" r="2.2" fill="#c9a548"/>`;
+    s += `<path d="M1058,246 L1018,214 M1052,250 L1010,240" stroke="#3a4f5c" stroke-width="2.4"/><circle cx="1018" cy="214" r="4.5" fill="#2f5f9a"/><circle cx="1010" cy="240" r="4.5" fill="#b8392e"/><circle cx="986" cy="407" r="9" fill="#c9a548" stroke="#7a6226" stroke-width="1.5"/>`;
+  }
+  return s;
+}
+
+/* the still layer: perch, tail, body, wing, head, legs */
+function birdArt(sp) {
+  const L = LOOK[sp.id], P = perch(L.perch), metal = L.marks === 'metal';
+  const eye = metal
+    ? `<circle cx="1096" cy="270" r="11" fill="#1f2a30"/><circle cx="1096" cy="270" r="8" fill="#2f9a5c"/><path d="M1091,270 h10 m-4,-3.5 l4,3.5 l-4,3.5" stroke="#d8f5e2" stroke-width="1.6" fill="none"/>`
+    : `<circle cx="1096" cy="269" r="9.5" fill="none" stroke="#f6f1e6" stroke-width="1.6" stroke-dasharray="1.6 2.2"/><circle cx="1096" cy="269" r="7.6" fill="#16110e"/><circle cx="1098.6" cy="266.4" r="2" fill="#fff" opacity=".85"/>`;
+  const legs = metal
+    ? `<path d="M970,640 L984,668 L1018,722 M1038,642 L1050,668 L1084,722" stroke="${L.leg}" stroke-width="4.5" fill="none" stroke-linecap="round"/><circle cx="984" cy="668" r="4.5" fill="#c9a548"/><circle cx="1050" cy="668" r="4.5" fill="#c9a548"/>`
+    : `<path d="M972,656 L1016,722 M1040,658 L1082,722" stroke="${L.leg}" stroke-width="${sp.id === 'lyrebird' ? 5.5 : 3.6}" fill="none" stroke-linecap="round"/>`;
+  const feet = [[1016, 722], [1082, 722]].map(([x, y]) => `<path d="M${x},${y} l18,5 M${x},${y} l14,9 M${x},${y} l4,11 M${x},${y} l-13,5" stroke="${metal ? '#6f7d85' : L.leg}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`).join('');
+  let wing = `<path d="${WING}" fill="url(#gWing)"/>`;
+  for (let i = 0; i < 5; i++) wing += `<path d="M${968 - i * 20},${452 + i * 24} C${930 - i * 20},${500 + i * 20} ${880 - i * 16},${560 + i * 14} ${792 - i * 3},${652 + i * 2}" stroke="${L.wing2}" stroke-width="1.5" fill="none" opacity=".75"/>`;
+  for (let r = 0; r < 3; r++) for (let i = 0; i < 4 - r; i++) { const x = 978 - i * 20 - r * 14, y = 428 + i * 24 + r * 26; wing += `<path d="M${x},${y} l-11,15 l15,-5" stroke="${metal ? '#8fb0c2' : 'rgba(255,255,255,.28)'}" stroke-width="1.6" fill="none"/>`; }
+  return `<defs>
+      <radialGradient id="gBody" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="1" gradientTransform="translate(1004 340) rotate(124) scale(${L.cover ? 520 : 235} ${L.cover ? 330 : 96})"><stop offset="0" stop-color="${L.mantle}"/><stop offset=".5" stop-color="${L.mantle}"/><stop offset="1" stop-color="${L.mantle}" stop-opacity="0"/></radialGradient>
+      <radialGradient id="gHead" gradientUnits="userSpaceOnUse" cx="1068" cy="258" r="96"><stop offset="0" stop-color="${L.head}"/><stop offset=".52" stop-color="${L.head}"/><stop offset="1" stop-color="${L.head}" stop-opacity="0"/></radialGradient>
+      <linearGradient id="gWing" gradientUnits="userSpaceOnUse" x1="1010" y1="400" x2="790" y2="660"><stop offset="0" stop-color="${L.wing}"/><stop offset="1" stop-color="${L.wing2}"/></linearGradient>
+      <linearGradient id="gShade" x1="0" y1="0" x2="0" y2="1"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a1a0a" stop-opacity=".11"/></linearGradient>
+      <filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="7"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 -.42"/><feComposite in2="SourceGraphic" operator="in"/></filter>
+    </defs>
+    ${P.back}${P.branch}${tail(L, L.marks)}
+    <path d="M952,600 C955,640 964,660 972,662 C984,652 990,630 992,604 Z M1020,604 C1023,642 1032,662 1040,664 C1052,654 1058,632 1060,606 Z" fill="${L.thigh || L.belly}"/>
+    <path d="${BODY}" fill="${L.belly}"/><path d="${BODY}" fill="url(#gBody)"/><path d="${BODY}" fill="url(#gHead)"/><path d="${BODY}" fill="url(#gShade)"/>
+    <path d="${BODY}" fill="#fff" filter="url(#grain)" opacity=".34"/>
+    ${markings(L.marks, L)}${wing}${eye}
+    <path d="M1108,296 q14,6 26,-3" stroke="rgba(40,30,22,.55)" stroke-width="2" fill="none" stroke-linecap="round"/>
+    ${legs}${feet}${P.front}`;
+}
+/* the little head in each card */
+function headIcon(sp) {
+  const L = LOOK[sp.id], crest = sp.id === 'cardinal' ? `<path d="M9,17 L13,3 L22,12 Z" fill="${L.head}"/>` : '';
+  return `<svg class="hd" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18.5" fill="#f4eee0" stroke="#cfc6b6"/>${crest}
+    <path d="M8,36 C7,24 10,14 19,13 C27,13 30,19 29,26 C28,31 24,35 20,38 Z" fill="${L.mantle}"/><path d="M17,38 C22,33 28,30 29,24 C30,31 27,36 23,38.5 Z" fill="${L.belly}"/>
+    <circle cx="19" cy="19" r="8.5" fill="${L.head}"/>${sp.id === 'finch' ? '<circle cx="18" cy="22" r="4" fill="#e8782a"/>' : ''}${sp.id === 'cardinal' ? '<circle cx="25" cy="21" r="4.2" fill="#1c1513"/>' : ''}
+    <path d="M26,${19 - L.beak[1] * .16} L${27 + L.beak[0] * .17},20.5 L26,${21 + L.beak[1] * .14} Z" fill="${L.beakU}"/><circle cx="21.5" cy="18" r="1.9" fill="#16110e"/></svg>`;
+}
+
+/* ==========================================================================
+   The voice box: a cut-away window on the bird's chest, drawn on the animated layer.
+   Local coordinates (u, v) have the syrinx at the origin; the whole window is tilted to follow the neck.
+   ========================================================================== */
+const PARTS = [
+  { id: 'beak',    name: 'Beak',                     side: 'R', row: 0 },
+  { id: 'throat',  name: 'Throat Chamber',           side: 'R', row: 1 },
+  { id: 'tube',    name: 'Windpipe',                 side: 'R', row: 2 },
+  { id: 'right',   name: 'Right Voice (High Notes)', side: 'R', row: 3 },
+  { id: 'belly',   name: 'Belly Air Sacs (Breath)',  side: 'R', row: 4 },
+  { id: 'split',   name: 'Center Splitter',          side: 'L', row: 0 },
+  { id: 'left',    name: 'Left Voice (Low Notes)',   side: 'L', row: 1 },
+  { id: 'cushion', name: 'Chest Air Cushion',        side: 'L', row: 2 },
+];
+const Anatomy = (() => {
+  const CUT = { x: 1050, y: 464, deg: 13, k: 1.2 }, cs = Math.cos(CUT.deg * Math.PI / 180), sn = Math.sin(CUT.deg * Math.PI / 180);
+  const toStage = (u, v) => [CUT.x + CUT.k * (u * cs - v * sn), CUT.y + CUT.k * (u * sn + v * cs)];
+  const WINDOW = 'M-22,-128 C-28,-128 -32,-122 -33,-112 L-42,-30 C-52,10 -54,56 -50,88 C-48,106 -36,114 -10,114 L26,112 C44,110 52,100 52,84 C54,36 46,-8 40,-40 L32,-112 C31,-122 28,-128 20,-128 Z';
+  const BELLY = 'M-40,74 C-44,58 -24,52 -5,63 C10,52 38,54 40,74 C42,92 26,104 4,99 L-1,104 L-7,99 C-30,104 -44,92 -40,74 Z';
+  const BLUE = '#3d7fb6', RED = '#c8423a', HOT = '#a43a2c';
+  const FLOW_N = 7;
+  let fx, E = {}, look = null, beakTip = [1192, 276], on = {}, drag = null, tubePx = [90, 21];
+
+  function build(svgEl, handlers) {
+    fx = svgEl; on = handlers;
+    const g = (parent, attrs) => svg('g', attrs || {}, parent);
+    E.waves = g(fx); E.beak = g(fx);
+    E.upper = svg('path', {}, E.beak); E.lower = svg('path', {}, E.beak);
+    /* sound leaving the beak */
+    E.arcs = []; for (let i = 0; i < 5; i++) E.arcs.push(svg('path', { fill: 'none', stroke: '#a39180', 'stroke-width': 1.6, 'stroke-dasharray': '5 4', 'stroke-linecap': 'round' }, E.waves));
+    E.outL = []; E.outR = [];
+    for (let i = 0; i < 4; i++) { E.outL.push(svg('line', { stroke: BLUE, 'stroke-width': 2.4, 'stroke-linecap': 'round' }, E.waves)); E.outR.push(svg('line', { stroke: RED, 'stroke-width': 2.4, 'stroke-linecap': 'round' }, E.waves)); }
+    /* the window and everything inside it */
+    const cut = g(fx, { transform: `translate(${CUT.x} ${CUT.y}) rotate(${CUT.deg}) scale(${CUT.k})` });
+    svg('clipPath', { id: 'winClip' }, svg('defs', {}, fx)).appendChild(svg('path', { d: WINDOW }));
+    for (let i = 0; i < 15; i++) {                             // the feathers folded back along both edges
+      const p = i / 14, lu = lerp(-34, -51, p), ru = lerp(33, 52, p), v = lerp(-112, 84, p);
+      svg('path', { d: `M${lu},${v - 5} l-10,2 l10,7 Z`, fill: '#6d6a49', opacity: .85 }, cut);
+      svg('path', { d: `M${ru},${v - 5} l10,-1 l-10,8 Z`, fill: '#fbf9f2', stroke: '#cfc8b8', 'stroke-width': .8 }, cut);
+    }
+    svg('path', { d: WINDOW, fill: '#f9f6ed', 'fill-opacity': .9, stroke: '#a7a093', 'stroke-width': 1.6 }, cut);
+    const inner = g(cut, { 'clip-path': 'url(#winClip)' });
+    E.cushion = g(inner);
+    svg('ellipse', { cx: -26, cy: 22, rx: 23, ry: 40, transform: 'rotate(8 -26 22)', fill: '#ecb0ac', 'fill-opacity': .42, stroke: '#d49b98', 'stroke-width': 1.2, 'stroke-dasharray': '4 3' }, E.cushion);
+    svg('ellipse', { cx: 26, cy: 22, rx: 23, ry: 40, transform: 'rotate(-8 26 22)', fill: '#ecb0ac', 'fill-opacity': .42, stroke: '#d49b98', 'stroke-width': 1.2, 'stroke-dasharray': '4 3' }, E.cushion);
+    E.belly = svg('path', { d: BELLY, fill: '#f7e4cf', stroke: '#c98e68', 'stroke-width': 1.8 }, inner);
+    svg('path', { d: 'M-12,16 C-14,34 -20,50 -22,66 M-7,16 C-8,34 -14,50 -15,64 M12,16 C14,34 20,50 22,66 M7,16 C8,34 14,50 15,64', fill: 'none', stroke: '#b8402f', 'stroke-width': 2 }, inner);
+    for (const [x1, y1, x2, y2] of [[-44, 1, -19, -2], [-45, 17, -21, 15], [-41, 33, -19, 31], [44, 1, 19, -2], [45, 17, 21, 15], [41, 33, 19, 31]]) {
+      svg('line', { x1, y1, x2, y2, stroke: '#a2967f', 'stroke-width': 7.4, 'stroke-linecap': 'round' }, inner);
+      svg('line', { x1, y1, x2, y2, stroke: '#f4eedf', 'stroke-width': 5, 'stroke-linecap': 'round' }, inner);
+    }
+    svg('path', { d: 'M-13,-34 L-44,24 L-38,26 L-9,-28 Z M-10,-22 L-27,2 L-21,4 L-6,-16 Z M13,-34 L44,24 L38,26 L9,-28 Z M10,-22 L27,2 L21,4 L6,-16 Z', fill: '#8e2a2c' }, inner);
+    svg('path', { d: 'M-12,-30 L-40,24 M12,-30 L40,24', stroke: '#c0534d', 'stroke-width': 1.2, fill: 'none' }, inner);
+    E.labL = g(inner); E.labR = g(inner);
+    for (const [grp, s] of [[E.labL, -1], [E.labR, 1]]) {
+      svg('ellipse', { cx: s * 25, cy: 6, rx: 9, ry: 11.5, fill: '#d9474a', stroke: '#7c1f25', 'stroke-width': 1.6 }, grp);
+      svg('ellipse', { cx: s * 12.5, cy: 7.5, rx: 7.2, ry: 10.5, fill: '#e0565a', stroke: '#7c1f25', 'stroke-width': 1.6 }, grp);
+      svg('ellipse', { cx: s * 13.5, cy: 5, rx: 2.6, ry: 4.5, fill: '#f3a39d' }, grp);
+    }
+    svg('rect', { x: -15, y: -39, width: 30, height: 24, rx: 4, fill: '#efe8d8', stroke: '#9e927d', 'stroke-width': 1.5 }, inner);
+    svg('path', { d: 'M-13,-33 h26 M-13,-27 h26 M-13,-21 h26', stroke: '#c9bfa9', 'stroke-width': 1 }, inner);
+    E.split = svg('path', { d: 'M0,-17 L-8,5 L8,5 Z', fill: '#fffdf8', stroke: '#3d3531', 'stroke-width': 1.6, 'stroke-linejoin': 'round' }, inner);
+    E.throat = svg('ellipse', { fill: '#f4d3cf', stroke: '#d79c96', 'stroke-width': 1.5 }, inner);
+    E.tubeBase = svg('rect', { fill: '#e6dcc6', stroke: '#a89b84', 'stroke-width': 1.2, rx: 3 }, inner);
+    E.rings = []; for (let i = 0; i < 18; i++) E.rings.push(svg('ellipse', { fill: '#f4eddc', stroke: '#b0a289', 'stroke-width': 1 }, inner));
+    E.flowL = []; E.flowR = [];
+    for (let i = 0; i < FLOW_N; i++) { E.flowL.push(svg('line', { stroke: BLUE, 'stroke-width': 2.6, 'stroke-linecap': 'round' }, inner)); E.flowR.push(svg('line', { stroke: RED, 'stroke-width': 2.6, 'stroke-linecap': 'round' }, inner)); }
+    /* leader lines, labels and handles */
+    E.lead = {}; E.lab = {}; E.knob = {}; E.hit = {};
+    const leads = g(fx, { class: 'leads' }), labs = g(fx, { class: 'labs' }), knobs = g(fx);
+    for (const p of PARTS) {
+      E.lead[p.id] = svg('line', { class: 'lead' }, leads);
+      const t = svg('g', { class: 'lab' }, labs);
+      svg('text', { class: 'nm' }, t).textContent = p.name; svg('text', { class: 'sb', dy: 21 }, t);
+      E.lab[p.id] = t;
+      E.knob[p.id] = svg('circle', { class: 'knob', r: 5.8 }, knobs);
+    }
+    for (const p of PARTS) {                                   // hit areas last, so they sit on top
+      const h = svg('circle', { class: 'hit', r: 24 }, knobs); h.dataset.part = p.id; E.hit[p.id] = h;
+      h.addEventListener('pointerenter', () => { if (!drag) on.hot(p.id); });
+      h.addEventListener('pointerleave', () => { if (!drag) on.hot(null); });
+      h.addEventListener('pointerdown', e => grab(e, p.id));
+      h.addEventListener('dblclick', () => on.reset(p.id));
+    }
+    addEventListener('pointermove', move); addEventListener('pointerup', release); addEventListener('pointercancel', release);
+  }
+  /* pointer position in drawing units */
+  function point(e) { const m = fx.getScreenCTM(); return m ? [(e.clientX - m.e) / m.a, (e.clientY - m.f) / m.d] : [0, 0]; }
+  function grab(e, id) {
+    e.preventDefault(); try { E.hit[id].setPointerCapture(e.pointerId); } catch (err) {}
+    drag = { id, pid: e.pointerId, from: point(e), base: on.begin(id) }; on.hot(id);
+  }
+  function move(e) {
+    if (!drag || e.pointerId !== drag.pid) return;
+    const p = point(e), dx = p[0] - drag.from[0], dy = p[1] - drag.from[1];
+    on.drag(drag.id, drag.base, { dx, dy, du: dx * cs + dy * sn, dv: -dx * sn + dy * cs });   // movement on the page and along the window's own axes
+  }
+  function release(e) { if (drag && e.pointerId === drag.pid) { drag = null; on.hot(null); } }
+
+  function setBird(sp) {
+    look = LOOK[sp.id];
+    const b = beakPaths(look); beakTip = b.tip;
+    E.upper.setAttribute('d', b.upper); E.lower.setAttribute('d', b.lower);
+    E.upper.setAttribute('fill', look.beakU); E.lower.setAttribute('fill', look.beakL);
+    if (sp.id === 'synth') { E.lower.setAttribute('stroke', '#7a6226'); E.upper.setAttribute('stroke', '#3a4a54'); } else { E.lower.removeAttribute('stroke'); E.upper.removeAttribute('stroke'); }
+  }
+  /* where the labels sit (they move in when the synth panel is open) */
+  function layout(synthOpen) {
+    const rx = synthOpen ? 1236 : 1372;
+    for (const p of PARTS) {
+      const x = p.side === 'R' ? rx : 668, y = (p.side === 'R' ? 273 : 437) + p.row * 70.5, t = E.lab[p.id];
+      t.setAttribute('transform', `translate(${x} ${y})`); t.setAttribute('text-anchor', p.side === 'R' ? 'start' : 'end');
+      p.lx = p.side === 'R' ? x - 12 : x + 12; p.ly = y - 6;
+    }
+  }
+  /* a point a fraction s of the way along a list of points */
+  function along(P, s) {
+    let total = 0; const seg = [];
+    for (let i = 1; i < P.length; i++) { const l = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); seg.push(l); total += l; }
+    let d = s * total;
+    for (let i = 0; i < seg.length; i++) { if (d <= seg[i] || i === seg.length - 1) { const p = d / seg[i], a = P[i], b = P[i + 1]; return [lerp(a[0], b[0], p), lerp(a[1], b[1], p), (b[0] - a[0]) / seg[i], (b[1] - a[1]) / seg[i]]; } d -= seg[i]; }
+  }
+  /* redraw for the current state. v = { breath, gateL, gateR, loud, grit, click, tubeLen, tubeWid, tube0: [len, wid], throat, beak, balance, bendL, bendR, squeeze, flow, hot, bellyHot } */
+  function update(v, time) {
+    /* beak */
+    const open = clamp(v.beak, 0, 1);
+    E.lower.setAttribute('transform', `rotate(${(open * 21).toFixed(2)} ${HINGE[0]} ${HINGE[1]})`);
+    E.upper.setAttribute('transform', `rotate(${(-open * 5).toFixed(2)} ${HINGE[0]} ${HINGE[1]})`);
+    const ba = open * 21 * Math.PI / 180, bl = look.beak[0] * .86, beakXY = [HINGE[0] + bl * Math.cos(ba) - 5 * Math.sin(ba), HINGE[1] + bl * Math.sin(ba) + 5 * Math.cos(ba)];
+    /* windpipe: longer / wider than this bird's own shows as a taller / fatter tube */
+    const L = clamp(66 * Math.pow(v.tubeLen / v.tube0[0], .6), 26, 80), W = clamp(21 * Math.pow(v.tubeWid / v.tube0[1], .8), 10, 36), top = -38 - L;
+    tubePx = [L, W];
+    E.tubeBase.setAttribute('x', -W / 2); E.tubeBase.setAttribute('y', top); E.tubeBase.setAttribute('width', W); E.tubeBase.setAttribute('height', L);
+    const count = Math.max(4, Math.round(L / 6.2));
+    E.rings.forEach((r, i) => {
+      if (i >= count) { r.setAttribute('visibility', 'hidden'); return; }
+      r.setAttribute('visibility', 'visible'); r.setAttribute('cx', 0); r.setAttribute('cy', top + (i + .5) * L / count); r.setAttribute('rx', W / 2 + 2.2); r.setAttribute('ry', 3);
+    });
+    const th = .72 + .5 * clamp(v.throat, 0, 1) + (v.loud > .05 ? .02 * Math.sin(time * 40) : 0);
+    E.throat.setAttribute('cx', 3); E.throat.setAttribute('cy', top - 7); E.throat.setAttribute('rx', 20 * th); E.throat.setAttribute('ry', 12.5 * th);
+    /* the two voices buzz when they sing and tighten when bent upwards */
+    const buzz = (g, s) => g > .02 ? s * Math.sin(time * 70) * 1.3 * Math.min(1, g * 3) : 0;
+    E.labL.setAttribute('transform', `translate(${(-v.bendL * 4 + buzz(v.gateL, 1)).toFixed(2)} ${(-v.bendL * 9).toFixed(2)})`);
+    E.labR.setAttribute('transform', `translate(${(v.bendR * 4 + buzz(v.gateR, -1)).toFixed(2)} ${(-v.bendR * 9).toFixed(2)})`);
+    E.labL.setAttribute('opacity', .62 + .38 * Math.min(1, v.gateL * 4)); E.labR.setAttribute('opacity', .62 + .38 * Math.min(1, v.gateR * 4));
+    E.split.setAttribute('transform', `translate(${(v.balance * 7).toFixed(2)} 0)`);
+    const cu = 1 + .09 * v.grit + .07 * Math.min(1, v.click * 3);
+    E.cushion.setAttribute('transform', `scale(${cu.toFixed(3)})`); E.cushion.setAttribute('opacity', .75 + .25 * Math.min(1, v.grit + v.click * 2));
+    const sq = clamp(v.squeeze, 0, 1.2);
+    E.belly.setAttribute('transform', `translate(0 56) scale(${(1 + .05 * sq).toFixed(3)} ${(1 - .24 * sq).toFixed(3)}) translate(0 -56)`);
+    E.belly.setAttribute('stroke', v.bellyHot ? HOT : '#c98e68'); E.belly.setAttribute('stroke-width', v.bellyHot ? 2.6 : 1.8);
+    /* air: blue through the left side, red through the right */
+    const pathL = [[-21, 90], [-22, 68], [-15, 34], [-12, 10], [-5, -18], [-4, -38], [-4, top], [1, top - 12]], pathR = pathL.map(p => [-p[0] + (p[1] <= -38 ? 2 : 0), p[1]]);
+    const dash = (els, P, gate, shift) => els.forEach((e, i) => {
+      const s = frac(i / els.length + v.flow + shift), q = along(P, s), o = Math.min(1, gate * 5) * Math.sin(Math.PI * s);
+      e.setAttribute('x1', q[0] - q[2] * 4.5); e.setAttribute('y1', q[1] - q[3] * 4.5); e.setAttribute('x2', q[0] + q[2] * 4.5); e.setAttribute('y2', q[1] + q[3] * 4.5); e.setAttribute('opacity', o.toFixed(3));
+    });
+    dash(E.flowL, pathL, v.gateL, 0); dash(E.flowR, pathR, v.gateR, .07);
+    /* sound leaving the beak */
+    const tx = beakTip[0] + 4, ty = beakTip[1] + open * 6;
+    const outL = [[tx, ty + 2], [tx + 34, ty + 6], [tx + 74, ty - 2]], outR = [[tx, ty - 2], [tx + 34, ty - 12], [tx + 70, ty - 34]];
+    dash(E.outL, outL, v.gateL * open * 1.6, .1); dash(E.outR, outR, v.gateR * open * 1.6, .2);
+    E.arcs.forEach((a, i) => {
+      const r = 18 + frac((i + v.flow * 3) / 5) * 62, sp = .46, o = Math.min(1, v.loud * 3) * (1 - (r - 18) / 62) * .7;
+      a.setAttribute('d', `M${(tx + r * Math.cos(-sp)).toFixed(1)},${(ty + r * Math.sin(-sp)).toFixed(1)} A${r.toFixed(1)},${r.toFixed(1)} 0 0 1 ${(tx + r * Math.cos(sp)).toFixed(1)},${(ty + r * Math.sin(sp)).toFixed(1)}`); a.setAttribute('opacity', o.toFixed(3));
+    });
+    /* handles, and the dotted lines to their labels */
+    const at = {
+      beak: beakXY, throat: toStage(14, top - 10), tube: toStage(W / 2 - 1, top + L * .5), split: toStage(v.balance * 7, -7),
+      left: toStage(-19 - v.bendL * 4, 7 - v.bendL * 9), right: toStage(19 + v.bendR * 4, 7 - v.bendR * 9),
+      cushion: toStage(-38 - v.grit * 8, 42 + v.grit * 5), belly: toStage(14, 82 - sq * 17),
+    };
+    for (const p of PARTS) {
+      const [x, y] = at[p.id], hot = v.hot === p.id;
+      E.knob[p.id].setAttribute('cx', x); E.knob[p.id].setAttribute('cy', y); E.hit[p.id].setAttribute('cx', x); E.hit[p.id].setAttribute('cy', y);
+      E.knob[p.id].classList.toggle('hot', hot); E.lab[p.id].classList.toggle('hot', hot); E.lead[p.id].classList.toggle('hot', hot);
+      const l = E.lead[p.id], k = Math.hypot(p.lx - x, p.ly - y), ux = (p.lx - x) / k, uy = (p.ly - y) / k;
+      l.setAttribute('x1', x + ux * 10); l.setAttribute('y1', y + uy * 10); l.setAttribute('x2', p.lx); l.setAttribute('y2', p.ly);
+    }
+  }
+  function setText(id, text) { const t = E.lab[id].lastChild; if (t.textContent !== text) t.textContent = text; }
+  return { build, setBird, layout, update, setText, get dragging() { return drag ? drag.id : null; } };
+})();
+
+/* ==========================================================================
+   Spectrogram: a scrolling picture of the sound that is actually playing (time runs left to right,
+   pitch runs upward). The pitch each side of the syrinx is singing is tinted: teal for left, red for right.
+   ========================================================================== */
+const Spectro = (() => {
+  const SPEED = 150, FMAX = 8000;                              // design px per second; top of the picture in Hz
+  const PAPER = [250, 247, 239], INK = [74, 64, 56], TEAL = [34, 106, 120], REDC = [178, 48, 38];
+  let cv, g, W = 0, H = 0, res = 1, carry = 0, bins = new Uint8Array(512), lastTick = -1;
+  function size(canvas, cssW, cssH, pxPerUnit) {
+    cv = canvas; res = clamp(pxPerUnit, .6, 2);
+    const w = Math.round(cssW * res), h = Math.round(cssH * res);
+    if (w === W && h === H) return;
+    W = cv.width = w; H = cv.height = h; g = cv.getContext('2d');
+    g.fillStyle = `rgb(${PAPER})`; g.fillRect(0, 0, W, H);
+  }
+  /* dt seconds have passed; v = { fL, fR, gateL, gateR } says what each side is singing */
+  function draw(dt, v, songTime) {
+    if (!g || !Sound.ctx) return;
+    carry += dt * SPEED * res; const dx = Math.floor(carry); if (dx < 1) return; carry -= dx;
+    g.drawImage(cv, -dx, 0);                                   // slide the picture left…
+    if (bins.length !== Sound.binCount) bins = new Uint8Array(Sound.binCount);
+    Sound.spectrum(bins);
+    const col = g.createImageData(1, H), d = col.data, hzPerBin = Sound.rate / 2 / bins.length, top = FMAX / hzPerBin;
+    for (let y = 0; y < H; y++) {                              // …and paint one fresh column on the right
+      const b0 = (1 - (y + 1) / H) * top, b1 = (1 - y / H) * top; let m = 0;
+      for (let b = Math.floor(b0); b <= Math.min(bins.length - 1, Math.ceil(b1)); b++) if (bins[b] > m) m = bins[b];
+      const a = Math.pow(m / 255, 1.7), f = (b0 + b1) / 2 * hzPerBin;
+      const near = (f0, gate) => gate > .03 ? Math.exp(-Math.pow((f - f0) / (f0 * .05 + 70), 2)) : 0;
+      const wl = near(v.fL, v.gateL), wr = near(v.fR, v.gateR), wi = Math.max(0, 1 - wl - wr), i = y * 4;
+      for (let c = 0; c < 3; c++) d[i + c] = PAPER[c] + ((INK[c] * wi + TEAL[c] * wl + REDC[c] * wr) / (wi + wl + wr) - PAPER[c]) * Math.min(1, a * (1 + wl + wr));
+      d[i + 3] = 255;
+    }
+    for (let x = W - dx; x < W; x++) g.putImageData(col, x, 0);
+    const tick = Math.floor(songTime);                         // a small mark along the bottom every second
+    if (tick !== lastTick) { lastTick = tick; g.fillStyle = '#cfc6b6'; g.fillRect(W - 1, H - 5 * res, 1, 5 * res); }
+  }
+  return { size, draw };
+})();
+
+/* ==========================================================================
+   SynthBird: the same voice box played as an instrument.
+   Two voices (left = low, right = high), a keyboard, six presets and a wobble (LFO).
+   ========================================================================== */
+const Synth = (() => {
+  const PRESETS = [
+    { name: 'Glass Flute',     breath: 1.66, glide: 28,  detune: 4,  grit: 4,  pluck: 10, tube: 36, wah: 58, depth: 14, rate: 3.2, target: 'wah',   mode: 'duo' },
+    { name: 'Acid Bird-Wah',   breath: 2.20, glide: 60,  detune: 9,  grit: 38, pluck: 22, tube: 52, wah: 34, depth: 72, rate: 5.5, target: 'wah',   mode: 'duo' },
+    { name: 'Retro Pluck',     breath: 1.90, glide: 4,   detune: 12, grit: 14, pluck: 85, tube: 28, wah: 70, depth: 8,  rate: 6.0, target: 'pitch', mode: 'intv' },
+    { name: 'Biphonic Ring',   breath: 1.80, glide: 40,  detune: 48, grit: 10, pluck: 5,  tube: 44, wah: 62, depth: 30, rate: 0.8, target: 'tube',  mode: 'intv' },
+    { name: 'Cyber-Growl',     breath: 2.60, glide: 90,  detune: 22, grit: 82, pluck: 30, tube: 96, wah: 28, depth: 45, rate: 11,  target: 'grit',  mode: 'drone' },
+    { name: 'Sci-Fi Theremin', breath: 1.40, glide: 220, detune: 2,  grit: 0,  pluck: 0,  tube: 30, wah: 80, depth: 22, rate: 5.8, target: 'pitch', mode: 'duo' },
+  ];
+  const SLIDERS = [
+    { k: 'breath', label: 'Breath',        min: .3, max: 3,   step: .01, show: v => v.toFixed(2) + ' kPa' },
+    { k: 'glide',  label: 'Glide',         min: 0,  max: 400, step: 1,   show: v => v + ' ms' },
+    { k: 'detune', label: 'Detune',        min: 0,  max: 60,  step: 1,   show: v => v + ' ct' },
+    { k: 'grit',   label: 'Membrane Grit', min: 0,  max: 100, step: 1,   show: v => v + '%' },
+    { k: 'pluck',  label: 'Click Pluck',   min: 0,  max: 100, step: 1,   show: v => v + '%' },
+    { k: 'tube',   label: 'Tube Length',   min: 12, max: 110, step: 1,   show: v => v + ' mm' },
+    { k: 'wah',    label: 'Throat Wah',    min: 0,  max: 100, step: 1,   show: v => v + '%' },
+    { k: 'depth',  label: 'LFO Depth',     min: 0,  max: 100, step: 1,   show: v => v + '%' },
+    { k: 'rate',   label: 'LFO Rate',      min: .1, max: 20,  step: .1,  show: v => v.toFixed(1) + ' Hz' },
+  ];
+  /* computer key, semitones above C, note name; black keys also say which white key they follow */
+  const WHITE = [['a', 0, 'C'], ['s', 2, 'D'], ['d', 4, 'E'], ['f', 5, 'F'], ['g', 7, 'G'], ['h', 9, 'A'], ['j', 11, 'B'], ['k', 12, 'C'], ['l', 14, 'D'], [';', 16, 'E'], ["'", 17, 'F']];
+  const BLACK = [['w', 1, 0], ['e', 3, 1], ['t', 6, 3], ['y', 8, 4], ['u', 10, 5], ['o', 13, 7], ['p', 15, 8]];
+  const SEQUENCE = [0, 7, 12, 7, 3, 10, 15, 10, 5, 12, 17, 12, 7, 10, 14, 12], STEP = .215;
+  const hz = midi => 440 * Math.pow(2, (midi - 69) / 12);
+
+  let box, p = Object.assign({}, PRESETS[0]), preset = 0, hold = false, oct = 4, opened = false, changed = () => {};
+  let held = [], latched = [], lastMidi = 60, seq = false, seqT = 0, seqI = -1, seqNote = null;
+  const view = { fL: 262, fR: 262, gate: 0 }, ui = {};           // smoothed copy for the drawing
+
+  function build(el, onChange) {
+    box = el; changed = onChange;
+    const pre = html('div', 'pre', box);
+    PRESETS.forEach((q, i) => { const b = html('button', '', pre, `<i>${i + 1}</i>${q.name}`); b.type = 'button'; b.onclick = () => usePreset(i); });
+    const row = html('div', 'modes', box), seg = html('span', 'seg', row);
+    ui.mode = {}; for (const m of ['duo', 'intv', 'drone']) { const b = html('button', '', seg, m.toUpperCase()); b.type = 'button'; b.onclick = () => { p.mode = m; refresh(); voices(false); }; ui.mode[m] = b; }
+    ui.hold = html('button', 'hold', row, 'HOLD'); ui.hold.type = 'button'; ui.hold.onclick = toggleHold;
+    const o = html('span', 'oct', row), dn = html('button', '', o, '&minus;'); ui.oct = html('b', '', o); const up = html('button', '', o, '+');
+    dn.type = up.type = 'button'; dn.onclick = () => shift(-1); up.onclick = () => shift(1);
+    const grid = html('div', 'sl', box); ui.sl = {};
+    for (const s of SLIDERS) {
+      const cell = html('label', 's' + (s.k === 'rate' ? ' rate' : ''), grid, `<span>${s.label}</span><output></output>`), inp = html('input', '', cell);
+      inp.type = 'range'; inp.min = s.min; inp.max = s.max; inp.step = s.step;
+      inp.addEventListener('input', () => { p[s.k] = +inp.value; refresh(); voices(false); });
+      ui.sl[s.k] = { inp, out: cell.querySelector('output'), show: s.show };
+    }
+    const tg = html('div', 'tg', grid); ui.tg = {};
+    for (const t of ['wah', 'pitch', 'tube', 'grit']) { const b = html('button', '', tg, t[0].toUpperCase() + t.slice(1)); b.type = 'button'; b.onclick = () => { p.target = p.target === t ? null : t; refresh(); voices(false); }; ui.tg[t] = b; }
+    /* keyboard */
+    const kb = html('div', 'kb', box); ui.keys = {};
+    WHITE.forEach(([key, semi, name], i) => { const k = html('div', 'wk', kb, `<b>${key.toUpperCase()}</b><i>${name}</i>`); k.style.left = (i * 100 / 11) + '%'; ui.keys[semi] = k; bindKey(k, semi); });
+    BLACK.forEach(([key, semi, after]) => { const k = html('div', 'bk', kb, `<b>${key.toUpperCase()}</b>`); k.style.left = ((after + 1) * 100 / 11) + '%'; ui.keys[semi] = k; bindKey(k, semi); });
+    html('div', 'hint', box, '<b>Z</b> / <b>X</b> Octave (C2&ndash;F7) &middot; <b>C</b> / <b>V</b> Breath &middot; <b>Space</b> Hold');
+    addEventListener('keydown', keyDown); addEventListener('keyup', keyUp);
+    refresh();
+  }
+  function bindKey(el, semi) {
+    const off = e => { if (el.dataset.pid === String(e.pointerId)) { delete el.dataset.pid; noteOff(12 * (oct + 1) + semi); } };
+    el.addEventListener('pointerdown', e => { e.preventDefault(); Sound.start(); el.dataset.pid = e.pointerId; try { el.setPointerCapture(e.pointerId); } catch (err) {} noteOn(12 * (oct + 1) + semi); });
+    el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off);
+  }
+  function keyDown(e) {
+    if (!opened || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key.toLowerCase(), w = WHITE.find(q => q[0] === k) || BLACK.find(q => q[0] === k);
+    if (w) { Sound.start(); noteOn(12 * (oct + 1) + w[1]); e.preventDefault(); }
+    else if (k === 'z') shift(-1); else if (k === 'x') shift(1);
+    else if (k === 'c' || k === 'v') { p.breath = clamp(+(p.breath + (k === 'c' ? -.15 : .15)).toFixed(2), .3, 3); refresh(); voices(false); }
+    else if (k === ' ') { toggleHold(); e.preventDefault(); }
+    else if (k >= '1' && k <= '6') usePreset(+k - 1);
+  }
+  function keyUp(e) { if (!opened) return; const k = e.key.toLowerCase(), w = WHITE.find(q => q[0] === k) || BLACK.find(q => q[0] === k); if (w) noteOff(12 * (oct + 1) + w[1]); }
+  function shift(d) { const n = clamp(oct + d, 2, 6); if (n === oct) return; held = []; latched = latched.map(m => m + 12 * (n - oct)); oct = n; refresh(); voices(false); }
+  function toggleHold() { hold = !hold; if (!hold) latched = []; refresh(); voices(false); }
+  function usePreset(i) { preset = i; p = Object.assign({}, PRESETS[i]); refresh(); voices(false); }
+
+  function noteOn(m) { if (!held.includes(m)) held.push(m); latched = held.slice(); lastMidi = m; voices(true); }
+  function noteOff(m) { held = held.filter(x => x !== m); voices(false); }
+  const sounding = () => held.length ? held : hold ? latched : [];
+  /* which pitch each side sings, from the keys that are down and the mode */
+  function pitches() {
+    const s = sounding(), last = s.length ? s[s.length - 1] : lastMidi, dt = p.detune / 2400;
+    let l = last, r = last;
+    if (p.mode === 'duo' && s.length > 1) { l = Math.min(...s); r = Math.max(...s); }      // two keys: one voice each
+    else if (p.mode === 'intv') r = last + 7;                                               // one key: a fifth apart
+    else if (p.mode === 'drone') l = 12 * oct;                                              // left holds a low C, right plays
+    return { fL: hz(l) * Math.pow(2, -dt), fR: hz(r) * Math.pow(2, dt), on: s.length > 0 };
+  }
+  /* send the current notes and slider settings to the sound engine */
+  function voices(struck) {
+    if (!opened) return;
+    const q = pitches(), g = p.grit / 100, level = q.on ? .22 + .26 * p.breath : 0, drive = clamp(.3 + .6 * g + .05 * p.breath, 0, 1);
+    Sound.play({ fL: q.fL, aL: level, dL: drive, gL: g * .5, fR: q.fR, aR: level, dR: drive, gR: g * .5, fN: 2800, aN: 0 }, p.glide / 3000, q.on ? .012 : .07);
+    if (struck && p.pluck > 0) { const k = p.pluck / 100; Sound.click(k * .45, 2800); Sound.pluck('L', q.fL, k * 9, p.glide / 3000); Sound.pluck('R', q.fR, k * 9, p.glide / 3000); }
+    Sound.wobble(p.rate, p.depth / 100, p.target, (q.fL + q.fR) / 2);
+    for (const semi in ui.keys) ui.keys[semi].classList.toggle('down', sounding().includes(12 * (oct + 1) + +semi));
+    changed();
+  }
+  function refresh() {
+    [...box.querySelectorAll('.pre button')].forEach((b, i) => b.classList.toggle('on', i === preset));
+    for (const m in ui.mode) ui.mode[m].classList.toggle('on', p.mode === m);
+    for (const t in ui.tg) ui.tg[t].classList.toggle('on', p.target === t);
+    ui.hold.classList.toggle('on', hold); ui.oct.textContent = 'OCT ' + oct;
+    for (const k in ui.sl) { ui.sl[k].inp.value = p[k]; ui.sl[k].out.textContent = ui.sl[k].show(p[k]); }
+  }
+  function open() { opened = true; box.hidden = false; held = []; latched = []; voices(false); }
+  function close() { stopSeq(); opened = false; box.hidden = true; held = []; latched = []; Sound.wobble(p.rate, 0, null, 0); }
+  function stopSeq() { if (seqNote != null) noteOff(seqNote); seq = false; seqNote = null; seqI = -1; }
+  function toggleSeq() { if (seq) { stopSeq(); latched = []; voices(false); } else { seq = true; seqT = 0; seqI = -1; } return seq; }
+  /* called every frame: runs the demo sequence and returns what the drawing should show */
+  function frame(dt, time) {
+    if (seq) {
+      seqT += dt; const i = Math.floor(seqT / STEP);
+      if (i !== seqI) { seqI = i; if (seqNote != null) noteOff(seqNote); seqNote = 12 * (oct + 1) + SEQUENCE[i % SEQUENCE.length]; noteOn(seqNote); }
+      else if (seqNote != null && seqT - i * STEP > STEP * .78) { noteOff(seqNote); seqNote = null; }
+    }
+    const q = pitches(), a = 1 - Math.exp(-dt / Math.max(.004, p.glide / 3000));
+    view.fL += (q.fL - view.fL) * a; view.fR += (q.fR - view.fR) * a; view.gate += ((q.on ? 1 : 0) - view.gate) * (1 - Math.exp(-dt / (q.on ? .012 : .07)));
+    const lfo = Math.sin(TAU * p.rate * time) * p.depth / 100;
+    return { fL: view.fL * (p.target === 'pitch' ? Math.pow(2, lfo * .25) : 1), fR: view.fR * (p.target === 'pitch' ? Math.pow(2, lfo * .25) : 1), aL: view.gate, aR: view.gate, gL: p.grit / 100, gR: p.grit / 100, fN: 2800, aN: 0,
+             throat: clamp(p.wah / 100 + (p.target === 'wah' ? lfo * .35 : 0), 0, 1), tube: p.tube * (p.target === 'tube' ? Math.pow(2, lfo * .6) : 1), grit: clamp(p.grit / 100 + (p.target === 'grit' ? lfo * .3 : 0), 0, 1) };
+  }
+  return { build, open, close, frame, toggleSeq, get playing() { return seq; } };
+})();
+
+/* ==========================================================================
+   The app: which bird, which mode, the frame loop, the labels and the layout.
+   Modes:  auto   – the bird sings its own song; dragged parts bend it
+           manual – silent until you squeeze the belly air sacs; you play every part by hand
+           synth  – SynthBird: the keyboard plays the two voices
+   ========================================================================== */
+(() => {
+  const root = document.documentElement, fit = $('#fit'), app = $('#app'), art = $('#art'), fx = $('#fx'), mainBtn = $('#main'), partsBox = $('#parts'), canvas = $('#sg');
+  const zero = () => ({ beak: 0, throat: 0, tubeL: 0, tubeW: 0, left: 0, right: 0, belly: 0, split: 0, cushion: 0 });
+  const S = { sp: SPECIES[0], mode: 'manual', paused: false, dev: zero(), touched: {}, hot: null, t0: 0, flow: 0, beak: 0, loud: 0, onL: -9, onR: -9, shownL: 0, shownR: 0, wide: true, k: 1 };
+  const cards = {}, cells = {};
+
+  /* ---- build the page ---- */
+  for (const sp of SPECIES) {
+    const b = html('button', 'sp', $('#species'), headIcon(sp) + `<b>${sp.name}</b><i>${sp.tag}</i>`);
+    b.type = 'button'; b.dataset.id = sp.id; b.onclick = () => { Sound.start(); choose(sp, true); }; cards[sp.id] = b;
+  }
+  for (const id of ['beak', 'throat', 'tube', 'right', 'left', 'split', 'cushion', 'belly']) {
+    const p = PARTS.find(q => q.id === id); cells[id] = html('div', 'pt', partsBox, `<b>${p.name}</b><i></i>`);
+  }
+  Anatomy.build(fx, {
+    hot: id => { S.hot = id; },
+    begin: id => { Sound.start(); return Object.assign({}, S.dev); },
+    reset: id => { if (id === 'tube') { S.dev.tubeL = S.dev.tubeW = 0; } else S.dev[id] = 0; delete S.touched[id]; },
+    /* a handle is being dragged: m.dx/dy are page movement, m.du/dv the same movement along the tilted window */
+    drag: (id, base, m) => {
+      const d = S.dev, c = (v, lo = -1) => clamp(v, lo, 1);
+      if (id === 'beak') d.beak = c(base.beak + m.dy / 30);
+      else if (id === 'throat') d.throat = c(base.throat + (m.du * .5 - m.dv * .86) / 22);
+      else if (id === 'tube') { d.tubeL = c(base.tubeL - m.dv / 42); d.tubeW = c(base.tubeW + m.du / 20); }
+      else if (id === 'left') d.left = c(base.left - m.dv / 24);
+      else if (id === 'right') d.right = c(base.right - m.dv / 24);
+      else if (id === 'split') d.split = c(base.split + m.du / 14);
+      else if (id === 'cushion') d.cushion = c(base.cushion + (-m.du * .8 + m.dv * .6) / 20, 0);
+      else if (id === 'belly') d.belly = c(base.belly - m.dv / 26, S.mode === 'manual' ? 0 : -1);
+      S.touched[id] = true;
+    },
+  });
+  Synth.build($('#synth'), () => {});
+  mainBtn.onclick = () => {
+    Sound.start();
+    if (S.mode === 'synth') { Synth.toggleSeq(); button(); return; }
+    S.paused = S.mode === 'auto'; setMode(S.paused ? 'manual' : 'auto');
+  };
+  for (const ev of ['pointerdown', 'pointerup', 'keydown']) addEventListener(ev, () => Sound.start(), { passive: true });   // sound may only start after a touch, click or key
+  document.addEventListener('visibilitychange', () => { const c = Sound.ctx; if (!c) return; if (document.hidden) c.suspend(); else { c.resume(); Sound.reset(); } });
+
+  function button() {
+    const synth = S.mode === 'synth', on = synth ? Synth.playing : S.mode === 'auto';
+    mainBtn.classList.toggle('on', on);
+    mainBtn.lastElementChild.textContent = synth ? (on ? 'Stop Synth Sequence' : 'Auto-Play Synth Sequence') : on ? 'Pause Bird Song' : 'Auto-Sing Bird Song';
+  }
+  function setMode(mode) {
+    S.mode = mode; S.dev = zero(); S.touched = {}; S.beak = 0;
+    Sound.reset(); S.t0 = Sound.now() + .06;
+    button();
+  }
+  function choose(sp, byUser) {
+    const wasSynth = S.sp.id === 'synth';
+    S.sp = sp;
+    for (const id in cards) cards[id].classList.toggle('on', id === sp.id);
+    art.innerHTML = birdArt(sp); Anatomy.setBird(sp);
+    const synth = sp.id === 'synth';
+    root.classList.toggle('synthOpen', synth);
+    if (synth) { setMode('synth'); Synth.open(); }
+    else { if (wasSynth) Synth.close(); setMode(byUser && !S.paused ? 'auto' : wasSynth ? (S.paused ? 'manual' : 'auto') : S.mode === 'auto' ? 'auto' : 'manual'); }
+    Anatomy.layout(synth && S.wide);
+    layout();
+  }
+
+  /* ---- layout: a 1920 x 1080 sheet scaled to the window, or a single column on narrow screens ---- */
+  function layout() {
+    const w = innerWidth, h = innerHeight, wide = w / h >= 1.15 && w >= 720;
+    S.wide = wide; root.classList.toggle('wide', wide); root.classList.toggle('tall', !wide);
+    const box = wide ? '0 0 1920 1080' : '770 200 520 600';
+    art.setAttribute('viewBox', box); fx.setAttribute('viewBox', box);
+    if (wide) {
+      const k = Math.min(w / 1920, h / 1080); S.k = k;
+      app.style.transform = `scale(${k})`; fit.style.cssText = `left:${(w - 1920 * k) / 2}px;top:${(h - 1080 * k) / 2}px;width:${1920 * k}px;height:${1080 * k}px`;
+    } else {
+      const k = w / 640; S.k = k;
+      app.style.transform = `scale(${k})`; fit.style.cssText = `left:0;top:0;width:${w}px;height:${Math.ceil(app.offsetHeight * k)}px`;
+    }
+    Anatomy.layout(S.sp.id === 'synth' && wide);
+    Spectro.size(canvas, canvas.clientWidth, canvas.clientHeight, S.k * (window.devicePixelRatio || 1));
+  }
+  addEventListener('resize', layout);
+
+  /* ---- words under each label ---- */
+  const beakWord = g => g < .07 ? 'Clamped shut · Muffled hum' : g < .38 ? 'Nearly closed · Pure whistle' : g < .8 ? 'Shaping song tone' : 'Wide open · Bright & loud';
+  function words(v, now) {
+    const manual = S.mode === 'manual', t = S.touched, singL = now - S.onL < .2, singR = now - S.onR < .2, blowing = manual ? v.breath > .03 : v.loudHeld;
+    return {
+      beak: manual && !t.beak ? (blowing ? 'Drag to open or close' : beakWord(v.beak)) : beakWord(v.beak),
+      throat: manual && !t.throat ? 'Drag to shape vocal warmth' : v.throat > .62 ? 'Expanded · Warm resonance' : v.throat > .34 ? 'Tuning vocal warmth' : 'Tightened · Bright edge',
+      tube: `${manual || t.tube || S.hot === 'tube' || S.mode === 'synth' ? 'Stretch or widen' : 'Resonant tube'} (${Math.round(v.tubeLen)} × ${v.tubeWid.toFixed(1)} mm)`,
+      right: singR ? 'Singing · ' + fmtHz(S.shownR) : manual ? 'Pull to bend high notes' : 'Resting · Muted',
+      left: singL ? 'Singing · ' + fmtHz(S.shownL) : manual ? 'Pull to bend low notes' : 'Resting · Muted',
+      belly: blowing ? 'Blowing air to sing' : manual ? 'Squeeze up to blow air' : 'Mini-breath · Refilling',
+      split: Math.abs(v.balance) < .06 ? 'Anchors & merges the two voices' : v.balance < 0 ? 'Leaning left · Low voice leads' : 'Leaning right · High voice leads',
+      cushion: S.dev.cushion > .05 ? 'Pressurised · Adds buzz & grit' : 'Surrounds syrinx · Aids clicks & tone',
+    };
+  }
+
+  /* ---- one frame ---- */
+  let last = performance.now(), labelT = 0;
+  function frame(ts) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(.1, (ts - last) / 1000); last = ts;
+    const now = Sound.ctx ? Sound.now() : ts / 1000, sp = S.sp, d = S.dev, mode = S.mode, manual = mode === 'manual', synth = mode === 'synth';
+    /* 1. what the three sound sources are doing, before the player's adjustments */
+    const rest = { fL: sp.rest[0], aL: 1, dL: .36, gL: 0, fR: sp.rest[1], aR: S.touched.right ? 1 : 0, dR: .3, gR: 0, fN: 3000, aN: 0 };
+    const stateAt = t => manual ? rest : songAt(SONGS[sp.id], t - S.t0);
+    const base = synth ? Synth.frame(dt, now) : stateAt(now - .02);
+    if (!synth) Sound.schedule(stateAt);
+    /* 2. the player's adjustments */
+    const bendL = d.left, bendR = d.right, balL = d.split > 0 ? 1 - d.split : 1, balR = d.split < 0 ? 1 + d.split : 1;
+    const breath = manual ? Math.max(0, d.belly) : d.belly >= 0 ? 1 + .4 * d.belly : 1 + d.belly;
+    const tube0 = synth ? [base.tube, sp.tube[1]] : sp.tube;
+    const tubeLen = clamp(tube0[0] * Math.pow(2, d.tubeL * 1.5), 10, 120), tubeWid = clamp(tube0[1] * Math.pow(2, d.tubeW), 1.2, 7);
+    const gateL = base.aL * balL * Math.min(1, breath), gateR = base.aR * balR * Math.min(1, breath);
+    const fL = base.fL * Math.pow(2, bendL), fR = base.fR * Math.pow(2, bendR), loud = Math.max(gateL, gateR, base.aN * Math.min(1, breath));
+    const fTop = Math.max(gateL > .02 ? fL : 0, gateR > .02 ? fR : 0) || Math.max(fL, fR);
+    /* the beak opens wider for higher notes and closes between them; the throat follows the bird (or the wah slider) */
+    const want = synth ? (loud > .02 ? .62 : .12) : manual ? (breath > .03 ? .3 : 0) : loud > .02 ? clamp(.45 + .22 * Math.log2(fTop / Math.sqrt(sp.rest[0] * sp.rest[1])), .16, 1) : .06;
+    S.beak += (want - S.beak) * (1 - Math.exp(-dt / .045));
+    S.loud += (loud - S.loud) * (1 - Math.exp(-dt / .09));
+    const beak = clamp(S.beak + d.beak * .75, 0, 1), throat = clamp((synth ? base.throat : sp.throat) + d.throat * .6, 0, 1);
+    Sound.direct({ breath, balL, balR, bendL, bendR, grit: d.cushion, hiss: manual ? breath * .6 : 0, fL: base.fL, fR: base.fR, tubeLen, tubeWid, beak,
+      throatHz: synth ? 300 * Math.pow(40, throat) : 14000 * Math.pow((1.35 * fTop + 300) / 14000, throat), throatQ: synth ? 5 : .7 + 1.1 * throat });
+    /* 3. draw */
+    if (gateL > .03) { S.onL = now; S.shownL = fL; } if (gateR > .03) { S.onR = now; S.shownR = fR; }
+    if (loud > .02) S.flow += dt * .6;
+    const v = { breath, gateL, gateR, loud, fL, fR, grit: clamp(d.cushion + (synth ? base.grit * .5 : Math.max(base.gL, base.gR) * .5), 0, 1), click: base.aN, tubeLen, tubeWid, tube0: sp.tube, throat, beak,
+      balance: d.split, bendL, bendR, squeeze: manual ? breath : .12 + .6 * S.loud + .3 * Math.max(0, d.belly), flow: S.flow, hot: S.hot, bellyHot: S.hot === 'belly' || (manual && breath > .03), loudHeld: S.loud > .04 };
+    Anatomy.update(v, ts / 1000);
+    if (ts - labelT > 90) {
+      labelT = ts; const w = words(v, now);
+      for (const id in w) { Anatomy.setText(id, w[id]); const c = cells[id]; if (c.lastChild.textContent !== w[id]) c.lastChild.textContent = w[id]; c.classList.toggle('hot', S.hot === id); }
+      if (synth) button();
+    }
+    Spectro.draw(dt, v, now);
+  }
+
+  choose(SPECIES[0], false);
+  layout();
+  requestAnimationFrame(frame);
+  window.__lab = { S, choose, setMode, layout, species: SPECIES };          // handy from the console
+})();
+</script>
+</body>
+</html>
