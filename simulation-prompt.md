@@ -32,7 +32,12 @@ One screen with four areas:
    labels beside the drawing. Each label has the part's name and, under it, a short line that
    changes live: a reading with units when the part is working ("Singing - 2.4 kHz"), a state
    in plain words ("Nearly closed - Pure whistle"), or a hint when it is untouched
-   ("Drag to open or close"). The part and its label highlight while hovered or dragged.
+   ("Drag to open or close").
+   Grabbing a part must feel physical: the part gets a thick outline in the accent colour, its
+   handle becomes a filled dot with a ring, the leader line and label take the same colour, the
+   handle follows the pointer freely up to a short reach, and the part visibly stretches or
+   squeezes with it. A part that needs an input to work (air, power, pressure) should look
+   slack and pale until that input arrives.
 2. Left: a play/pause button and a list of the cases. Picking a case redraws the subject in that
    case's own colours and shape and switches to its behaviour.
 3. Bottom: the live read-out, drawn from what the model is actually producing, with labelled axes.
@@ -40,8 +45,10 @@ One screen with four areas:
 4. Right, only in playground mode: the control panel (presets, sliders with units, mode buttons).
 
 Two ways to use every case:
-- Demo: the case runs by itself in a loop. The parts move as they really would, so the person
-  can see cause and effect. Dragging a part while it runs bends the behaviour immediately.
+- Demo: the case runs by itself in a loop, starting as soon as the page opens (silently if the
+  browser has not allowed sound yet, with a one-line note saying how to switch it on). The parts
+  move as they really would, so the person can see cause and effect. Dragging a part while it
+  runs bends the behaviour immediately.
 - By hand: nothing happens until the person supplies the driving input (for example, squeezing
   the air sacs). From there every part is theirs to move and the handles stay where they leave them.
   Double-clicking a handle resets it.
@@ -71,7 +78,9 @@ CONSTRAINTS
   screen switch to a single column: case list on top, the drawing filling the width, the read-out,
   then the labels as a list. Handles need touch targets of at least 40 px and must not scroll
   the page while dragged.
-- Hold 60 frames per second. Redraw only what changes; keep the still artwork on its own layer.
+- Hold 60 frames per second on a large high-resolution screen as well as a phone. Redraw only
+  what changes. If the still artwork uses textures or filters, paint it once into a canvas and
+  animate on a separate layer above it; filtered artwork that is redrawn every frame is slow.
 - Pause sound when the tab is hidden.
 - Comment the code by section, explaining what each part models.
 
@@ -84,7 +93,8 @@ ORDER OF WORK
 CHECK BEFORE YOU CALL IT DONE
 Open the page in a browser and confirm, case by case:
 - the demo runs and the read-out shows that case's distinctive pattern;
-- dragging each handle changes the label, the read-out and the sound in the expected direction;
+- dragging each handle changes the label, the read-out and the sound in the expected direction,
+  with a mouse and with a finger (the page must not scroll while a handle is held);
 - by-hand mode is silent and still until the driving input is supplied;
 - there are no console errors, and nothing is requested from the network;
 - it works at 1366 x 768 and at 390 x 844.

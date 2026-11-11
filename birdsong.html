@@ -38,13 +38,18 @@ html.tall #app{width:640px;height:auto}
 
 /* ---- centre: the bird (still layer) and its voice box (animated layer) ---- */
 #scene svg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden}
+#paint{position:absolute;left:0;top:0;width:100%;height:100%;display:none}
+html.painted #paint{display:block}html.painted #art{visibility:hidden}      /* once the textured painting is ready it replaces the plain drawing */
 #fx{pointer-events:none}
 #fx text{font-family:inherit}
+#fx{touch-action:none}
 #fx .hit{pointer-events:all;fill:transparent;cursor:grab;touch-action:none}
+#fx.dragging .hit{cursor:grabbing}
+#fx .ring{fill:rgba(184,56,43,.07);stroke:#b8382b;stroke-width:1.5}
 #fx .knob{fill:#fffdf8;stroke:#2a2521;stroke-width:2.1}
-#fx .knob.hot{stroke:#a43a2c;stroke-width:3;fill:#fff}
+#fx .knob.hot{fill:#c8402f;stroke:#8f2a20;stroke-width:1.6}
 #fx .lead{stroke:#b9b0a3;stroke-width:1.3;stroke-dasharray:3.5 4.5}
-#fx .lead.hot{stroke:#a43a2c;stroke-width:1.7}
+#fx .lead.hot{stroke:#a43a2c;stroke-width:2.2;stroke-dasharray:4 4}
 #fx .nm{font-weight:600;font-size:19.5px;fill:#2a2521;letter-spacing:.2px}
 #fx .sb{font-style:italic;font-size:15px;fill:#6d655c}
 #fx .lab.hot .nm,#fx .lab.hot .sb{fill:#a43a2c}
@@ -54,6 +59,8 @@ html.tall #app{width:640px;height:auto}
 #spec .ax i{position:absolute;right:0;transform:translateY(-50%);white-space:nowrap}
 #sg{position:absolute;left:0;top:0;width:100%;height:100%;border:1.5px solid #cfc6b6;background:#faf7ef}
 #spec .gl{position:absolute;left:1px;right:1px;height:1px;background:rgba(120,105,90,.17);pointer-events:none}
+#spec .tap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-style:italic;font-size:19px;color:#8f2f22;pointer-events:none}
+html.audio #spec .tap{display:none}
 
 /* ---- right: the SynthBird panel ---- */
 #synth{padding:17px 19px 16px;background:#fbf9f2;border:1.5px solid #cfc6b6;box-shadow:inset 0 0 0 3px #fbf9f2,inset 0 0 0 4px #ddd5c6}
@@ -83,10 +90,10 @@ html.tall #app{width:640px;height:auto}
 #synth .kb{position:relative;height:92px;margin-top:14px;border:1.5px solid #cfc6b6;background:#fffdf8;touch-action:none;user-select:none;-webkit-user-select:none}
 #synth .wk{position:absolute;top:0;bottom:0;width:9.0909%;border-right:1px solid #ddd5c6;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:3px;cursor:pointer;touch-action:none}
 #synth .wk b{font:600 13px ui-monospace,Menlo,Consolas,monospace}#synth .wk i{font-style:normal;font-size:10px;color:#9a9186;line-height:1.1}
-#synth .wk.down{background:#f1cfc5}
+#synth .wk.dl{background:#2f7f8f;color:#fff}#synth .wk.dr{background:#b8382b;color:#fff}#synth .wk.dl i,#synth .wk.dr i{color:#fff}
 #synth .bk{position:absolute;top:0;height:56%;width:6%;margin-left:-3%;background:#26211e;color:#fff;display:flex;justify-content:center;align-items:flex-end;padding-bottom:3px;cursor:pointer;z-index:2;touch-action:none}
 #synth .bk b{font:600 12.5px ui-monospace,Menlo,Consolas,monospace}
-#synth .bk.down{background:#a43a2c}
+#synth .bk.dl{background:#2f7f8f}#synth .bk.dr{background:#b8382b}
 #synth .hint{margin-top:10px;font-size:15.5px;color:#5d564e;white-space:nowrap}#synth .hint b{color:#2a2521}
 
 /* ---- wide screens: everything pinned to its place on the 1920 x 1080 sheet ---- */
@@ -122,12 +129,14 @@ html.tall #synth{margin:16px 16px 26px}
     <div id="species"></div>
   </div>
   <div id="scene">
+    <canvas id="paint" aria-hidden="true"></canvas>
     <svg id="art" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
     <svg id="fx" viewBox="0 0 1920 1080" role="img" aria-label="A bird with its voice box exposed; drag the round handles to play it"></svg>
   </div>
   <div id="spec">
     <div class="ax"><i style="top:25%">6 kHz</i><i style="top:50%">4 kHz</i><i style="top:75%">2 kHz</i></div>
     <canvas id="sg"></canvas>
+    <div class="tap">Tap or click anywhere to switch the sound on</div>
     <div class="gl" style="top:25%"></div><div class="gl" style="top:50%"></div><div class="gl" style="top:75%"></div>
   </div>
   <div id="parts"></div>
@@ -483,8 +492,10 @@ function beakPaths(L) {
   };
 }
 function leaf(x, y, len, deg, fill, vein) {
-  const w = len * .3;
-  return `<g transform="translate(${x} ${y}) rotate(${deg})"><path d="M0,0 C${len * .28},${-w} ${len * .78},${-w * .82} ${len},0 C${len * .78},${w * .82} ${len * .28},${w} 0,0 Z" fill="${fill}"/><path d="M2,0 L${len - 4},0" stroke="${vein}" stroke-width="1.2" fill="none"/></g>`;
+  const w = len * .3; let side = '';
+  for (let i = 0; i < 4; i++) { const px = len * (.2 + i * .17), l = w * (.95 - Math.abs(i - 1.3) * .2); side += `M${px.toFixed(1)},0 l${(len * .1).toFixed(1)},${(-l * .78).toFixed(1)} M${px.toFixed(1)},0 l${(len * .1).toFixed(1)},${(l * .78).toFixed(1)} `; }
+  return `<g transform="translate(${x} ${y}) rotate(${deg})"><path d="M0,0 C${len * .28},${-w} ${len * .78},${-w * .82} ${len},0 C${len * .78},${w * .82} ${len * .28},${w} 0,0 Z" fill="${fill}"/>
+    <path d="M0,0 C${len * .28},${-w} ${len * .78},${-w * .82} ${len},0 Z" fill="#fff" opacity=".1"/><path d="M2,0 L${len - 4},0 ${side}" stroke="${vein}" stroke-width="1.1" fill="none" opacity=".85"/></g>`;
 }
 function flower(x, y, r, petal, heart) {
   let s = '';
@@ -513,7 +524,7 @@ function perch(kind) {
     for (const [x, y] of [[797, 716], [1197, 712]]) s += `<rect x="${x - 7}" y="${y}" width="14" height="6" rx="2" fill="#3f7a80"/><rect x="${x - 6}" y="${y - 8}" width="12" height="6" rx="2" fill="#4a8a90"/><rect x="${x - 4}" y="${y - 15}" width="8" height="6" rx="2" fill="#3f7a80"/><rect x="${x - 8}" y="${y + 6}" width="16" height="6" fill="#c9a548"/>`;
     return { back: '', branch: s, front: '' };
   }
-  const branch = `<path d="${twig}" fill="#8b705c"/><path d="M700,756 C740,742 790,733 830,730" stroke="#8b705c" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+  const branch = `<path d="${twig}" fill="url(#gTwig)"/><path d="M1120,724 l26,-16 M1150,726 l8,-12" stroke="#8b705c" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M700,756 C740,742 790,733 830,730" stroke="#8b705c" stroke-width="3" fill="none" stroke-linecap="round"/>`;
   if (kind === 'fern') {
     return { back: frond(1230, 742, -62, 150, '#7fa66d') + frond(700, 752, -150, 130, '#7fa66d'),
              branch,
@@ -575,33 +586,47 @@ function markings(kind, L) {
   return s;
 }
 
-/* the still layer: perch, tail, body, wing, head, legs */
-function birdArt(sp) {
+/* the still layer: perch, tail, body, wing, head, legs.
+   `rich` adds soft shading and a grain filter for a painted look. Filters are slow to redraw, so the rich version
+   is only ever painted once into a canvas (see paintArt in the app); the plain version is what shows meanwhile. */
+function birdArt(sp, rich) {
   const L = LOOK[sp.id], P = perch(L.perch), metal = L.marks === 'metal';
   const eye = metal
     ? `<circle cx="1096" cy="270" r="11" fill="#1f2a30"/><circle cx="1096" cy="270" r="8" fill="#2f9a5c"/><path d="M1091,270 h10 m-4,-3.5 l4,3.5 l-4,3.5" stroke="#d8f5e2" stroke-width="1.6" fill="none"/>`
     : `<circle cx="1096" cy="269" r="9.5" fill="none" stroke="#f6f1e6" stroke-width="1.6" stroke-dasharray="1.6 2.2"/><circle cx="1096" cy="269" r="7.6" fill="#16110e"/><circle cx="1098.6" cy="266.4" r="2" fill="#fff" opacity=".85"/>`;
   const legs = metal
     ? `<path d="M970,640 L984,668 L1018,722 M1038,642 L1050,668 L1084,722" stroke="${L.leg}" stroke-width="4.5" fill="none" stroke-linecap="round"/><circle cx="984" cy="668" r="4.5" fill="#c9a548"/><circle cx="1050" cy="668" r="4.5" fill="#c9a548"/>`
-    : `<path d="M972,656 L1016,722 M1040,658 L1082,722" stroke="${L.leg}" stroke-width="${sp.id === 'lyrebird' ? 5.5 : 3.6}" fill="none" stroke-linecap="round"/>`;
-  const feet = [[1016, 722], [1082, 722]].map(([x, y]) => `<path d="M${x},${y} l18,5 M${x},${y} l14,9 M${x},${y} l4,11 M${x},${y} l-13,5" stroke="${metal ? '#6f7d85' : L.leg}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`).join('');
-  let wing = `<path d="${WING}" fill="url(#gWing)"/>`;
-  for (let i = 0; i < 5; i++) wing += `<path d="M${968 - i * 20},${452 + i * 24} C${930 - i * 20},${500 + i * 20} ${880 - i * 16},${560 + i * 14} ${792 - i * 3},${652 + i * 2}" stroke="${L.wing2}" stroke-width="1.5" fill="none" opacity=".75"/>`;
-  for (let r = 0; r < 3; r++) for (let i = 0; i < 4 - r; i++) { const x = 978 - i * 20 - r * 14, y = 428 + i * 24 + r * 26; wing += `<path d="M${x},${y} l-11,15 l15,-5" stroke="${metal ? '#8fb0c2' : 'rgba(255,255,255,.28)'}" stroke-width="1.6" fill="none"/>`; }
+    : `<path d="M972,656 L1016,722 M1040,658 L1082,722" stroke="${L.leg}" stroke-width="${sp.id === 'lyrebird' ? 5.5 : 3.8}" fill="none" stroke-linecap="round"/><path d="M990,686 l7,-3 M1058,688 l7,-3" stroke="rgba(0,0,0,.25)" stroke-width="1.2"/>`;
+  /* three toes forward and one back, each ending in a small claw */
+  const toe = metal ? '#6f7d85' : L.leg;
+  const feet = [[1016, 722], [1082, 722]].map(([x, y]) => `<path d="M${x},${y} q10,-2 21,5 M${x},${y} q7,2 16,10 M${x},${y} q1,6 5,12 M${x},${y} q-8,-1 -15,5" stroke="${toe}" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M${x + 21},${y + 5} l5,4 M${x + 16},${y + 10} l4,5 M${x + 5},${y + 12} l1,5 M${x - 15},${y + 5} l-5,3" stroke="#3a302a" stroke-width="1.6" stroke-linecap="round"/>`).join('');
+  /* wing: long flight feathers towards the tip, rows of small covert feathers at the shoulder */
+  let wing = '';
+  for (let i = 0; i < 6; i++) { const sx = 962 - i * 17, sy = 470 + i * 17, ex = 780 + i * 7, ey = 660 - i * 4; wing += `<path d="M${sx},${sy} L${ex},${ey} L${ex + 10},${ey - 9} L${sx + 13},${sy - 8} Z" fill="${L.wing2}" opacity=".82"/><path d="M${sx + 13},${sy - 8} L${ex + 10},${ey - 9}" stroke="${metal ? '#9fc0d0' : 'rgba(255,255,255,.22)'}" stroke-width="1.2"/>`; }
+  for (let r = 0; r < 4; r++) for (let i = 0; i < 5 - r; i++) { const x = 988 - i * 17 - r * 13, y = 418 + i * 20 + r * 20; wing += `<path d="M${x},${y} q-12,5 -13,18 q10,-4 13,-18 Z" fill="${L.wing}" stroke="${L.wing2}" stroke-width="1" opacity=".9"/>`; }
+  /* fine feather ticks over the body */
+  let ticks = '', seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  if (!metal) for (let i = 0; i < 60; i++) { const x = 890 + rnd() * 240, y = 300 + rnd() * 320; ticks += `M${x.toFixed(0)},${y.toFixed(0)} l-3,6 l6,-3 `; }
   return `<defs>
       <radialGradient id="gBody" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="1" gradientTransform="translate(1004 340) rotate(124) scale(${L.cover ? 520 : 235} ${L.cover ? 330 : 96})"><stop offset="0" stop-color="${L.mantle}"/><stop offset=".5" stop-color="${L.mantle}"/><stop offset="1" stop-color="${L.mantle}" stop-opacity="0"/></radialGradient>
       <radialGradient id="gHead" gradientUnits="userSpaceOnUse" cx="1068" cy="258" r="96"><stop offset="0" stop-color="${L.head}"/><stop offset=".52" stop-color="${L.head}"/><stop offset="1" stop-color="${L.head}" stop-opacity="0"/></radialGradient>
       <linearGradient id="gWing" gradientUnits="userSpaceOnUse" x1="1010" y1="400" x2="790" y2="660"><stop offset="0" stop-color="${L.wing}"/><stop offset="1" stop-color="${L.wing2}"/></linearGradient>
-      <linearGradient id="gShade" x1="0" y1="0" x2="0" y2="1"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a1a0a" stop-opacity=".11"/></linearGradient>
-      <filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="7"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 -.42"/><feComposite in2="SourceGraphic" operator="in"/></filter>
+      <linearGradient id="gTwig" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a48a74"/><stop offset="1" stop-color="#6f5847"/></linearGradient>
+      <clipPath id="cBody"><path d="${BODY}"/></clipPath><clipPath id="cWing"><path d="${WING}"/></clipPath>
+      <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="10"/></filter>
+      <filter id="tex" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="5" result="n"/>
+        <feColorMatrix in="n" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .62 -.33" result="light"/><feComposite in="light" in2="SourceGraphic" operator="in" result="l"/>
+        <feColorMatrix in="n" values="0 0 0 0 .16  0 0 0 0 .1  0 0 0 0 .05  0 0 0 -.5 .21" result="dark"/><feComposite in="dark" in2="SourceGraphic" operator="in" result="d"/>
+        <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="l"/><feMergeNode in="d"/></feMerge></filter>
     </defs>
-    ${P.back}${P.branch}${tail(L, L.marks)}
+    <g ${rich ? 'filter="url(#tex)"' : ''}>${P.back}${P.branch}${tail(L, L.marks)}
     <path d="M952,600 C955,640 964,660 972,662 C984,652 990,630 992,604 Z M1020,604 C1023,642 1032,662 1040,664 C1052,654 1058,632 1060,606 Z" fill="${L.thigh || L.belly}"/>
-    <path d="${BODY}" fill="${L.belly}"/><path d="${BODY}" fill="url(#gBody)"/><path d="${BODY}" fill="url(#gHead)"/><path d="${BODY}" fill="url(#gShade)"/>
-    <path d="${BODY}" fill="#fff" filter="url(#grain)" opacity=".34"/>
-    ${markings(L.marks, L)}${wing}${eye}
-    <path d="M1108,296 q14,6 26,-3" stroke="rgba(40,30,22,.55)" stroke-width="2" fill="none" stroke-linecap="round"/>
-    ${legs}${feet}${P.front}`;
+    <path d="${BODY}" fill="${L.belly}"/><path d="${BODY}" fill="url(#gBody)"/><path d="${BODY}" fill="url(#gHead)"/>
+    <g clip-path="url(#cBody)">${rich ? `<path d="${BODY}" fill="none" stroke="#3c2610" stroke-opacity=".3" stroke-width="34" filter="url(#soft)"/>` : ''}<path d="${ticks}" stroke="rgba(90,60,35,.3)" stroke-width="1.1" fill="none"/></g>
+    ${markings(L.marks, L)}
+    <path d="${WING}" fill="url(#gWing)"/><g clip-path="url(#cWing)">${wing}${rich ? `<path d="${WING}" fill="none" stroke="#1c140c" stroke-opacity=".3" stroke-width="18" filter="url(#soft)"/>` : ''}</g>
+    ${eye}<path d="M1108,296 q14,6 26,-3" stroke="rgba(40,30,22,.55)" stroke-width="2" fill="none" stroke-linecap="round"/>
+    ${legs}${feet}${P.front}</g>`;
 }
 /* the little head in each card */
 function headIcon(sp) {
@@ -615,6 +640,7 @@ function headIcon(sp) {
 /* ==========================================================================
    The voice box: a cut-away window on the bird's chest, drawn on the animated layer.
    Local coordinates (u, v) have the syrinx at the origin; the whole window is tilted to follow the neck.
+   A part that is hovered or dragged gets a thick red outline, a red handle and a ring, as feedback.
    ========================================================================== */
 const PARTS = [
   { id: 'beak',    name: 'Beak',                     side: 'R', row: 0 },
@@ -631,69 +657,98 @@ const Anatomy = (() => {
   const toStage = (u, v) => [CUT.x + CUT.k * (u * cs - v * sn), CUT.y + CUT.k * (u * sn + v * cs)];
   const WINDOW = 'M-22,-128 C-28,-128 -32,-122 -33,-112 L-42,-30 C-52,10 -54,56 -50,88 C-48,106 -36,114 -10,114 L26,112 C44,110 52,100 52,84 C54,36 46,-8 40,-40 L32,-112 C31,-122 28,-128 20,-128 Z';
   const BELLY = 'M-40,74 C-44,58 -24,52 -5,63 C10,52 38,54 40,74 C42,92 26,104 4,99 L-1,104 L-7,99 C-30,104 -44,92 -40,74 Z';
-  const BLUE = '#3d7fb6', RED = '#c8423a', HOT = '#a43a2c';
-  const FLOW_N = 7;
-  let fx, E = {}, look = null, beakTip = [1192, 276], on = {}, drag = null, tubePx = [90, 21];
+  const PESS = 'M0,-18 C-3,-8 -9,-2 -9,4 L9,4 C9,-2 3,-8 0,-18 Z';
+  const BLUE = '#3d7fb6', RED = '#c8423a', HOT = '#b8382b', FLOW_N = 9;
+  let fx, E = {}, look = null, beakTip = [1192, 276], on = {}, drag = null, knobR = 6.2, synthBeak = false;
 
   function build(svgEl, handlers) {
     fx = svgEl; on = handlers;
     const g = (parent, attrs) => svg('g', attrs || {}, parent);
+    const defs = svg('defs', {}, fx);
+    svg('clipPath', { id: 'winClip' }, defs).appendChild(svg('path', { d: WINDOW }));
+    defs.insertAdjacentHTML('beforeend', '<linearGradient id="tubeG" x1="0" x2="1"><stop offset="0" stop-color="#d3c8ae"/><stop offset=".45" stop-color="#f6f0e0"/><stop offset="1" stop-color="#d9cfb6"/></linearGradient><radialGradient id="labG" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#ef8f88"/><stop offset=".55" stop-color="#d9474a"/><stop offset="1" stop-color="#b8343a"/></radialGradient>');
     E.waves = g(fx); E.beak = g(fx);
-    E.upper = svg('path', {}, E.beak); E.lower = svg('path', {}, E.beak);
+    E.upper = svg('path', { 'stroke-linejoin': 'round' }, E.beak); E.lower = svg('path', { 'stroke-linejoin': 'round' }, E.beak);
     /* sound leaving the beak */
     E.arcs = []; for (let i = 0; i < 5; i++) E.arcs.push(svg('path', { fill: 'none', stroke: '#a39180', 'stroke-width': 1.6, 'stroke-dasharray': '5 4', 'stroke-linecap': 'round' }, E.waves));
     E.outL = []; E.outR = [];
     for (let i = 0; i < 4; i++) { E.outL.push(svg('line', { stroke: BLUE, 'stroke-width': 2.4, 'stroke-linecap': 'round' }, E.waves)); E.outR.push(svg('line', { stroke: RED, 'stroke-width': 2.4, 'stroke-linecap': 'round' }, E.waves)); }
     /* the window and everything inside it */
     const cut = g(fx, { transform: `translate(${CUT.x} ${CUT.y}) rotate(${CUT.deg}) scale(${CUT.k})` });
-    svg('clipPath', { id: 'winClip' }, svg('defs', {}, fx)).appendChild(svg('path', { d: WINDOW }));
     for (let i = 0; i < 15; i++) {                             // the feathers folded back along both edges
       const p = i / 14, lu = lerp(-34, -51, p), ru = lerp(33, 52, p), v = lerp(-112, 84, p);
-      svg('path', { d: `M${lu},${v - 5} l-10,2 l10,7 Z`, fill: '#6d6a49', opacity: .85 }, cut);
+      svg('path', { d: `M${lu},${v - 5} l-10,2 l10,7 Z`, fill: '#7a6449', opacity: .85 }, cut);
       svg('path', { d: `M${ru},${v - 5} l10,-1 l-10,8 Z`, fill: '#fbf9f2', stroke: '#cfc8b8', 'stroke-width': .8 }, cut);
     }
-    svg('path', { d: WINDOW, fill: '#f9f6ed', 'fill-opacity': .9, stroke: '#a7a093', 'stroke-width': 1.6 }, cut);
+    svg('path', { d: WINDOW, fill: '#f9f6ed', 'fill-opacity': .9, stroke: '#a7a093', 'stroke-width': 1.5 }, cut);
+    svg('path', { d: WINDOW, fill: 'none', stroke: '#b5aea2', 'stroke-width': 1, 'stroke-dasharray': '4 4', transform: 'translate(0 -7) scale(.9 .94) translate(0 7)' }, cut);
     const inner = g(cut, { 'clip-path': 'url(#winClip)' });
+    /* chest air cushion: two see-through lobes around the syrinx */
     E.cushion = g(inner);
-    svg('ellipse', { cx: -26, cy: 22, rx: 23, ry: 40, transform: 'rotate(8 -26 22)', fill: '#ecb0ac', 'fill-opacity': .42, stroke: '#d49b98', 'stroke-width': 1.2, 'stroke-dasharray': '4 3' }, E.cushion);
-    svg('ellipse', { cx: 26, cy: 22, rx: 23, ry: 40, transform: 'rotate(-8 26 22)', fill: '#ecb0ac', 'fill-opacity': .42, stroke: '#d49b98', 'stroke-width': 1.2, 'stroke-dasharray': '4 3' }, E.cushion);
-    E.belly = svg('path', { d: BELLY, fill: '#f7e4cf', stroke: '#c98e68', 'stroke-width': 1.8 }, inner);
-    svg('path', { d: 'M-12,16 C-14,34 -20,50 -22,66 M-7,16 C-8,34 -14,50 -15,64 M12,16 C14,34 20,50 22,66 M7,16 C8,34 14,50 15,64', fill: 'none', stroke: '#b8402f', 'stroke-width': 2 }, inner);
-    for (const [x1, y1, x2, y2] of [[-44, 1, -19, -2], [-45, 17, -21, 15], [-41, 33, -19, 31], [44, 1, 19, -2], [45, 17, 21, 15], [41, 33, 19, 31]]) {
-      svg('line', { x1, y1, x2, y2, stroke: '#a2967f', 'stroke-width': 7.4, 'stroke-linecap': 'round' }, inner);
-      svg('line', { x1, y1, x2, y2, stroke: '#f4eedf', 'stroke-width': 5, 'stroke-linecap': 'round' }, inner);
+    for (const s of [-1, 1]) {
+      const lobe = g(E.cushion, { transform: `rotate(${s * 9} ${s * 27} 20)` });
+      svg('ellipse', { cx: s * 27, cy: 20, rx: 25, ry: 44, fill: '#eebdb8', 'fill-opacity': .5, stroke: '#d59c98', 'stroke-width': 1.2, 'stroke-dasharray': '4 3' }, lobe);
+      for (let i = -3; i <= 3; i++) { const x = s * 27 + i * 6.4, hh = 44 * Math.sqrt(1 - Math.pow(i * 6.4 / 25, 2)) * .9; svg('line', { x1: x, y1: 20 - hh, x2: x, y2: 20 + hh, stroke: '#e3aaa5', 'stroke-width': .8 }, lobe); }
     }
-    svg('path', { d: 'M-13,-34 L-44,24 L-38,26 L-9,-28 Z M-10,-22 L-27,2 L-21,4 L-6,-16 Z M13,-34 L44,24 L38,26 L9,-28 Z M10,-22 L27,2 L21,4 L6,-16 Z', fill: '#8e2a2c' }, inner);
-    svg('path', { d: 'M-12,-30 L-40,24 M12,-30 L40,24', stroke: '#c0534d', 'stroke-width': 1.2, fill: 'none' }, inner);
+    E.hl = {};
+    E.hl.cushion = g(inner, { visibility: 'hidden' });
+    for (const s of [-1, 1]) svg('ellipse', { cx: s * 27, cy: 20, rx: 25, ry: 44, transform: `rotate(${s * 9} ${s * 27} 20)`, fill: 'none', stroke: HOT, 'stroke-width': 3 }, E.hl.cushion);
+    /* belly air sacs */
+    E.bellyG = g(inner);
+    E.belly = svg('path', { d: BELLY, 'stroke-linejoin': 'round' }, E.bellyG);
+    svg('path', { d: 'M-33,72 C-32,84 -22,93 -12,94 M33,72 C32,84 24,92 14,93', fill: 'none', stroke: '#fff', 'stroke-width': 1.6, opacity: .7 }, E.bellyG);
+    /* bronchi, cartilage bars, muscles */
+    svg('path', { d: 'M-13,17 C-13,32 -5,42 -7,54 C-9,62 -15,66 -20,70 M-7,17 C-7,30 -1,40 -2,54 M13,17 C13,32 5,42 7,54 C9,62 15,66 20,70 M7,17 C7,30 1,40 2,54', fill: 'none', stroke: '#9c3526', 'stroke-width': 1.9, 'stroke-linecap': 'round' }, inner);
+    for (const [x1, y1, x2, y2] of [[-45, 18, -21, 16], [-40, 32, -19, 30], [45, 18, 21, 16], [40, 32, 19, 30]]) {
+      svg('line', { x1, y1, x2, y2, stroke: '#9c8f78', 'stroke-width': 7.2, 'stroke-linecap': 'round' }, inner);
+      svg('line', { x1, y1, x2, y2, stroke: '#f4eedf', 'stroke-width': 4.8, 'stroke-linecap': 'round' }, inner);
+    }
+    svg('path', { d: 'M-10,-37 L-47,22 L-41,25 L-7,-30 Z M-14,-39 L-53,9 L-50,13 Z M10,-37 L47,22 L41,25 L7,-30 Z M14,-39 L53,9 L50,13 Z', fill: '#8e2a2c' }, inner);
+    svg('path', { d: 'M-17,-25 L-6,-23 L-5,-2 L-19,-4 Z M17,-25 L6,-23 L5,-2 L19,-4 Z', fill: '#a8383a' }, inner);
+    svg('path', { d: 'M-15,-23 l-1,19 M-12,-23 l-1,20 M-9,-23 l0,20 M15,-23 l1,19 M12,-23 l1,20 M9,-23 l0,20', stroke: '#d98a84', 'stroke-width': .8, fill: 'none' }, inner);
+    /* the two voices (labia), each with a white cartilage hook over it */
     E.labL = g(inner); E.labR = g(inner);
     for (const [grp, s] of [[E.labL, -1], [E.labR, 1]]) {
-      svg('ellipse', { cx: s * 25, cy: 6, rx: 9, ry: 11.5, fill: '#d9474a', stroke: '#7c1f25', 'stroke-width': 1.6 }, grp);
-      svg('ellipse', { cx: s * 12.5, cy: 7.5, rx: 7.2, ry: 10.5, fill: '#e0565a', stroke: '#7c1f25', 'stroke-width': 1.6 }, grp);
-      svg('ellipse', { cx: s * 13.5, cy: 5, rx: 2.6, ry: 4.5, fill: '#f3a39d' }, grp);
+      svg('ellipse', { cx: s * 25, cy: 6, rx: 9.5, ry: 12, fill: 'url(#labG)', stroke: '#7c1f25', 'stroke-width': 1.6 }, grp);
+      svg('ellipse', { cx: s * 12.5, cy: 8, rx: 7.5, ry: 11, fill: 'url(#labG)', stroke: '#7c1f25', 'stroke-width': 1.6 }, grp);
+      svg('path', { d: `M${s * 47},3 C${s * 41},-6 ${s * 28},-8 ${s * 19},-2`, fill: 'none', stroke: '#4a3f38', 'stroke-width': 7, 'stroke-linecap': 'round' }, grp);
+      svg('path', { d: `M${s * 47},3 C${s * 41},-6 ${s * 28},-8 ${s * 19},-2`, fill: 'none', stroke: '#fffdf8', 'stroke-width': 4.6, 'stroke-linecap': 'round' }, grp);
+      svg('circle', { cx: s * 9, cy: 21, r: 3, fill: '#fffdf8', stroke: '#4a3f38', 'stroke-width': 1.2 }, grp);
     }
-    svg('rect', { x: -15, y: -39, width: 30, height: 24, rx: 4, fill: '#efe8d8', stroke: '#9e927d', 'stroke-width': 1.5 }, inner);
-    svg('path', { d: 'M-13,-33 h26 M-13,-27 h26 M-13,-21 h26', stroke: '#c9bfa9', 'stroke-width': 1 }, inner);
-    E.split = svg('path', { d: 'M0,-17 L-8,5 L8,5 Z', fill: '#fffdf8', stroke: '#3d3531', 'stroke-width': 1.6, 'stroke-linejoin': 'round' }, inner);
+    E.hl.left = svg('ellipse', { cx: -19, cy: 7, rx: 20, ry: 17, fill: 'none', stroke: HOT, 'stroke-width': 3, visibility: 'hidden' }, inner);
+    E.hl.right = svg('ellipse', { cx: 19, cy: 7, rx: 20, ry: 17, fill: 'none', stroke: HOT, 'stroke-width': 3, visibility: 'hidden' }, inner);
+    /* the drum the windpipe sits on, and the splitter between the two sides */
+    svg('rect', { x: -15, y: -40, width: 30, height: 25, rx: 3.5, fill: 'url(#tubeG)', stroke: '#9e927d', 'stroke-width': 1.5 }, inner);
+    svg('path', { d: 'M-14,-34 h28 M-14,-28 h28 M-14,-22 h28', stroke: '#b9ad95', 'stroke-width': 1 }, inner);
+    E.split = svg('path', { d: PESS, fill: '#f6efdd', stroke: '#3d3531', 'stroke-width': 1.6, 'stroke-linejoin': 'round' }, inner);
+    E.hl.split = svg('path', { d: PESS, fill: HOT, 'fill-opacity': .14, stroke: HOT, 'stroke-width': 2.4, 'stroke-linejoin': 'round', visibility: 'hidden' }, inner);
+    /* throat chamber and windpipe (both redrawn every frame) */
     E.throat = svg('ellipse', { fill: '#f4d3cf', stroke: '#d79c96', 'stroke-width': 1.5 }, inner);
-    E.tubeBase = svg('rect', { fill: '#e6dcc6', stroke: '#a89b84', 'stroke-width': 1.2, rx: 3 }, inner);
-    E.rings = []; for (let i = 0; i < 18; i++) E.rings.push(svg('ellipse', { fill: '#f4eddc', stroke: '#b0a289', 'stroke-width': 1 }, inner));
+    E.hl.throat = svg('ellipse', { fill: 'none', stroke: HOT, 'stroke-width': 3, visibility: 'hidden' }, inner);
+    E.tubeBase = svg('rect', { fill: 'url(#tubeG)', stroke: '#a89b84', 'stroke-width': 1.2, rx: 3 }, inner);
+    E.rings = []; for (let i = 0; i < 16; i++) E.rings.push(svg('rect', { fill: '#f6f0e0', stroke: '#a99c84', 'stroke-width': 1, rx: 2.6 }, inner));
+    E.cap = svg('path', { fill: '#f6f0e0', stroke: '#a99c84', 'stroke-width': 1.2, 'stroke-linejoin': 'round' }, inner);
+    E.hl.tube = svg('path', { fill: HOT, 'fill-opacity': .12, stroke: HOT, 'stroke-width': 3.2, 'stroke-linejoin': 'round', visibility: 'hidden' }, inner);
+    E.hl.belly = svg('path', { d: BELLY, fill: 'none', stroke: HOT, 'stroke-width': 4.4, 'stroke-linejoin': 'round', visibility: 'hidden' }, inner);
     E.flowL = []; E.flowR = [];
     for (let i = 0; i < FLOW_N; i++) { E.flowL.push(svg('line', { stroke: BLUE, 'stroke-width': 2.6, 'stroke-linecap': 'round' }, inner)); E.flowR.push(svg('line', { stroke: RED, 'stroke-width': 2.6, 'stroke-linecap': 'round' }, inner)); }
     /* leader lines, labels and handles */
     E.lead = {}; E.lab = {}; E.knob = {}; E.hit = {};
     const leads = g(fx, { class: 'leads' }), labs = g(fx, { class: 'labs' }), knobs = g(fx);
+    E.ring = svg('circle', { class: 'ring', r: 15, visibility: 'hidden' }, knobs);
     for (const p of PARTS) {
       E.lead[p.id] = svg('line', { class: 'lead' }, leads);
       const t = svg('g', { class: 'lab' }, labs);
       svg('text', { class: 'nm' }, t).textContent = p.name; svg('text', { class: 'sb', dy: 21 }, t);
       E.lab[p.id] = t;
-      E.knob[p.id] = svg('circle', { class: 'knob', r: 5.8 }, knobs);
+      E.knob[p.id] = svg('circle', { class: 'knob' }, knobs);
     }
     for (const p of PARTS) {                                   // hit areas last, so they sit on top
-      const h = svg('circle', { class: 'hit', r: 24 }, knobs); h.dataset.part = p.id; E.hit[p.id] = h;
+      const h = svg('circle', { class: 'hit' }, knobs); h.dataset.part = p.id; E.hit[p.id] = h;
       h.addEventListener('pointerenter', () => { if (!drag) on.hot(p.id); });
       h.addEventListener('pointerleave', () => { if (!drag) on.hot(null); });
       h.addEventListener('pointerdown', e => grab(e, p.id));
+      h.addEventListener('touchstart', e => e.preventDefault(), { passive: false });     // keep the page from scrolling while a handle is held
       h.addEventListener('dblclick', () => on.reset(p.id));
     }
     addEventListener('pointermove', move); addEventListener('pointerup', release); addEventListener('pointercancel', release);
@@ -702,29 +757,31 @@ const Anatomy = (() => {
   function point(e) { const m = fx.getScreenCTM(); return m ? [(e.clientX - m.e) / m.a, (e.clientY - m.f) / m.d] : [0, 0]; }
   function grab(e, id) {
     e.preventDefault(); try { E.hit[id].setPointerCapture(e.pointerId); } catch (err) {}
-    drag = { id, pid: e.pointerId, from: point(e), base: on.begin(id) }; on.hot(id);
+    drag = { id, pid: e.pointerId, from: point(e), base: on.begin(id) }; on.hot(id); fx.classList.add('dragging');
   }
   function move(e) {
     if (!drag || e.pointerId !== drag.pid) return;
     const p = point(e), dx = p[0] - drag.from[0], dy = p[1] - drag.from[1];
-    on.drag(drag.id, drag.base, { dx, dy, du: dx * cs + dy * sn, dv: -dx * sn + dy * cs });   // movement on the page and along the window's own axes
+    /* movement on the page (dx, dy) and along the window's own axes in its own units (du, dv) */
+    on.drag(drag.id, drag.base, { dx, dy, du: (dx * cs + dy * sn) / CUT.k, dv: (-dx * sn + dy * cs) / CUT.k });
   }
-  function release(e) { if (drag && e.pointerId === drag.pid) { drag = null; on.hot(null); } }
+  function release(e) { if (drag && e.pointerId === drag.pid) { drag = null; fx.classList.remove('dragging'); on.hot(e.pointerType === 'mouse' ? on.under(e) : null); } }
 
   function setBird(sp) {
-    look = LOOK[sp.id];
+    look = LOOK[sp.id]; synthBeak = sp.id === 'synth';
     const b = beakPaths(look); beakTip = b.tip;
     E.upper.setAttribute('d', b.upper); E.lower.setAttribute('d', b.lower);
     E.upper.setAttribute('fill', look.beakU); E.lower.setAttribute('fill', look.beakL);
-    if (sp.id === 'synth') { E.lower.setAttribute('stroke', '#7a6226'); E.upper.setAttribute('stroke', '#3a4a54'); } else { E.lower.removeAttribute('stroke'); E.upper.removeAttribute('stroke'); }
   }
-  /* where the labels sit (they move in when the synth panel is open) */
-  function layout(synthOpen) {
+  /* where the labels sit (they move in when the synth panel is open); bigger handles on small screens */
+  function layout(synthOpen, tall) {
     const rx = synthOpen ? 1236 : 1372;
+    knobR = tall ? 9 : 6.2;
     for (const p of PARTS) {
       const x = p.side === 'R' ? rx : 668, y = (p.side === 'R' ? 273 : 437) + p.row * 70.5, t = E.lab[p.id];
       t.setAttribute('transform', `translate(${x} ${y})`); t.setAttribute('text-anchor', p.side === 'R' ? 'start' : 'end');
       p.lx = p.side === 'R' ? x - 12 : x + 12; p.ly = y - 6;
+      E.hit[p.id].setAttribute('r', tall ? 36 : 26);
     }
   }
   /* a point a fraction s of the way along a list of points */
@@ -734,62 +791,69 @@ const Anatomy = (() => {
     let d = s * total;
     for (let i = 0; i < seg.length; i++) { if (d <= seg[i] || i === seg.length - 1) { const p = d / seg[i], a = P[i], b = P[i + 1]; return [lerp(a[0], b[0], p), lerp(a[1], b[1], p), (b[0] - a[0]) / seg[i], (b[1] - a[1]) / seg[i]]; } d -= seg[i]; }
   }
-  /* redraw for the current state. v = { breath, gateL, gateR, loud, grit, click, tubeLen, tubeWid, tube0: [len, wid], throat, beak, balance, bendL, bendR, squeeze, flow, hot, bellyHot } */
+  /* redraw for the current state.
+     v = { gateL, gateR, loud, grit, click, tubeLen, tubeWid, tube0: [len, wid], throat, beak, squeeze, blowing, flow, hot, off: { part: [du, dv] } } */
   function update(v, time) {
+    const o = id => v.off[id] || [0, 0], hot = v.hot;
     /* beak */
-    const open = clamp(v.beak, 0, 1);
+    const open = clamp(v.beak, 0, 1), hb = hot === 'beak';
     E.lower.setAttribute('transform', `rotate(${(open * 21).toFixed(2)} ${HINGE[0]} ${HINGE[1]})`);
     E.upper.setAttribute('transform', `rotate(${(-open * 5).toFixed(2)} ${HINGE[0]} ${HINGE[1]})`);
+    for (const [e, base] of [[E.upper, synthBeak ? '#3a4a54' : 'none'], [E.lower, synthBeak ? '#7a6226' : 'none']]) { e.setAttribute('stroke', hb ? HOT : base); e.setAttribute('stroke-width', hb ? 3 : 1); }
     const ba = open * 21 * Math.PI / 180, bl = look.beak[0] * .86, beakXY = [HINGE[0] + bl * Math.cos(ba) - 5 * Math.sin(ba), HINGE[1] + bl * Math.sin(ba) + 5 * Math.cos(ba)];
     /* windpipe: longer / wider than this bird's own shows as a taller / fatter tube */
     const L = clamp(66 * Math.pow(v.tubeLen / v.tube0[0], .6), 26, 80), W = clamp(21 * Math.pow(v.tubeWid / v.tube0[1], .8), 10, 36), top = -38 - L;
-    tubePx = [L, W];
-    E.tubeBase.setAttribute('x', -W / 2); E.tubeBase.setAttribute('y', top); E.tubeBase.setAttribute('width', W); E.tubeBase.setAttribute('height', L);
-    const count = Math.max(4, Math.round(L / 6.2));
+    E.tubeBase.setAttribute('x', -W / 2 + 1); E.tubeBase.setAttribute('y', top); E.tubeBase.setAttribute('width', W - 2); E.tubeBase.setAttribute('height', L);
+    const count = Math.max(4, Math.round(L / 6.2)), pitch = L / count;
     E.rings.forEach((r, i) => {
       if (i >= count) { r.setAttribute('visibility', 'hidden'); return; }
-      r.setAttribute('visibility', 'visible'); r.setAttribute('cx', 0); r.setAttribute('cy', top + (i + .5) * L / count); r.setAttribute('rx', W / 2 + 2.2); r.setAttribute('ry', 3);
+      r.setAttribute('visibility', 'visible'); r.setAttribute('x', -W / 2 - 2.2); r.setAttribute('y', top + i * pitch + pitch * .14); r.setAttribute('width', W + 4.4); r.setAttribute('height', pitch * .72);
     });
-    const th = .72 + .5 * clamp(v.throat, 0, 1) + (v.loud > .05 ? .02 * Math.sin(time * 40) : 0);
-    E.throat.setAttribute('cx', 3); E.throat.setAttribute('cy', top - 7); E.throat.setAttribute('rx', 20 * th); E.throat.setAttribute('ry', 12.5 * th);
-    /* the two voices buzz when they sing and tighten when bent upwards */
-    const buzz = (g, s) => g > .02 ? s * Math.sin(time * 70) * 1.3 * Math.min(1, g * 3) : 0;
-    E.labL.setAttribute('transform', `translate(${(-v.bendL * 4 + buzz(v.gateL, 1)).toFixed(2)} ${(-v.bendL * 9).toFixed(2)})`);
-    E.labR.setAttribute('transform', `translate(${(v.bendR * 4 + buzz(v.gateR, -1)).toFixed(2)} ${(-v.bendR * 9).toFixed(2)})`);
-    E.labL.setAttribute('opacity', .62 + .38 * Math.min(1, v.gateL * 4)); E.labR.setAttribute('opacity', .62 + .38 * Math.min(1, v.gateR * 4));
-    E.split.setAttribute('transform', `translate(${(v.balance * 7).toFixed(2)} 0)`);
-    const cu = 1 + .09 * v.grit + .07 * Math.min(1, v.click * 3);
-    E.cushion.setAttribute('transform', `scale(${cu.toFixed(3)})`); E.cushion.setAttribute('opacity', .75 + .25 * Math.min(1, v.grit + v.click * 2));
-    const sq = clamp(v.squeeze, 0, 1.2);
-    E.belly.setAttribute('transform', `translate(0 56) scale(${(1 + .05 * sq).toFixed(3)} ${(1 - .24 * sq).toFixed(3)}) translate(0 -56)`);
-    E.belly.setAttribute('stroke', v.bellyHot ? HOT : '#c98e68'); E.belly.setAttribute('stroke-width', v.bellyHot ? 2.6 : 1.8);
+    E.cap.setAttribute('d', `M${-W / 2 - 1},${top + 1} Q0,${top - 13} ${W / 2 + 1},${top + 1} Z`);
+    E.hl.tube.setAttribute('d', `M${-W / 2 - 5},${top - 3} L${W / 2 + 5},${top - 3} L17,-40 L-17,-40 Z`);
+    const th = .72 + .5 * clamp(v.throat, 0, 1) + (v.loud > .05 ? .02 * Math.sin(time * 40) : 0), to = o('throat');
+    for (const e of [E.throat, E.hl.throat]) { e.setAttribute('cx', 3 + to[0] * .4); e.setAttribute('cy', top - 7 + to[1] * .4); e.setAttribute('rx', 20 * th); e.setAttribute('ry', 12.5 * th); }
+    /* the two voices buzz when they sing and are pulled along with their handles */
+    const buzz = (g, s) => g > .02 ? s * Math.sin(time * 70) * 1.3 * Math.min(1, g * 3) : 0, ol = o('left'), or = o('right'), os = o('split');
+    E.labL.setAttribute('transform', `translate(${(ol[0] * .45 + buzz(v.gateL, 1)).toFixed(2)} ${(ol[1] * .45 + os[1] * .25).toFixed(2)})`);
+    E.labR.setAttribute('transform', `translate(${(or[0] * .45 + buzz(v.gateR, -1)).toFixed(2)} ${(or[1] * .45 + os[1] * .25).toFixed(2)})`);
+    E.labL.setAttribute('opacity', .66 + .34 * Math.min(1, v.gateL * 4)); E.labR.setAttribute('opacity', .66 + .34 * Math.min(1, v.gateR * 4));
+    E.hl.left.setAttribute('transform', `translate(${(ol[0] * .45).toFixed(2)} ${(ol[1] * .45).toFixed(2)})`); E.hl.right.setAttribute('transform', `translate(${(or[0] * .45).toFixed(2)} ${(or[1] * .45).toFixed(2)})`);
+    E.split.setAttribute('transform', `translate(${(os[0] * .8).toFixed(2)} ${(os[1] * .8).toFixed(2)})`);
+    E.hl.split.setAttribute('transform', `translate(${(os[0] * .8).toFixed(2)} ${(os[1] * .8 - 3).toFixed(2)}) scale(1.55)`);
+    const cu = 1 + .1 * v.grit + .07 * Math.min(1, v.click * 3);
+    E.cushion.setAttribute('transform', `scale(${cu.toFixed(3)})`); E.hl.cushion.setAttribute('transform', `scale(${cu.toFixed(3)})`); E.cushion.setAttribute('opacity', .78 + .22 * Math.min(1, v.grit + v.click * 2));
+    /* belly air sacs: pale and slack until air is pushed out of them, then flushed and squeezed */
+    const sq = clamp(v.squeeze, 0, 1.2), bt = `translate(0 56) scale(${(1 + .06 * sq).toFixed(3)} ${(1 - .26 * sq).toFixed(3)}) translate(0 -56)`;
+    E.bellyG.setAttribute('transform', bt); E.hl.belly.setAttribute('transform', bt);
+    E.belly.setAttribute('fill', v.blowing ? '#f7e4cf' : '#e9eef0'); E.belly.setAttribute('stroke', v.blowing ? '#c98e68' : '#a9b6bd'); E.belly.setAttribute('stroke-width', 1.8);
+    for (const id in E.hl) E.hl[id].setAttribute('visibility', hot === id || (id === 'belly' && v.blowing && v.manual) ? 'visible' : 'hidden');
     /* air: blue through the left side, red through the right */
-    const pathL = [[-21, 90], [-22, 68], [-15, 34], [-12, 10], [-5, -18], [-4, -38], [-4, top], [1, top - 12]], pathR = pathL.map(p => [-p[0] + (p[1] <= -38 ? 2 : 0), p[1]]);
-    const dash = (els, P, gate, shift) => els.forEach((e, i) => {
-      const s = frac(i / els.length + v.flow + shift), q = along(P, s), o = Math.min(1, gate * 5) * Math.sin(Math.PI * s);
-      e.setAttribute('x1', q[0] - q[2] * 4.5); e.setAttribute('y1', q[1] - q[3] * 4.5); e.setAttribute('x2', q[0] + q[2] * 4.5); e.setAttribute('y2', q[1] + q[3] * 4.5); e.setAttribute('opacity', o.toFixed(3));
+    const pathL = [[-21, 90], [-22, 70], [-8, 54], [-10, 30], [-12, 10], [-5, -18], [-4, -38], [-4, top], [1, top - 12]], pathR = pathL.map(p => [-p[0] + (p[1] <= -38 ? 2 : 0), p[1]]);
+    const dash = (els, P, gate, shift, wob) => els.forEach((e, i) => {
+      const s = frac(i / els.length + v.flow + shift), q = along(P, s), a = Math.min(1, gate * 5) * Math.sin(Math.PI * s), w = wob * (i % 2 ? 1.6 : -1.6);
+      e.setAttribute('x1', q[0] - q[2] * 4.5 + w); e.setAttribute('y1', q[1] - q[3] * 4.5); e.setAttribute('x2', q[0] + q[2] * 4.5 + w); e.setAttribute('y2', q[1] + q[3] * 4.5); e.setAttribute('opacity', a.toFixed(3));
     });
-    dash(E.flowL, pathL, v.gateL, 0); dash(E.flowR, pathR, v.gateR, .07);
+    dash(E.flowL, pathL, v.gateL, 0, 1); dash(E.flowR, pathR, v.gateR, .07, 1);
     /* sound leaving the beak */
     const tx = beakTip[0] + 4, ty = beakTip[1] + open * 6;
-    const outL = [[tx, ty + 2], [tx + 34, ty + 6], [tx + 74, ty - 2]], outR = [[tx, ty - 2], [tx + 34, ty - 12], [tx + 70, ty - 34]];
-    dash(E.outL, outL, v.gateL * open * 1.6, .1); dash(E.outR, outR, v.gateR * open * 1.6, .2);
+    dash(E.outL, [[tx, ty + 2], [tx + 34, ty + 6], [tx + 74, ty - 2]], v.gateL * open * 1.6, .1, 0); dash(E.outR, [[tx, ty - 2], [tx + 34, ty - 12], [tx + 70, ty - 34]], v.gateR * open * 1.6, .2, 0);
     E.arcs.forEach((a, i) => {
-      const r = 18 + frac((i + v.flow * 3) / 5) * 62, sp = .46, o = Math.min(1, v.loud * 3) * (1 - (r - 18) / 62) * .7;
-      a.setAttribute('d', `M${(tx + r * Math.cos(-sp)).toFixed(1)},${(ty + r * Math.sin(-sp)).toFixed(1)} A${r.toFixed(1)},${r.toFixed(1)} 0 0 1 ${(tx + r * Math.cos(sp)).toFixed(1)},${(ty + r * Math.sin(sp)).toFixed(1)}`); a.setAttribute('opacity', o.toFixed(3));
+      const r = 18 + frac((i + v.flow * 3) / 5) * 62, sp = .46, al = Math.min(1, v.loud * 3) * (1 - (r - 18) / 62) * .7;
+      a.setAttribute('d', `M${(tx + r * Math.cos(-sp)).toFixed(1)},${(ty + r * Math.sin(-sp)).toFixed(1)} A${r.toFixed(1)},${r.toFixed(1)} 0 0 1 ${(tx + r * Math.cos(sp)).toFixed(1)},${(ty + r * Math.sin(sp)).toFixed(1)}`); a.setAttribute('opacity', al.toFixed(3));
     });
-    /* handles, and the dotted lines to their labels */
-    const at = {
-      beak: beakXY, throat: toStage(14, top - 10), tube: toStage(W / 2 - 1, top + L * .5), split: toStage(v.balance * 7, -7),
-      left: toStage(-19 - v.bendL * 4, 7 - v.bendL * 9), right: toStage(19 + v.bendR * 4, 7 - v.bendR * 9),
-      cushion: toStage(-38 - v.grit * 8, 42 + v.grit * 5), belly: toStage(14, 82 - sq * 17),
-    };
+    /* handles follow the pointer; dotted lines join them to their labels */
+    const k = (id, u, w) => toStage(u + o(id)[0], w + o(id)[1]);
+    const at = { beak: beakXY, throat: k('throat', 14, top - 10), tube: k('tube', 10, -71), split: k('split', 0, -7), left: k('left', -19, 7), right: k('right', 19, 7),
+                 cushion: k('cushion', -38, 42), belly: k('belly', 14, 82 - (v.manual ? 0 : sq * 14)) };
+    E.ring.setAttribute('visibility', hot ? 'visible' : 'hidden');
     for (const p of PARTS) {
-      const [x, y] = at[p.id], hot = v.hot === p.id;
-      E.knob[p.id].setAttribute('cx', x); E.knob[p.id].setAttribute('cy', y); E.hit[p.id].setAttribute('cx', x); E.hit[p.id].setAttribute('cy', y);
-      E.knob[p.id].classList.toggle('hot', hot); E.lab[p.id].classList.toggle('hot', hot); E.lead[p.id].classList.toggle('hot', hot);
-      const l = E.lead[p.id], k = Math.hypot(p.lx - x, p.ly - y), ux = (p.lx - x) / k, uy = (p.ly - y) / k;
-      l.setAttribute('x1', x + ux * 10); l.setAttribute('y1', y + uy * 10); l.setAttribute('x2', p.lx); l.setAttribute('y2', p.ly);
+      const [x, y] = at[p.id], h = hot === p.id, kn = E.knob[p.id];
+      kn.setAttribute('cx', x); kn.setAttribute('cy', y); kn.setAttribute('r', h ? knobR * 1.25 : knobR); E.hit[p.id].setAttribute('cx', x); E.hit[p.id].setAttribute('cy', y);
+      kn.classList.toggle('hot', h); E.lab[p.id].classList.toggle('hot', h); E.lead[p.id].classList.toggle('hot', h);
+      if (h) { E.ring.setAttribute('cx', x); E.ring.setAttribute('cy', y); E.ring.setAttribute('r', knobR * 2.5); }
+      const l = E.lead[p.id], n = Math.hypot(p.lx - x, p.ly - y), ux = (p.lx - x) / n, uy = (p.ly - y) / n;
+      l.setAttribute('x1', x + ux * (knobR + 4)); l.setAttribute('y1', y + uy * (knobR + 4)); l.setAttribute('x2', p.lx); l.setAttribute('y2', p.ly);
     }
   }
   function setText(id, text) { const t = E.lab[id].lastChild; if (t.textContent !== text) t.textContent = text; }
@@ -862,11 +926,12 @@ const Synth = (() => {
   /* computer key, semitones above C, note name; black keys also say which white key they follow */
   const WHITE = [['a', 0, 'C'], ['s', 2, 'D'], ['d', 4, 'E'], ['f', 5, 'F'], ['g', 7, 'G'], ['h', 9, 'A'], ['j', 11, 'B'], ['k', 12, 'C'], ['l', 14, 'D'], [';', 16, 'E'], ["'", 17, 'F']];
   const BLACK = [['w', 1, 0], ['e', 3, 1], ['t', 6, 3], ['y', 8, 4], ['u', 10, 5], ['o', 13, 7], ['p', 15, 8]];
-  const SEQUENCE = [0, 7, 12, 7, 3, 10, 15, 10, 5, 12, 17, 12, 7, 10, 14, 12], STEP = .215;
+  /* the demo: [left voice, right voice] in semitones above C, one pair per step */
+  const SEQUENCE = [[0, 12], [0, 7], [0, 15], [0, 12], [5, 12], [5, 9], [5, 17], [5, 14], [7, 14], [7, 11], [7, 17], [7, 14], [3, 10], [3, 7], [3, 15], [3, 12]], STEP = .23;
   const hz = midi => 440 * Math.pow(2, (midi - 69) / 12);
 
   let box, p = Object.assign({}, PRESETS[0]), preset = 0, hold = false, oct = 4, opened = false, changed = () => {};
-  let held = [], latched = [], lastMidi = 60, seq = false, seqT = 0, seqI = -1, seqNote = null;
+  let held = [], latched = [], lastMidi = 60, seq = false, seqT = 0, seqI = -1;
   const view = { fL: 262, fR: 262, gate: 0 }, ui = {};           // smoothed copy for the drawing
 
   function build(el, onChange) {
@@ -933,7 +998,9 @@ const Synth = (() => {
     Sound.play({ fL: q.fL, aL: level, dL: drive, gL: g * .5, fR: q.fR, aR: level, dR: drive, gR: g * .5, fN: 2800, aN: 0 }, p.glide / 3000, q.on ? .012 : .07);
     if (struck && p.pluck > 0) { const k = p.pluck / 100; Sound.click(k * .45, 2800); Sound.pluck('L', q.fL, k * 9, p.glide / 3000); Sound.pluck('R', q.fR, k * 9, p.glide / 3000); }
     Sound.wobble(p.rate, p.depth / 100, p.target, (q.fL + q.fR) / 2);
-    for (const semi in ui.keys) ui.keys[semi].classList.toggle('down', sounding().includes(12 * (oct + 1) + +semi));
+    /* light the key each voice is singing: teal for the left voice, red for the right */
+    const base = 12 * (oct + 1), kl = q.on ? Math.round(69 + 12 * Math.log2(q.fL / 440)) - base : -99, kr = q.on ? Math.round(69 + 12 * Math.log2(q.fR / 440)) - base : -99;
+    for (const semi in ui.keys) { ui.keys[semi].classList.toggle('dl', +semi === kl && kl !== kr); ui.keys[semi].classList.toggle('dr', +semi === kr); }
     changed();
   }
   function refresh() {
@@ -945,14 +1012,14 @@ const Synth = (() => {
   }
   function open() { opened = true; box.hidden = false; held = []; latched = []; voices(false); }
   function close() { stopSeq(); opened = false; box.hidden = true; held = []; latched = []; Sound.wobble(p.rate, 0, null, 0); }
-  function stopSeq() { if (seqNote != null) noteOff(seqNote); seq = false; seqNote = null; seqI = -1; }
+  function stopSeq() { if (seq) { held = []; voices(false); } seq = false; seqI = -1; }
   function toggleSeq() { if (seq) { stopSeq(); latched = []; voices(false); } else { seq = true; seqT = 0; seqI = -1; } return seq; }
   /* called every frame: runs the demo sequence and returns what the drawing should show */
   function frame(dt, time) {
     if (seq) {
       seqT += dt; const i = Math.floor(seqT / STEP);
-      if (i !== seqI) { seqI = i; if (seqNote != null) noteOff(seqNote); seqNote = 12 * (oct + 1) + SEQUENCE[i % SEQUENCE.length]; noteOn(seqNote); }
-      else if (seqNote != null && seqT - i * STEP > STEP * .78) { noteOff(seqNote); seqNote = null; }
+      if (i !== seqI) { seqI = i; const st = SEQUENCE[i % SEQUENCE.length]; held = st.map(s => 12 * (oct + 1) + s); latched = held.slice(); lastMidi = held[1]; voices(true); }
+      else if (held.length && seqT - i * STEP > STEP * .8) { held = []; voices(false); }
     }
     const q = pitches(), a = 1 - Math.exp(-dt / Math.max(.004, p.glide / 3000));
     view.fL += (q.fL - view.fL) * a; view.fR += (q.fR - view.fR) * a; view.gate += ((q.on ? 1 : 0) - view.gate) * (1 - Math.exp(-dt / (q.on ? .012 : .07)));
@@ -971,9 +1038,10 @@ const Synth = (() => {
    ========================================================================== */
 (() => {
   const root = document.documentElement, fit = $('#fit'), app = $('#app'), art = $('#art'), fx = $('#fx'), mainBtn = $('#main'), partsBox = $('#parts'), canvas = $('#sg');
-  const zero = () => ({ beak: 0, throat: 0, tubeL: 0, tubeW: 0, left: 0, right: 0, belly: 0, split: 0, cushion: 0 });
-  const S = { sp: SPECIES[0], mode: 'manual', paused: false, dev: zero(), touched: {}, hot: null, t0: 0, flow: 0, beak: 0, loud: 0, onL: -9, onR: -9, shownL: 0, shownR: 0, wide: true, k: 1 };
-  const cards = {}, cells = {};
+  const zero = () => ({ beak: 0, throat: 0, tubeL: 0, tubeW: 0, left: 0, right: 0, belly: 0, split: 0, merge: 0, cushion: 0 });
+  const S = { sp: SPECIES[0], mode: 'auto', paused: false, audio: false, dev: zero(), off: {}, touched: {}, hot: null, t0: 0, flow: 0, beak: 0, loud: 0, onL: -9, onR: -9, shownL: 0, shownR: 0, wide: true, k: 1 };
+  const cards = {}, cells = {}, paint = $('#paint');
+  let paintJob = 0;
 
   /* ---- build the page ---- */
   for (const sp of SPECIES) {
@@ -983,22 +1051,30 @@ const Synth = (() => {
   for (const id of ['beak', 'throat', 'tube', 'right', 'left', 'split', 'cushion', 'belly']) {
     const p = PARTS.find(q => q.id === id); cells[id] = html('div', 'pt', partsBox, `<b>${p.name}</b><i></i>`);
   }
+  /* how far each handle may be pulled from its resting place (in the window's own units) */
+  const REACH = { beak: 22, throat: 16, tube: 22, left: 16, right: 16, split: 14, cushion: 14, belly: 18 };
+  /* turn handle positions into adjustments of the model */
+  function applyHandles() {
+    const o = id => S.off[id] || [0, 0], d = S.dev, c = (v, lo = -1) => clamp(v, lo, 1);
+    d.beak = c(o('beak')[1] / 22);                                         // down opens, up closes
+    d.throat = c((o('throat')[0] * .5 - o('throat')[1] * .86) / 16);       // outwards expands
+    d.tubeL = c(-o('tube')[1] / 22); d.tubeW = c(o('tube')[0] / 12);       // along the tube stretches, across widens
+    d.left = c(-o('left')[1] / 16); d.right = c(-o('right')[1] / 16);      // up tightens: higher pitch
+    const sx = o('split')[0]; d.split = c(Math.abs(sx) > 4 ? (sx - Math.sign(sx) * 4) / 8 : 0); d.merge = c(-o('split')[1] / 14, 0);  // sideways favours a side, up brings both voices in and tightens them
+    d.cushion = c(Math.hypot(o('cushion')[0], o('cushion')[1]) / 14, 0);
+    d.belly = c(-o('belly')[1] / 18, S.mode === 'manual' ? 0 : -1);        // up squeezes air out
+  }
   Anatomy.build(fx, {
     hot: id => { S.hot = id; },
-    begin: id => { Sound.start(); return Object.assign({}, S.dev); },
-    reset: id => { if (id === 'tube') { S.dev.tubeL = S.dev.tubeW = 0; } else S.dev[id] = 0; delete S.touched[id]; },
-    /* a handle is being dragged: m.dx/dy are page movement, m.du/dv the same movement along the tilted window */
+    under: e => { const el = document.elementFromPoint(e.clientX, e.clientY); return el && el.dataset ? el.dataset.part || null : null; },
+    begin: id => { Sound.start(); return (S.off[id] || [0, 0]).slice(); },
+    reset: id => { delete S.off[id]; delete S.touched[id]; applyHandles(); },
+    /* a handle is being dragged: it follows the pointer, up to its reach */
     drag: (id, base, m) => {
-      const d = S.dev, c = (v, lo = -1) => clamp(v, lo, 1);
-      if (id === 'beak') d.beak = c(base.beak + m.dy / 30);
-      else if (id === 'throat') d.throat = c(base.throat + (m.du * .5 - m.dv * .86) / 22);
-      else if (id === 'tube') { d.tubeL = c(base.tubeL - m.dv / 42); d.tubeW = c(base.tubeW + m.du / 20); }
-      else if (id === 'left') d.left = c(base.left - m.dv / 24);
-      else if (id === 'right') d.right = c(base.right - m.dv / 24);
-      else if (id === 'split') d.split = c(base.split + m.du / 14);
-      else if (id === 'cushion') d.cushion = c(base.cushion + (-m.du * .8 + m.dv * .6) / 20, 0);
-      else if (id === 'belly') d.belly = c(base.belly - m.dv / 26, S.mode === 'manual' ? 0 : -1);
-      S.touched[id] = true;
+      let x = base[0] + (id === 'beak' ? m.dx : m.du), y = base[1] + (id === 'beak' ? m.dy : m.dv);
+      const r = Math.hypot(x, y), R = REACH[id]; if (r > R) { x *= R / r; y *= R / r; }
+      if (id === 'beak') x = 0;
+      S.off[id] = [x, y]; S.touched[id] = true; applyHandles();
     },
   });
   Synth.build($('#synth'), () => {});
@@ -1013,10 +1089,10 @@ const Synth = (() => {
   function button() {
     const synth = S.mode === 'synth', on = synth ? Synth.playing : S.mode === 'auto';
     mainBtn.classList.toggle('on', on);
-    mainBtn.lastElementChild.textContent = synth ? (on ? 'Stop Synth Sequence' : 'Auto-Play Synth Sequence') : on ? 'Pause Bird Song' : 'Auto-Sing Bird Song';
+    mainBtn.lastElementChild.textContent = synth ? (on ? 'Pause Synth Sequence' : 'Auto-Play Synth Sequence') : on ? 'Pause Bird Song' : 'Auto-Sing Bird Song';
   }
   function setMode(mode) {
-    S.mode = mode; S.dev = zero(); S.touched = {}; S.beak = 0;
+    S.mode = mode; S.dev = zero(); S.off = {}; S.touched = {}; S.beak = 0;
     Sound.reset(); S.t0 = Sound.now() + .06;
     button();
   }
@@ -1024,13 +1100,28 @@ const Synth = (() => {
     const wasSynth = S.sp.id === 'synth';
     S.sp = sp;
     for (const id in cards) cards[id].classList.toggle('on', id === sp.id);
-    art.innerHTML = birdArt(sp); Anatomy.setBird(sp);
+    art.innerHTML = birdArt(sp, false); Anatomy.setBird(sp);
     const synth = sp.id === 'synth';
     root.classList.toggle('synthOpen', synth);
     if (synth) { setMode('synth'); Synth.open(); }
     else { if (wasSynth) Synth.close(); setMode(byUser && !S.paused ? 'auto' : wasSynth ? (S.paused ? 'manual' : 'auto') : S.mode === 'auto' ? 'auto' : 'manual'); }
-    Anatomy.layout(synth && S.wide);
     layout();
+  }
+
+  /* Paint the textured version of the still artwork once into a canvas. The drawing is turned into a picture
+     in memory (nothing is loaded from anywhere); if a browser refuses, the plain drawing simply stays. */
+  function paintArt() {
+    const job = ++paintJob, vb = (S.wide ? '0 0 1920 1080' : '770 200 520 600').split(' ').map(Number);
+    const res = Math.min(clamp(S.k * (window.devicePixelRatio || 1), .5, 2), 2880 / vb[2]), w = Math.round(vb[2] * res), h = Math.round(vb[3] * res);
+    root.classList.remove('painted');
+    const markup = `<svg xmlns="${SVGNS}" viewBox="${vb.join(' ')}" width="${w}" height="${h}">${birdArt(S.sp, true)}</svg>`;
+    const url = URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml' })), img = new Image();
+    img.onload = () => {
+      if (job === paintJob) { paint.width = w; paint.height = h; paint.getContext('2d').drawImage(img, 0, 0, w, h); root.classList.add('painted'); }
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
   }
 
   /* ---- layout: a 1920 x 1080 sheet scaled to the window, or a single column on narrow screens ---- */
@@ -1046,23 +1137,25 @@ const Synth = (() => {
       const k = w / 640; S.k = k;
       app.style.transform = `scale(${k})`; fit.style.cssText = `left:0;top:0;width:${w}px;height:${Math.ceil(app.offsetHeight * k)}px`;
     }
-    Anatomy.layout(S.sp.id === 'synth' && wide);
+    Anatomy.layout(S.sp.id === 'synth' && wide, !wide);
     Spectro.size(canvas, canvas.clientWidth, canvas.clientHeight, S.k * (window.devicePixelRatio || 1));
+    paintArt();
   }
   addEventListener('resize', layout);
 
   /* ---- words under each label ---- */
-  const beakWord = g => g < .07 ? 'Clamped shut · Muffled hum' : g < .38 ? 'Nearly closed · Pure whistle' : g < .8 ? 'Shaping song tone' : 'Wide open · Bright & loud';
+  const beakWord = g => g < .07 ? 'Clamped shut · Muffled hum' : g < .38 ? 'Nearly closed · Pure whistle' : g < .8 ? 'Shaping song tone' : 'Wide open · Brighter tone';
   function words(v, now) {
-    const manual = S.mode === 'manual', t = S.touched, singL = now - S.onL < .2, singR = now - S.onR < .2, blowing = manual ? v.breath > .03 : v.loudHeld;
+    const singL = now - S.onL < .2, singR = now - S.onR < .2, t = S.touched;
+    const manual = S.mode === 'manual' || (S.mode === 'synth' && !singL && !singR && !v.loudHeld), blowing = S.mode === 'manual' ? v.breath > .03 : v.loudHeld;   // an idle SynthBird shows the same hints as a hand-played bird
     return {
       beak: manual && !t.beak ? (blowing ? 'Drag to open or close' : beakWord(v.beak)) : beakWord(v.beak),
       throat: manual && !t.throat ? 'Drag to shape vocal warmth' : v.throat > .62 ? 'Expanded · Warm resonance' : v.throat > .34 ? 'Tuning vocal warmth' : 'Tightened · Bright edge',
-      tube: `${manual || t.tube || S.hot === 'tube' || S.mode === 'synth' ? 'Stretch or widen' : 'Resonant tube'} (${Math.round(v.tubeLen)} × ${v.tubeWid.toFixed(1)} mm)`,
+      tube: `${S.mode !== 'auto' || t.tube || S.hot === 'tube' ? 'Stretch or widen' : 'Resonant tube'} (${Math.round(v.tubeLen)} × ${v.tubeWid.toFixed(1)} mm)`,
       right: singR ? 'Singing · ' + fmtHz(S.shownR) : manual ? 'Pull to bend high notes' : 'Resting · Muted',
       left: singL ? 'Singing · ' + fmtHz(S.shownL) : manual ? 'Pull to bend low notes' : 'Resting · Muted',
       belly: blowing ? 'Blowing air to sing' : manual ? 'Squeeze up to blow air' : 'Mini-breath · Refilling',
-      split: Math.abs(v.balance) < .06 ? 'Anchors & merges the two voices' : v.balance < 0 ? 'Leaning left · Low voice leads' : 'Leaning right · High voice leads',
+      split: Math.abs(v.balance) < .06 ? (S.dev.merge > .06 ? 'Pulled up · Both voices tighten' : 'Anchors & merges the two voices') : v.balance < 0 ? 'Leaning left · Low voice leads' : 'Leaning right · High voice leads',
       cushion: S.dev.cushion > .05 ? 'Pressurised · Adds buzz & grit' : 'Surrounds syrinx · Aids clicks & tone',
     };
   }
@@ -1072,14 +1165,15 @@ const Synth = (() => {
   function frame(ts) {
     requestAnimationFrame(frame);
     const dt = Math.min(.1, (ts - last) / 1000); last = ts;
+    if (Sound.ctx && !S.audio) { S.audio = true; root.classList.add('audio'); Sound.reset(); S.t0 = Sound.now() + .06; }      // sound has just been switched on: start the song again
     const now = Sound.ctx ? Sound.now() : ts / 1000, sp = S.sp, d = S.dev, mode = S.mode, manual = mode === 'manual', synth = mode === 'synth';
     /* 1. what the three sound sources are doing, before the player's adjustments */
-    const rest = { fL: sp.rest[0], aL: 1, dL: .36, gL: 0, fR: sp.rest[1], aR: S.touched.right ? 1 : 0, dR: .3, gR: 0, fN: 3000, aN: 0 };
+    const rest = { fL: sp.rest[0], aL: 1, dL: .36, gL: 0, fR: sp.rest[1], aR: S.touched.right || d.merge > .05 ? 1 : 0, dR: .3, gR: 0, fN: 3000, aN: 0 };
     const stateAt = t => manual ? rest : songAt(SONGS[sp.id], t - S.t0);
     const base = synth ? Synth.frame(dt, now) : stateAt(now - .02);
     if (!synth) Sound.schedule(stateAt);
     /* 2. the player's adjustments */
-    const bendL = d.left, bendR = d.right, balL = d.split > 0 ? 1 - d.split : 1, balR = d.split < 0 ? 1 + d.split : 1;
+    const bendL = d.left + d.merge * .8, bendR = d.right + d.merge * .8, balL = d.split > 0 ? 1 - d.split : 1, balR = d.split < 0 ? 1 + d.split : 1;
     const breath = manual ? Math.max(0, d.belly) : d.belly >= 0 ? 1 + .4 * d.belly : 1 + d.belly;
     const tube0 = synth ? [base.tube, sp.tube[1]] : sp.tube;
     const tubeLen = clamp(tube0[0] * Math.pow(2, d.tubeL * 1.5), 10, 120), tubeWid = clamp(tube0[1] * Math.pow(2, d.tubeW), 1.2, 7);
@@ -1097,7 +1191,7 @@ const Synth = (() => {
     if (gateL > .03) { S.onL = now; S.shownL = fL; } if (gateR > .03) { S.onR = now; S.shownR = fR; }
     if (loud > .02) S.flow += dt * .6;
     const v = { breath, gateL, gateR, loud, fL, fR, grit: clamp(d.cushion + (synth ? base.grit * .5 : Math.max(base.gL, base.gR) * .5), 0, 1), click: base.aN, tubeLen, tubeWid, tube0: sp.tube, throat, beak,
-      balance: d.split, bendL, bendR, squeeze: manual ? breath : .12 + .6 * S.loud + .3 * Math.max(0, d.belly), flow: S.flow, hot: S.hot, bellyHot: S.hot === 'belly' || (manual && breath > .03), loudHeld: S.loud > .04 };
+      balance: d.split, squeeze: manual ? breath : .12 + .6 * S.loud + .3 * Math.max(0, d.belly), blowing: manual ? breath > .03 : S.loud > .03, manual, flow: S.flow, hot: S.hot, off: S.off, loudHeld: S.loud > .04 };
     Anatomy.update(v, ts / 1000);
     if (ts - labelT > 90) {
       labelT = ts; const w = words(v, now);
