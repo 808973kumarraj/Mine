@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Spark Shuffle Lab · how a shuffle works and what it costs</title>
+<style>
+:root{--paper:#faf7ee;--ink:#2a2521;--sub:#6d655c;--line:#d3cabb;--card:#fbf9f2;--red:#b8382b;--teal:#2f7f8f;--dark:#1f1d14;--mono:ui-monospace,Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{color:var(--ink);font-family:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua","Noto Serif",Georgia,serif;
+  background:radial-gradient(130% 100% at 50% 20%,#fcfaf3 0%,#f9f6ec 55%,#f1ebdc 100%) fixed #f8f5ea;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;cursor:pointer}
+header{max-width:1500px;margin:0 auto;padding:18px 18px 6px}
+h1{margin:0;font-size:26px;letter-spacing:.2px}
+.lede{margin:4px 0 0;font-style:italic;color:var(--sub);font-size:16px;line-height:1.35}
+main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(310px,1fr);gap:22px;max-width:1500px;margin:0 auto;padding:10px 18px 34px;align-items:start}
+main>*{min-width:0}
+@media(max-width:900px){main{grid-template-columns:minmax(0,1fr);gap:14px;padding:8px 12px 30px}header{padding:14px 12px 4px}h1{font-size:22px}}
+.box{background:var(--card);border:1.5px solid var(--line);box-shadow:inset 0 0 0 3px var(--card),inset 0 0 0 4px #e4dccd}
+
+/* run bar and scenarios */
+#bar{display:flex;gap:8px;margin-bottom:9px}
+#bar button{height:44px;padding:0 14px;font-weight:600;font-size:16px;background:var(--card);border:1.5px solid var(--line)}
+#run{flex:1}
+#run.on{color:#8f2f22;background:#f3ddd2;border-color:#bf6f5b}
+#follow.on{background:#e6efe9;border-color:#2c6b62;color:#234f49}
+#scen{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px;margin-bottom:10px}
+.sc{min-height:52px;padding:6px 10px;text-align:left;background:var(--card);border:1.5px solid var(--line)}
+.sc b{display:block;font-size:15.5px;line-height:1.15}.sc i{display:block;font-size:12.5px;color:var(--sub);line-height:1.2}
+@media(max-width:900px){#scen{display:flex;overflow-x:auto;padding-bottom:4px;scroll-snap-type:x proximity}.sc{flex:0 0 164px;scroll-snap-align:start}}
+@media(min-width:901px){#scene{max-height:calc(100vh - 215px)}main>section{position:sticky;top:6px}#wide{margin-bottom:12px}#wide #scen{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
+.sc.on{border-color:var(--red);box-shadow:inset 0 0 0 2px var(--card),inset 0 0 0 3.5px var(--red)}.sc.on i{color:var(--red)}
+
+/* the drawing */
+#scene{display:block;width:100%;height:auto;touch-action:pan-y}
+#scene text{font-family:inherit}
+#scene .mono{font-family:var(--mono)}
+#scene .hit{fill:transparent;cursor:grab;touch-action:none}
+#scene .knob{fill:#fffdf8;stroke:var(--ink);stroke-width:2.2}
+#scene .hot .knob{fill:var(--red);stroke:#8f2a20}
+#scene .hot .ring{visibility:visible}
+#scene .ring{visibility:hidden;fill:rgba(184,56,43,.08);stroke:var(--red);stroke-width:1.5}
+#scene .hot .lab{fill:var(--red)}
+#scene .hot .rail{stroke:var(--red)}
+#steps{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:6px 0 10px}
+#steps span{padding:5px 6px;font-size:12.5px;line-height:1.2;border:1.5px solid #e2dbcd;color:var(--sub);background:var(--card)}
+#steps span.on{border-color:var(--teal);color:#1d5560;background:#e6f0f1;font-weight:600}
+
+/* verdict and timeline */
+#verdict{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+@media(max-width:520px){#verdict{grid-template-columns:repeat(2,1fr)}}
+.v{padding:7px 9px}.v u{display:block;text-decoration:none;font:600 11px var(--mono);letter-spacing:.6px;color:var(--sub);text-transform:uppercase}
+.v b{display:block;font:700 21px var(--mono);margin-top:2px}.v i{display:block;font:400 12px var(--mono);font-style:normal;color:var(--sub);min-height:15px}
+.v i.good{color:#2f6a52}.v i.bad{color:var(--red)}
+#why{margin:9px 2px 10px;font-size:16px;line-height:1.35}
+#why b{color:var(--red)}
+#tl{position:relative;padding:8px 8px 6px}
+#tl canvas{display:block;width:100%;height:170px}
+#tl .cap{display:flex;flex-wrap:wrap;gap:4px 14px;font:400 11.5px var(--mono);color:var(--sub);margin-top:5px}
+#tl .cap i{display:inline-block;width:11px;height:9px;margin-right:5px;vertical-align:-1px}
+
+/* control panel */
+#panel{padding:15px 15px 13px}
+#panel h2{margin:0 0 8px;font-size:13px;font-family:var(--mono);letter-spacing:1.2px;color:var(--sub);font-weight:600}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;font:600 12.5px var(--mono);letter-spacing:.4px}
+.row button{height:36px;padding:0 9px;background:var(--card);border:1.5px solid var(--line);font:inherit}
+.seg{display:flex}.seg button+button{border-left:0}
+.row button.on{background:#34576b;border-color:#34576b;color:#fff}
+.stp{display:flex;align-items:center;border:1.5px solid var(--line);height:36px}.stp button{border:0;height:32px;font-size:16px;padding:0 11px}.stp b{padding:0 4px}
+#sl{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:420px){#sl{grid-template-columns:1fr}}
+.s{display:grid;grid-template-columns:1fr auto;align-items:baseline;padding:6px 9px 4px;border:1.5px solid #e2dbcd;font-size:15.5px;font-weight:600}
+.s.hot{border-color:var(--red)}.s.hot span{color:var(--red)}
+.s output{font:400 13px var(--mono);color:#5d564e}
+.s small{grid-column:1 / span 2;font:400 10.5px var(--mono);color:#8a8177;min-height:12px}
+.s input{grid-column:1 / span 2;-webkit-appearance:none;appearance:none;width:100%;height:30px;margin:0;background:transparent;cursor:ew-resize}
+.s input::-webkit-slider-runnable-track{height:2.5px;background:linear-gradient(90deg,#8d8d8d,#c57663)}
+.s input::-moz-range-track{height:2.5px;background:linear-gradient(90deg,#8d8d8d,#c57663)}
+.s input::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:22px;margin-top:-10px;background:#fffdf8;border:1.6px solid var(--ink);border-radius:2px}
+.s input::-moz-range-thumb{width:11px;height:19px;background:#fffdf8;border:1.6px solid var(--ink);border-radius:2px}
+.note{margin:12px 0 0;font-size:13px;line-height:1.4;color:var(--sub)}
+.note code{font-family:var(--mono);font-size:12px;color:var(--ink)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Spark Shuffle Lab</h1>
+  <p class="lede">A shuffle moves every surviving row across the network once. The cheapest shuffle has less data in it, or never happens.</p>
+</header>
+<main>
+  <section>
+    <div id="bar"><button id="run" type="button" class="on">Pause Job</button><button id="follow" type="button">Follow one row</button><button id="reset" type="button">Reset</button></div>
+    <div id="scen"></div>
+    <svg id="scene" viewBox="0 0 640 760" role="img" aria-label="Rows flow from executors, through hashing and local disk, across the network into partitions"></svg>
+    <div id="steps"></div>
+    <div id="verdict"></div>
+    <p id="why"></p>
+    <div id="tl" class="box"><canvas></canvas><div class="cap"></div></div>
+  </section>
+  <aside>
+  <div id="wide"></div>
+  <div id="panel" class="box">
+    <h2>JOIN / AGGREGATION STRATEGY</h2>
+    <div class="row"><span class="seg" id="modes"></span></div>
+    <div class="row"><button id="aqe" type="button">ADAPTIVE (AQE)</button><span class="stp"><button id="exm" type="button">&minus;</button><b id="exv">EXECUTORS 4</b><button id="exp" type="button">+</button></span></div>
+    <h2>SETTINGS AND INPUTS</h2>
+    <div id="sl"></div>
+    <p class="note">Numbers are illustrative, from a simple cost model, not benchmarks. Setting names and defaults are for Apache Spark 3.x:
+      <code>spark.sql.shuffle.partitions</code> = 200, <code>spark.sql.autoBroadcastJoinThreshold</code> = 10 MB,
+      adaptive target partition size 64 MB. Each executor has 4 cores. Drag the three round handles in the drawing, or use the sliders. Double-click a slider to reset it. Space pauses; keys 1 to 7 pick a scenario.</p>
+  </div>
+  </aside>
+</main>
+<script>
+/* ==========================================================================
+   Spark Shuffle Lab
+   One state object S (real units) -> simulate() -> everything on screen.
+
+   Cost rules (deliberately simple; directions are right, sizes are plausible):
+     data shuffled   = rows x kept% x bytes per row          (x 1.3 for a sort-merge join: two sides)
+     partition size  = even share, plus the whole hot key in one partition (a key never splits)
+     map stage time  = read + serialize (CPU) + write shuffle files (local disk)
+     reduce task     = overhead + fetch over the network + deserialize (+ sort for a join)
+                       + spill: written to and read back from disk when the task exceeds its memory
+     stage time      = tasks packed onto executors x 4 cores, first free core first
+     adaptive (AQE)  = merges neighbouring partitions under 64 MB; in a join, also splits a
+                       partition more than 5x the median and over 256 MB
+     broadcast join  = the small table is copied to every executor, so nothing is shuffled
+   ========================================================================== */
+'use strict';
+const $ = s => document.querySelector(s), NS = 'http://www.w3.org/2000/svg';
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, p) => a + (b - a) * p;
+const prog = (t, a, b) => clamp((t - a) / (b - a), 0, 1), ease = p => p * p * (3 - 2 * p);
+const el = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+const fmtRows = v => v >= 1e9 ? (v / 1e9).toFixed(v >= 1e10 ? 0 : 1) + ' B' : Math.round(v / 1e6) + ' M';
+const fmtMB = v => v >= 1024 ? (v / 1024).toFixed(v >= 10240 ? 0 : 1) + ' GB' : v >= 10 ? Math.round(v) + ' MB' : v.toFixed(1) + ' MB';
+const fmtTime = s => s >= 3600 ? (s / 3600).toFixed(1) + ' h' : s >= 90 ? (s / 60).toFixed(1) + ' min' : s.toFixed(s < 10 ? 1 : 0) + ' s';
+
+const CORES = 4, SER = 120, DESER = 150, SORT = 90, SCAN = 250, OVERHEAD = .12, TARGET = 64, SKEW_FACTOR = 5, SKEW_MIN = 256;   // MB/s per core, seconds, MB
+const KEYS = [['IN', '#27418f'], ['US', '#b8382b'], ['BR', '#3c7a62'], ['DE', '#c68948'], ['JP', '#7a5ea8'], ['FR', '#2f7f8f'], ['GB', '#8a6a3c'], ['MX', '#a0527a']];
+const BASE = { rows: 1e9, rowBytes: 100, keep: 100, parts: 200, mem: 1024, skew: 0, net: 400, disk: 300, exec: 4, mode: 'group', aqe: false };
+const SCEN = [
+  { name: 'Plain groupBy', tag: 'Every row crosses the network once', set: {} },
+  { name: 'Filter first', tag: 'Less data in, less data shuffled', set: { keep: 15, rowBytes: 40 } },
+  { name: 'Skewed key', tag: 'One key, one giant task', set: { skew: 40 } },
+  { name: 'Too few partitions', tag: 'Tasks too big for memory: spill', set: { parts: 8 } },
+  { name: 'Too many partitions', tag: 'A swarm of tiny tasks', set: { rows: 2e8, parts: 5000 } },
+  { name: 'Broadcast join', tag: 'The shuffle that never happens', set: { mode: 'bhj' } },
+  { name: 'Adaptive execution', tag: 'Spark repairs the plan mid-run', set: { mode: 'smj', skew: 30, parts: 1000, aqe: true } },
+];
+const SLIDERS = [
+  { k: 'rows', label: 'Input rows', min: 1e8, max: 1e10, log: 1, fmt: fmtRows },
+  { k: 'rowBytes', label: 'Row size', min: 20, max: 1000, log: 1, fmt: v => Math.round(v) + ' B' },
+  { k: 'keep', label: 'Rows kept by filter', min: 1, max: 100, fmt: v => Math.round(v) + '%' },
+  { k: 'parts', label: 'Shuffle partitions', min: 2, max: 5000, log: 1, fmt: v => Math.round(v).toLocaleString('en-US'), conf: 'spark.sql.shuffle.partitions' },
+  { k: 'mem', label: 'Memory per task', min: 64, max: 8192, log: 1, fmt: fmtMB },
+  { k: 'skew', label: 'Hot-key share', min: 0, max: 90, fmt: v => Math.round(v) + '%' },
+  { k: 'net', label: 'Network / executor', min: 50, max: 2000, log: 1, fmt: v => Math.round(v) + ' MB/s' },
+  { k: 'disk', label: 'Disk / executor', min: 50, max: 2000, log: 1, fmt: v => Math.round(v) + ' MB/s' },
+];
+const MODES = [['group', 'GROUP BY'], ['smj', 'SORT-MERGE JOIN'], ['bhj', 'BROADCAST JOIN']];
+const CODE = { group: 'df.groupBy("country").count()', smj: 'orders.join(customers, "country")', bhj: 'orders.join(broadcast(countries), "country")' };
+const toPos = (d, v) => d.log ? Math.log(v / d.min) / Math.log(d.max / d.min) : (v - d.min) / (d.max - d.min);
+const fromPos = (d, p) => { const v = d.log ? d.min * Math.pow(d.max / d.min, p) : d.min + (d.max - d.min) * p; return d.k === 'rows' ? v : Math.round(v); };
+const def = k => SLIDERS.find(d => d.k === k);
+
+let S = Object.assign({}, BASE), scen = 0, R = null, prev = null, stable = null, lastChange = 0, hot = null;
+let playing = true, clock = 0, follow = false;
+
+/* ---------- the model ---------- */
+function simulate(s) {
+  const scanMB = s.rows * s.rowBytes / 1e6, slots = s.exec * CORES;
+  if (s.mode === 'bhj') {
+    const t = scanMB / (slots * SCAN) + 1;
+    return { mode: 'bhj', dataMB: 0, mapTime: t, runtime: t, tasks: [], slots, spilled: 0, maxMB: 0, medMB: 0, hotMB: 0, typMB: 0, split: 0, merged: 0, taskCount: 0, overhead: 0 };
+  }
+  const dataMB = s.rows * (s.keep / 100) * s.rowBytes / 1e6 * (s.mode === 'smj' ? 1.3 : 1);
+  const hotExtra = dataMB * s.skew / 100, each = (dataMB - hotExtra) / s.parts;
+  let parts = []; for (let i = 0; i < s.parts; i++) parts.push({ mb: each + (i === 0 ? hotExtra : 0) });
+  let split = 0, merged = 0;
+  if (s.aqe) {
+    const out = [];
+    for (const p of parts) {                                             // split a skewed partition (joins only)
+      if (s.mode === 'smj' && p.mb > SKEW_FACTOR * each && p.mb > SKEW_MIN) { const k = Math.ceil(p.mb / Math.max(TARGET, each)); for (let j = 0; j < k; j++) out.push({ mb: p.mb / k, split: true }); split += k; }
+      else out.push(p);
+    }
+    parts = []; let acc = null;
+    for (const p of out) {                                               // merge small neighbours up to the target size
+      if (p.mb >= TARGET || p.split) { if (acc) { parts.push(acc); acc = null; } parts.push(p); }
+      else { if (!acc) acc = { mb: 0, n: 0 }; acc.mb += p.mb; acc.n++; if (acc.mb >= TARGET) { parts.push(acc); acc = null; } }
+    }
+    if (acc) parts.push(acc);
+    for (const p of parts) if (p.n > 1) merged += p.n;
+  }
+  const netShare = s.net / CORES, diskShare = s.disk / CORES, free = new Array(slots).fill(0);
+  let end = 0, spilled = 0, maxMB = 0, overhead = 0;
+  const tasks = parts.map(p => {
+    const spill = p.mb > s.mem;
+    const t = OVERHEAD + p.mb / netShare + p.mb / DESER + (s.mode === 'smj' ? p.mb / SORT : 0) + (spill ? 2 * p.mb / diskShare : 0);
+    let m = 0; for (let i = 1; i < slots; i++) if (free[i] < free[m]) m = i;
+    const k = { mb: p.mb, t, spill, split: !!p.split, slot: m, start: free[m] };
+    free[m] += t; end = Math.max(end, free[m]); if (spill) spilled++; maxMB = Math.max(maxMB, p.mb); overhead += OVERHEAD;
+    return k;
+  });
+  const sorted = tasks.map(k => k.mb).sort((a, b) => a - b), medMB = sorted[sorted.length >> 1];
+  const mapTime = scanMB / (slots * SCAN) + dataMB / (slots * SER) + dataMB / s.exec / s.disk;
+  return { mode: s.mode, dataMB, mapTime, runtime: mapTime + end, tasks, slots, spilled, maxMB, medMB, hotMB: each + hotExtra, typMB: each, split, merged, taskCount: tasks.length, overhead: overhead / slots, reduce: end };
+}
+/* one sentence saying what dominates this run, written from the numbers */
+function why(r, s) {
+  if (r.mode === 'bhj') return 'Broadcast join: the small table (under the 10 MB limit) is copied to every executor, so the big table is <b>never shuffled</b>. Nothing crosses the network.';
+  const big = r.tasks.reduce((a, k) => k.t > a.t ? k : a, r.tasks[0]), medT = OVERHEAD + r.medMB / (s.net / CORES) + r.medMB / DESER;
+  if (r.split) return `Adaptive execution <b>split the hot partition into ${r.split} tasks</b>${r.merged ? ` and merged ${r.merged.toLocaleString('en-US')} small ones` : ''}, so no single task holds the job back.`;
+  if (r.maxMB > 5 * r.medMB && r.taskCount > 1) return `The hot key puts <b>${fmtMB(r.maxMB)} in one partition</b>: that task takes ${fmtTime(big.t)} while a typical one takes ${fmtTime(medT)}. A key is never split across partitions, so more partitions do not help.`;
+  if (r.spilled) return `<b>${r.spilled.toLocaleString('en-US')} of ${r.taskCount.toLocaleString('en-US')} tasks spill to disk</b>: each holds about ${fmtMB(r.medMB)} but has ${fmtMB(s.mem)} of memory. More partitions or more memory would fix it.`;
+  if (r.merged) return `Adaptive execution <b>merged ${r.merged.toLocaleString('en-US')} tiny partitions</b> into ${r.taskCount.toLocaleString('en-US')} tasks of about 64 MB.`;
+  if (r.medMB < 8 && r.overhead > .25 * r.reduce) return `With ${s.parts.toLocaleString('en-US')} partitions each task carries only <b>${fmtMB(r.medMB)}</b>: about ${Math.round(100 * r.overhead / r.reduce)}% of the reduce stage is per-task overhead.`;
+  return `Balanced: ${r.taskCount.toLocaleString('en-US')} tasks of about ${fmtMB(r.medMB)} each fit in memory. All ${fmtMB(r.dataMB)} still has to be serialized, written, fetched and deserialized.`;
+}
+
+/* ---------- controls ---------- */
+const ui = { sl: {}, mode: {}, sc: [] };
+SCEN.forEach((c, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'sc'; b.innerHTML = `<b>${c.name}</b><i>${c.tag}</i>`; b.onclick = () => choose(i); $('#scen').appendChild(b); ui.sc.push(b); });
+MODES.forEach(([m, name]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = name; b.onclick = () => change({ mode: m }); $('#modes').appendChild(b); ui.mode[m] = b; });
+for (const d of SLIDERS) {
+  const c = document.createElement('label'); c.className = 's'; c.innerHTML = `<span>${d.label}</span><output></output><input type="range" min="0" max="1000" step="1"><small>${d.conf || ''}</small>`;
+  const inp = c.querySelector('input');
+  inp.addEventListener('input', () => { hot = d.k; change({ [d.k]: fromPos(d, inp.value / 1000) }); });
+  inp.addEventListener('change', () => { hot = null; paint(); });
+  inp.addEventListener('dblclick', () => change({ [d.k]: scenario()[d.k] }));
+  $('#sl').appendChild(c); ui.sl[d.k] = { c, inp, out: c.querySelector('output') };
+}
+$('#aqe').onclick = () => change({ aqe: !S.aqe });
+$('#exm').onclick = () => change({ exec: clamp(S.exec - 1, 2, 8) }); $('#exp').onclick = () => change({ exec: clamp(S.exec + 1, 2, 8) });
+$('#run').onclick = () => { playing = !playing; $('#run').classList.toggle('on', playing); $('#run').textContent = playing ? 'Pause Job' : 'Run Job'; };
+$('#follow').onclick = () => { follow = !follow; $('#follow').classList.toggle('on', follow); };
+$('#reset').onclick = () => choose(scen);
+const scenario = () => Object.assign({}, BASE, SCEN[scen].set);
+function choose(i) { scen = i; prev = null; S = scenario(); clock = 0; refresh(); }
+/* any change: remember the run before this burst of changes, so the verdict can show the difference */
+function change(patch) {
+  const now = performance.now(); if (now - lastChange > 900 && stable) prev = stable; lastChange = now;
+  Object.assign(S, patch); refresh();
+}
+function refresh() { R = simulate(S); stable = { runtime: R.runtime, dataMB: R.dataMB, maxMB: R.maxMB, spilled: R.spilled }; plan(); paint(); drawTimeline(); }
+
+/* ---------- the drawing ---------- */
+const scene = $('#scene'), gStatic = el('g', {}, scene), gTiles = el('g', {}, scene), gTop = el('g', {}, scene);
+const ring = el('circle', { r: 13, fill: 'none', stroke: '#1f1d14', 'stroke-width': 2, 'stroke-dasharray': '3 3', visibility: 'hidden' }, gTop);
+/* three draggable handles, each tied to one setting */
+const HANDLES = { keep: mkHandle('keep'), mem: mkHandle('mem'), parts: mkHandle('parts') };
+function mkHandle(k) {
+  const g = el('g', {}, gTop), rail = el('line', { class: 'rail', stroke: '#b9b0a3', 'stroke-width': 2.5, 'stroke-linecap': 'round' }, g), lab = el('text', { class: 'lab', 'font-size': 14, 'font-style': 'italic', fill: '#6d655c' }, g);
+  const rg = el('circle', { class: 'ring', r: 19 }, g), kn = el('circle', { class: 'knob', r: 9 }, g), hit = el('circle', { class: 'hit', r: 26 }, g);
+  hit.addEventListener('pointerdown', e => {
+    e.preventDefault(); try { hit.setPointerCapture(e.pointerId); } catch (x) {} hot = k; paint();
+    const mv = ev => { const m = scene.getScreenCTM(), x = (ev.clientX - m.e) / m.a, y = (ev.clientY - m.f) / m.d, d = def(k);
+      change({ [k]: fromPos(d, clamp(k === 'mem' ? (G.memLo - y) / (G.memLo - G.memHi) : (x - 90) / 520, 0, 1)) }); };
+    const up = () => { hit.removeEventListener('pointermove', mv); hot = null; paint(); };
+    hit.addEventListener('pointermove', mv); hit.addEventListener('pointerup', up, { once: true }); hit.addEventListener('pointercancel', up, { once: true });
+  });
+  hit.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+  return { g, rail, lab, rg, kn, hit };
+}
+const G = { memLo: 636, memHi: 506 };                                    // where the memory line can travel (low memory .. high memory)
+let tiles = [], tileEls = [], levels = [], copies = [];
+/* a small seeded generator, so the same settings always draw the same tiles */
+const rnd = n => { let t = (n + 0x6D2B79F5) | 0; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+
+/* work out where everything sits for the current settings and redraw the still parts */
+function plan() {
+  const n = S.exec, bhj = S.mode === 'bhj', visP = bhj ? 0 : Math.min(8, S.parts), W = 616 / n, tw = n > 5 ? 10 : 14, th = n > 5 ? 7 : 9, per = Math.max(6, Math.floor(60 / n));
+  G.visP = visP; G.tw = tw; G.th = th; G.exec = []; G.tray = [];
+  const cw = CODE[S.mode].length * 8.5 + 28;
+  let h = `<rect x="${320 - cw / 2}" y="8" width="${cw}" height="32" fill="#1f1d14"/><text class="mono" x="320" y="29" text-anchor="middle" font-size="14" fill="#ece8db">${CODE[S.mode]}</text>
+    <text x="12" y="79" font-size="12" class="mono" fill="#8a8177" letter-spacing="1">FILTER</text>
+    <text x="12" y="106" font-size="12" class="mono" fill="#8a8177" letter-spacing="1">STAGE 1 · MAP SIDE</text>`;
+  for (let e = 0; e < n; e++) {
+    const x = 12 + e * W, w = W - 8; G.exec.push({ x, w });
+    h += `<rect x="${x}" y="112" width="${w}" height="260" fill="#f3efe4" stroke="#2a2521" stroke-width="1.6"/><text class="mono" x="${x + 6}" y="128" font-size="${n > 5 ? 10 : 12}" font-weight="600" fill="#2a2521">${n > 5 ? 'EX' : 'EXEC'} ${e + 1}</text>`;
+    if (!bhj) h += `<ellipse cx="${x + w / 2}" cy="358" rx="${Math.min(34, w / 2 - 6)}" ry="9" fill="#d8d1c2" stroke="#8a8177"/><rect x="${x + w / 2 - Math.min(34, w / 2 - 6)}" y="336" width="${2 * Math.min(34, w / 2 - 6)}" height="22" fill="#e6e0d2" stroke="#8a8177"/><ellipse cx="${x + w / 2}" cy="336" rx="${Math.min(34, w / 2 - 6)}" ry="9" fill="#f1ecdf" stroke="#8a8177"/>`;
+    else h += `<rect x="${x + 5}" y="${316}" width="${w - 10}" height="50" fill="#e6efe9" stroke="#2c6b62" stroke-dasharray="4 3"/><text x="${x + w / 2}" y="361" text-anchor="middle" font-size="10" class="mono" fill="#2c6b62">joined here</text>`;
+  }
+  if (!bhj) {
+    h += `<line x1="12" y1="238" x2="628" y2="238" stroke="#b9b0a3" stroke-dasharray="4 4"/><text class="mono" x="626" y="233" text-anchor="end" font-size="11" fill="#6d655c">hash(key) % ${S.parts.toLocaleString('en-US')}</text>
+      <text x="320" y="420" text-anchor="middle" font-size="12" class="mono" fill="#8a8177" letter-spacing="2">NETWORK</text><text x="320" y="440" text-anchor="middle" font-size="15" font-style="italic" fill="#6d655c">${fmtMB(R.dataMB)} crosses between executors</text>
+      <text x="12" y="478" font-size="12" class="mono" fill="#8a8177" letter-spacing="1">STAGE 2 · REDUCE SIDE</text>`;
+    const TW = 600 / visP, memY = lerp(G.memLo, G.memHi, toPos(def('mem'), S.mem)); G.memY = memY;
+    for (let p = 0; p < visP; p++) {
+      const x = 12 + p * TW, w = TW - 8, mb = p === 0 ? R.hotMB : R.typMB, over = mb > S.mem && !(R.split && p === 0); G.tray.push({ x, w, mb, over });
+      h += `<rect x="${x}" y="486" width="${w}" height="164" fill="#efeadb" stroke="${over ? '#b8382b' : '#2a2521'}" stroke-width="${over ? 2.6 : 1.6}"/>`;
+      h += `<text class="mono" x="${x + w / 2}" y="666" text-anchor="middle" font-size="11" fill="${over ? '#b8382b' : '#5d564e'}" font-weight="${over ? 700 : 400}">${fmtMB(mb)}${over ? ' SPILL' : R.split && p === 0 ? ' ÷ ' + R.split : ''}</text>`;
+      if (R.split && p === 0) for (let j = 1; j < 5; j++) h += `<line x1="${x + j * w / 5}" y1="486" x2="${x + j * w / 5}" y2="650" stroke="#2c6b62" stroke-dasharray="3 3"/>`;
+    }
+    h += `<text x="12" y="690" font-size="12" class="mono" fill="#8a8177" letter-spacing="1">PARTITIONS</text>`;
+    for (const v of [2, 20, 200, 2000]) { const x = 90 + 520 * toPos(def('parts'), v); h += `<line x1="${x}" y1="706" x2="${x}" y2="718" stroke="#b9b0a3"/><text class="mono" x="${x}" y="732" text-anchor="middle" font-size="10" fill="#8a8177">${v}</text>`; }
+    h += `<text x="320" y="752" text-anchor="middle" font-size="13" font-style="italic" fill="#6d655c">${visP} of ${R.taskCount.toLocaleString('en-US')} ${S.aqe && R.taskCount !== S.parts ? 'tasks after adaptive planning' : 'partitions'} shown · 1 tile = ${fmtRows(S.rows / (per * n))} rows</text>`;
+  } else {
+    h += `<rect x="250" y="56" width="140" height="34" fill="#dbe4f5" stroke="#27418f"/><text class="mono" x="320" y="78" text-anchor="middle" font-size="12" fill="#27418f">countries · 8 MB</text>
+      <text x="320" y="430" text-anchor="middle" font-size="12" class="mono" fill="#8a8177" letter-spacing="2">NETWORK</text><text x="320" y="452" text-anchor="middle" font-size="16" font-style="italic" fill="#2c6b62">no shuffle: the big table never moves</text>
+      <text x="320" y="560" text-anchor="middle" font-size="15" font-style="italic" fill="#6d655c">There is no second stage to wait for.</text>
+      <text x="320" y="752" text-anchor="middle" font-size="13" font-style="italic" fill="#6d655c">1 tile = ${fmtRows(S.rows / (per * n))} rows</text>`;
+  }
+  gStatic.innerHTML = h;
+  /* tiles: each has a key, a fate at the filter, and a place to be at every step */
+  tiles = []; const trayN = new Array(Math.max(1, visP)).fill(0);
+  G.exec.forEach((ex, e) => {
+    const cols = Math.max(1, Math.floor((ex.w - 10) / (tw + 3))), bucket = new Array(Math.max(1, visP)).fill(0); let local = 0;
+    for (let i = 0; i < per; i++) {
+      const id = e * 131 + i * 17, key = rnd(id) < S.skew / 100 ? 0 : Math.floor(rnd(id + 7) * 8), kept = rnd(id + 3) < S.keep / 100, p = visP ? key % visP : 0;
+      const t = { e, key, kept, p, lag: rnd(id + 11) * .5, ax: ex.x + 5 + (i % cols) * (tw + 3), ay: 140 + Math.floor(i / cols) * (th + 3) };
+      if (kept && visP) {
+        const tr = G.tray[p], tc = Math.max(1, Math.floor((tr.w - 8) / (tw + 3))), j = trayN[p]++;
+        t.bx = ex.x + 5 + (ex.w - 10) * (p + .5) / visP - tw / 2; t.by = 306 - bucket[p]++ * (th + 2);
+        t.dx = ex.x + ex.w / 2 - tw / 2; t.dy = 340; t.ex = tr.x + 4 + (j % tc) * (tw + 3); t.ey = Math.max(490, 638 - Math.floor(j / tc) * (th + 2));
+      } else if (kept) { t.lx = ex.x + 9 + (local % cols) * (tw + 3) * .92; t.ly = 350 - Math.floor(local / cols) * (th + 2); local++; }
+      tiles.push(t);
+    }
+  });
+  while (tileEls.length < tiles.length) tileEls.push(el('rect', { rx: 1.5, 'stroke-width': 1.6 }, gTiles));
+  tileEls.forEach((r, i) => { const t = tiles[i]; r.setAttribute('visibility', t ? 'visible' : 'hidden'); if (t) { r.setAttribute('width', tw); r.setAttribute('height', th); r.setAttribute('stroke', KEYS[t.key][1]); } });
+  levels.forEach(l => l.remove()); levels = G.tray.map(tr => el('rect', { x: tr.x + 1.5, width: tr.w - 3, fill: tr.over ? '#b8382b' : '#2f7f8f', 'fill-opacity': .16 }, gStatic));
+  G.followed = tiles.findIndex(t => t.kept && t.e === 0);
+  copies.forEach(c => c.remove()); copies = bhj ? G.exec.map(() => el('rect', { width: 30, height: 14, fill: '#dbe4f5', stroke: '#27418f', 'stroke-width': 1.4 }, gStatic)) : [];
+}
+/* everything that only changes when a setting changes */
+function paint() {
+  for (const d of SLIDERS) { const u = ui.sl[d.k]; u.inp.value = Math.round(toPos(d, S[d.k]) * 1000); u.out.textContent = d.fmt(S[d.k]); u.c.classList.toggle('hot', hot === d.k); }
+  for (const m in ui.mode) ui.mode[m].classList.toggle('on', S.mode === m);
+  $('#aqe').classList.toggle('on', S.aqe); $('#exv').textContent = 'EXECUTORS ' + S.exec;
+  ui.sc.forEach((b, i) => b.classList.toggle('on', i === scen));
+  const bhj = S.mode === 'bhj', H = HANDLES, place = (h, x, y, x1, y1, x2, y2, text, tx, ty, anchor) => {
+    h.rail.setAttribute('x1', x1); h.rail.setAttribute('y1', y1); h.rail.setAttribute('x2', x2); h.rail.setAttribute('y2', y2);
+    for (const c of [h.kn, h.rg, h.hit]) { c.setAttribute('cx', x); c.setAttribute('cy', y); }
+    h.lab.textContent = text; h.lab.setAttribute('x', tx); h.lab.setAttribute('y', ty); h.lab.setAttribute('text-anchor', anchor);
+  };
+  place(H.keep, 90 + 520 * toPos(def('keep'), S.keep), 74, 90, 74, 610, 74, `keeps ${Math.round(S.keep)}% of rows before the shuffle`, 610, 62, 'end');
+  H.keep.g.setAttribute('visibility', bhj ? 'hidden' : 'visible'); H.mem.g.setAttribute('visibility', bhj ? 'hidden' : 'visible'); H.parts.g.setAttribute('visibility', bhj ? 'hidden' : 'visible');
+  if (!bhj) {
+    place(H.mem, 622, G.memY, 12, G.memY, 612, G.memY, `memory per task ${fmtMB(S.mem)}`, 606, G.memY - 6, 'end'); H.mem.rail.setAttribute('stroke-dasharray', '7 5');
+    place(H.parts, 90 + 520 * toPos(def('parts'), S.parts), 712, 90, 712, 610, 712, `spark.sql.shuffle.partitions = ${S.parts.toLocaleString('en-US')}`, 610, 698, 'end');
+  }
+  for (const k in H) H[k].g.classList.toggle('hot', hot === k);
+  /* verdict, with the change since the run before */
+  const cell = (name, val, now, was, extra) => { let d = '', cls = '';
+    if (prev && was > 0 && Math.abs(now - was) / was > .005) { const p = (now - was) / was * 100; d = (p > 0 ? '▲ +' : '▼ ') + (Math.abs(p) >= 1000 ? Math.round(p / 100) + 'x' : p.toFixed(0) + '%'); cls = p > 0 ? 'bad' : 'good'; }
+    else if (prev && was === 0 && now > 0) { d = '▲ new'; cls = 'bad'; } else if (prev && was > 0 && now === 0) { d = '▼ gone'; cls = 'good'; }
+    return `<div class="v box"><u>${name}</u><b>${val}</b><i class="${cls}">${d || extra || ''}</i></div>`; };
+  const p = prev || {};
+  $('#verdict').innerHTML = cell('Run time', fmtTime(R.runtime), R.runtime, p.runtime) + cell('Data shuffled', bhj ? '0' : fmtMB(R.dataMB), R.dataMB, p.dataMB)
+    + cell('Largest task', bhj ? 'none' : fmtMB(R.maxMB), R.maxMB, p.maxMB, bhj ? '' : R.maxMB > S.mem ? 'over memory' : 'fits in memory') + cell('Tasks spilled', bhj ? '0' : R.spilled.toLocaleString('en-US') + ' / ' + R.taskCount.toLocaleString('en-US'), R.spilled, p.spilled);
+  $('#why').innerHTML = why(R, S);
+  const names = bhj ? ['1 Broadcast the small table', '2 Read and filter', '3 Join inside each executor', '4 Done: no shuffle'] : ['1 Read and filter', '2 Hash the key → partition', '3 Serialize to bytes', '4 Write shuffle file to disk', '5 Fetch over the network', '6 Deserialize and aggregate'];
+  $('#steps').innerHTML = names.map(n => `<span>${n}</span>`).join('');
+}
+
+/* ---------- the task timeline (drawn once per change, then a moving playhead) ---------- */
+const cv = $('#tl canvas'), buf = document.createElement('canvas');
+$('#tl .cap').innerHTML = '<span><i style="background:#b7c7c4"></i>map: read, hash, write</span><span><i style="background:#2f7f8f"></i>reduce task</span><span><i style="background:#b8382b"></i>spilled to disk</span><span><i style="background:#2c6b62"></i>split by AQE</span><span><i style="background:#cfc6b6"></i>previous run</span>';
+function drawTimeline() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1), w = Math.max(200, Math.round(cv.clientWidth * dpr)), h = Math.round(170 * dpr);
+  buf.width = cv.width = w; buf.height = cv.height = h;
+  const g = buf.getContext('2d'), L = 34 * dpr, top = 26 * dpr, span = Math.max(R.runtime, prev ? prev.runtime : 0), X = t => L + (w - L - 56 * dpr) * t / span;
+  g.fillStyle = '#faf7ef'; g.fillRect(0, 0, w, h); g.font = `${10 * dpr}px ui-monospace,Menlo,Consolas,monospace`; g.textBaseline = 'middle';
+  if (prev) { g.fillStyle = '#cfc6b6'; g.fillRect(L, 5 * dpr, X(prev.runtime) - L, 5 * dpr); }
+  g.fillStyle = '#2a2521'; g.fillRect(L, 13 * dpr, X(R.runtime) - L, 5 * dpr); g.fillText(fmtTime(R.runtime), X(R.runtime) + 5 * dpr, 15.5 * dpr);
+  const lane = (h - top - 4 * dpr) / S.exec, row = (lane - 3 * dpr) / CORES;
+  for (let e = 0; e < S.exec; e++) {
+    const y = top + e * lane; g.fillStyle = '#6d655c'; g.fillText('ex' + (e + 1), 3 * dpr, y + lane / 2);
+    g.fillStyle = '#b7c7c4'; g.fillRect(L, y, Math.max(1, X(R.mapTime) - L), lane - 3 * dpr);
+  }
+  for (const k of R.tasks) {
+    const e = Math.floor(k.slot / CORES), c = k.slot % CORES, x = X(R.mapTime + k.start), ww = Math.max(.6, X(R.mapTime + k.start + k.t) - x - (k.t > span / 400 ? .6 : 0));
+    g.fillStyle = k.spill ? '#b8382b' : k.split ? '#2c6b62' : '#2f7f8f'; g.fillRect(x, top + e * lane + c * row, ww, Math.max(1, row - 1));
+  }
+  G.tlX = X; G.dpr = dpr;
+}
+addEventListener('resize', drawTimeline);
+
+/* ---------- animation: rows move through the six steps in a nine-second loop ---------- */
+const LOOP = 9, T = [0, 1.2, 2.6, 3.6, 4.8, 6.8, 9];
+let last = performance.now();
+function frame(ts) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(.1, (ts - last) / 1000); last = ts; if (playing) clock = (clock + dt) % LOOP;
+  const bhj = S.mode === 'bhj', tw = G.tw;
+  tiles.forEach((t, i) => {
+    const r = tileEls[i], u = Math.max(0, clock - t.lag); let x = t.ax, y = t.ay, o = 1, dark = false, s = 1;
+    if (!t.kept) { const f = prog(u, .5, 1.3); o = 1 - f; y += 16 * f; }
+    else if (bhj) { const f = ease(prog(u, 2.2, 4)); x = lerp(t.ax, t.lx, f); y = lerp(t.ay, t.ly, f); }
+    else if (u < T[2]) { const f = ease(prog(u, T[1], T[2])); x = lerp(t.ax, t.bx, f); y = lerp(t.ay, t.by, f); }
+    else if (u < T[3]) { x = t.bx; y = t.by; dark = u > T[2] + .45; }
+    else if (u < T[4]) { const f = ease(prog(u, T[3], T[4])); x = lerp(t.bx, t.dx, f); y = lerp(t.by, t.dy, f); dark = true; o = 1 - .45 * f; }
+    else { const f = ease(prog(u, T[4], T[5] - .3)), mx = (t.dx + t.ex) / 2, my = 418;                 // a curved hop across the network
+      x = (1 - f) * (1 - f) * t.dx + 2 * f * (1 - f) * mx + f * f * t.ex; y = (1 - f) * (1 - f) * t.dy + 2 * f * (1 - f) * my + f * f * t.ey; dark = f < .96; o = .55 + .45 * f; }
+    r.setAttribute('x', x.toFixed(1)); r.setAttribute('y', y.toFixed(1)); r.setAttribute('opacity', o.toFixed(2)); r.setAttribute('fill', dark ? '#1f1d14' : KEYS[t.key][1]);
+    if (follow && i === G.followed) { ring.setAttribute('cx', x + tw / 2); ring.setAttribute('cy', y + G.th / 2); }
+  });
+  ring.setAttribute('visibility', follow && G.followed >= 0 ? 'visible' : 'hidden');
+  gTiles.setAttribute('opacity', follow ? .45 : 1); if (follow && G.followed >= 0) { tileEls[G.followed].setAttribute('opacity', 1); gTiles.appendChild(tileEls[G.followed]); }
+  /* broadcast join: a copy of the small table travels to every executor before any row is read */
+  copies.forEach((c, e) => { const f = ease(prog(clock, .2 + e * .12, 1.8 + e * .12)), ex = G.exec[e]; c.setAttribute('x', lerp(305, ex.x + ex.w - 36, f)); c.setAttribute('y', lerp(66, 118, f)); });
+  /* partitions fill as rows arrive; anything above the memory line is what spills */
+  const rise = ease(prog(clock, T[4] + .4, T[5] + .6));
+  G.tray.forEach((tr, p) => { const full = clamp(tr.mb / S.mem, 0, 3) * (650 - G.memY), hgt = Math.min(162, full * rise); levels[p].setAttribute('y', 650 - hgt); levels[p].setAttribute('height', hgt); });
+  /* light the step that is happening now */
+  const chips = $('#steps').children, step = bhj ? (clock < 2.2 ? 0 : clock < 3 ? 1 : clock < 4.4 ? 2 : 3) : T.findIndex((v, i) => clock >= v && clock < T[i + 1]);
+  for (let i = 0; i < chips.length; i++) chips[i].classList.toggle('on', i === step);
+  /* timeline playhead: the first half of the loop is the map stage, the rest the reduce stage */
+  if (G.tlX) { const g = cv.getContext('2d'), d = G.dpr, t = bhj ? R.runtime * prog(clock, 0, 4.4) : clock < T[4] ? R.mapTime * clock / T[4] : R.mapTime + (R.runtime - R.mapTime) * prog(clock, T[4], 8.4);
+    g.drawImage(buf, 0, 0); g.fillStyle = '#2a2521'; g.fillRect(G.tlX(t), 22 * d, 1.5 * d, cv.height); }
+}
+/* on wide screens the scenarios, verdict and timeline sit beside the drawing; on phones they stack around it */
+const mq = matchMedia('(min-width:901px)');
+function arrange() {
+  const sec = $('main > section'), slot = $('#wide'), ids = ['#scen', '#verdict', '#why', '#tl'];
+  if (mq.matches) ids.forEach(i => slot.appendChild($(i)));
+  else { sec.insertBefore($('#scen'), scene); ['#verdict', '#why', '#tl'].forEach(i => sec.appendChild($(i))); }
+  if (R) drawTimeline();
+}
+mq.addEventListener('change', arrange); arrange();
+addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.code === 'Space') { e.preventDefault(); $('#run').click(); } else if (e.key >= '1' && e.key <= '7') choose(+e.key - 1); });
+choose(0);
+requestAnimationFrame(frame);
+window.__lab = { get S() { return S; }, get R() { return R; }, choose, change, simulate, SCEN, BASE };
+</script>
+</body>
+</html>
