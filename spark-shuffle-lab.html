@@ -3,427 +3,693 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Spark Shuffle Lab · how a shuffle works and what it costs</title>
+<title>Spark Shuffle Lab · live</title>
 <style>
-:root{--paper:#faf7ee;--ink:#2a2521;--sub:#6d655c;--line:#d3cabb;--card:#fbf9f2;--red:#b8382b;--teal:#2f7f8f;--dark:#1f1d14;--mono:ui-monospace,Menlo,Consolas,monospace}
+:root{--paper:#faf7ee;--ink:#2a2521;--sub:#6d655c;--line:#d3cabb;--card:#fbf9f2;--red:#b8382b;--teal:#2f7f8f;--mono:ui-monospace,Menlo,Consolas,monospace}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{color:var(--ink);font-family:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua","Noto Serif",Georgia,serif;
   background:radial-gradient(130% 100% at 50% 20%,#fcfaf3 0%,#f9f6ec 55%,#f1ebdc 100%) fixed #f8f5ea;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
 button{font:inherit;color:inherit;cursor:pointer}
-header{max-width:1500px;margin:0 auto;padding:18px 18px 6px}
-h1{margin:0;font-size:26px;letter-spacing:.2px}
-.lede{margin:4px 0 0;font-style:italic;color:var(--sub);font-size:16px;line-height:1.35}
-main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(310px,1fr);gap:22px;max-width:1500px;margin:0 auto;padding:10px 18px 34px;align-items:start}
+header{max-width:1500px;margin:0 auto;padding:16px 18px 4px}
+h1{margin:0;font-size:25px;letter-spacing:.2px}
+.lede{margin:3px 0 0;font-style:italic;color:var(--sub);font-size:15.5px;line-height:1.35}
+main{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,1fr);gap:22px;max-width:1500px;margin:0 auto;padding:10px 18px 34px;align-items:start}
 main>*{min-width:0}
-@media(max-width:900px){main{grid-template-columns:minmax(0,1fr);gap:14px;padding:8px 12px 30px}header{padding:14px 12px 4px}h1{font-size:22px}}
+@media(max-width:900px){main{grid-template-columns:minmax(0,1fr);gap:12px;padding:8px 12px 30px}header{padding:12px 12px 2px}h1{font-size:21px}}
+@media(min-width:901px){#left{position:sticky;top:6px}}
 .box{background:var(--card);border:1.5px solid var(--line);box-shadow:inset 0 0 0 3px var(--card),inset 0 0 0 4px #e4dccd}
 
-/* run bar and scenarios */
-#bar{display:flex;gap:8px;margin-bottom:9px}
-#bar button{height:44px;padding:0 14px;font-weight:600;font-size:16px;background:var(--card);border:1.5px solid var(--line)}
+/* run bar */
+#bar{display:flex;gap:6px;margin-bottom:8px}
+#bar button{height:42px;padding:0 10px;font-weight:600;font-size:15px;background:var(--card);border:1.5px solid var(--line);white-space:nowrap}
 #run{flex:1}
 #run.on{color:#8f2f22;background:#f3ddd2;border-color:#bf6f5b}
-#follow.on{background:#e6efe9;border-color:#2c6b62;color:#234f49}
-#scen{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px;margin-bottom:10px}
-.sc{min-height:52px;padding:6px 10px;text-align:left;background:var(--card);border:1.5px solid var(--line)}
-.sc b{display:block;font-size:15.5px;line-height:1.15}.sc i{display:block;font-size:12.5px;color:var(--sub);line-height:1.2}
-@media(max-width:900px){#scen{display:flex;overflow-x:auto;padding-bottom:4px;scroll-snap-type:x proximity}.sc{flex:0 0 164px;scroll-snap-align:start}}
-@media(min-width:901px){#scene{max-height:calc(100vh - 215px)}main>section{position:sticky;top:6px}#wide{margin-bottom:12px}#wide #scen{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
+#bar .sp{font:600 12.5px var(--mono);padding:0 8px}
+#bar .sp+.sp{margin-left:-7.5px}
+#bar button.sel{background:#34576b;border-color:#34576b;color:#fff}
+#bar button.lit{background:#e6efe9;border-color:#2c6b62;color:#234f49}
+
+/* scenarios */
+#scen{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:7px;margin-bottom:10px}
+@media(max-width:900px){#scen{display:flex;overflow-x:auto;padding-bottom:4px;margin-bottom:8px}.sc{flex:0 0 158px}}
+.sc{min-height:50px;padding:6px 10px;text-align:left;background:var(--card);border:1.5px solid var(--line)}
+.sc b{display:block;font-size:15px;line-height:1.15}.sc i{display:block;font-size:12.5px;color:var(--sub);line-height:1.2}
 .sc.on{border-color:var(--red);box-shadow:inset 0 0 0 2px var(--card),inset 0 0 0 3.5px var(--red)}.sc.on i{color:var(--red)}
 
-/* the drawing */
-#scene{display:block;width:100%;height:auto;touch-action:pan-y}
-#scene text{font-family:inherit}
-#scene .mono{font-family:var(--mono)}
-#scene .hit{fill:transparent;cursor:grab;touch-action:none}
-#scene .knob{fill:#fffdf8;stroke:var(--ink);stroke-width:2.2}
-#scene .hot .knob{fill:var(--red);stroke:#8f2a20}
-#scene .hot .ring{visibility:visible}
-#scene .ring{visibility:hidden;fill:rgba(184,56,43,.08);stroke:var(--red);stroke-width:1.5}
-#scene .hot .lab{fill:var(--red)}
-#scene .hot .rail{stroke:var(--red)}
-#steps{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:6px 0 10px}
-#steps span{padding:5px 6px;font-size:12.5px;line-height:1.2;border:1.5px solid #e2dbcd;color:var(--sub);background:var(--card)}
-#steps span.on{border-color:var(--teal);color:#1d5560;background:#e6f0f1;font-weight:600}
+/* the live drawing: one canvas, with invisible grab areas over the four handles */
+#stage{position:relative;margin:0 auto}
+#cv{display:block;width:100%;touch-action:pan-y;cursor:pointer}
+.h{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;touch-action:none;cursor:ew-resize}
+#steps{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:6px 0 0}
+#steps span{padding:4px 6px;font-size:12.5px;line-height:1.2;border:1.5px solid #e2dbcd;color:var(--sub);background:var(--card)}
+#steps span b{display:block;font:400 11px var(--mono);color:#8a8177}
+#steps span.on{border-color:var(--teal);color:#1d5560;background:#e6f0f1}#steps span.on b{color:#1d5560}
 
-/* verdict and timeline */
-#verdict{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
-@media(max-width:520px){#verdict{grid-template-columns:repeat(2,1fr)}}
-.v{padding:7px 9px}.v u{display:block;text-decoration:none;font:600 11px var(--mono);letter-spacing:.6px;color:var(--sub);text-transform:uppercase}
-.v b{display:block;font:700 21px var(--mono);margin-top:2px}.v i{display:block;font:400 12px var(--mono);font-style:normal;color:var(--sub);min-height:15px}
-.v i.good{color:#2f6a52}.v i.bad{color:var(--red)}
-#why{margin:9px 2px 10px;font-size:16px;line-height:1.35}
+/* things to press */
+#keys{padding:10px 10px 9px;margin-top:8px}
+#keys p{margin:0 0 6px;font:600 11px var(--mono);letter-spacing:.8px;color:var(--sub)}
+#keys .k{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+#keys .k button{height:46px;padding:0;border:1.5px solid var(--line);border-bottom-width:5px;background:#fffdf8;font:700 13px var(--mono);touch-action:none;user-select:none;-webkit-user-select:none}
+#keys .k button i{display:block;font:400 9.5px var(--mono);font-style:normal;color:#9a9186}
+#keys .k button.on{color:#fff;border-bottom-width:1.5px}#keys .k button.on i{color:#fff}
+#keys .f{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:5px}
+#keys .f button{height:40px;background:#26211e;color:#fff;border:0;font:600 12px var(--mono);touch-action:none;user-select:none;-webkit-user-select:none}
+#keys .f button i{font-style:normal;font-weight:400;color:#b9b0a3;margin-left:6px}
+#keys .f button.on{background:var(--red)}
+
+/* verdict and the scrolling gauges */
+#verdict{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.v{padding:7px 9px}.v u{display:block;text-decoration:none;font:600 10.5px var(--mono);letter-spacing:.5px;color:var(--sub);text-transform:uppercase;white-space:nowrap;overflow:hidden}
+.v b{display:block;font:700 19px var(--mono);margin-top:2px;white-space:nowrap}.v i{display:block;font:400 11.5px var(--mono);font-style:normal;color:var(--sub);min-height:14px;white-space:nowrap;overflow:hidden}
+.v.bad b,.v.bad i{color:var(--red)}.v.good i{color:#2f6a52}
+#why{margin:9px 2px 10px;font-size:15.5px;line-height:1.38;min-height:4.2em}
 #why b{color:var(--red)}
-#tl{position:relative;padding:8px 8px 6px}
-#tl canvas{display:block;width:100%;height:170px}
-#tl .cap{display:flex;flex-wrap:wrap;gap:4px 14px;font:400 11.5px var(--mono);color:var(--sub);margin-top:5px}
-#tl .cap i{display:inline-block;width:11px;height:9px;margin-right:5px;vertical-align:-1px}
+#tl{position:relative;padding:8px 8px 8px 58px}
+#tl canvas{display:block;width:100%;height:132px}
+#tl .ax{position:absolute;left:9px;top:8px;width:46px;height:132px;font:400 10.5px var(--mono);color:var(--sub)}
+#tl .ax i{position:absolute;left:0;font-style:normal;transform:translateY(-50%)}
 
 /* control panel */
-#panel{padding:15px 15px 13px}
-#panel h2{margin:0 0 8px;font-size:13px;font-family:var(--mono);letter-spacing:1.2px;color:var(--sub);font-weight:600}
-.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;font:600 12.5px var(--mono);letter-spacing:.4px}
-.row button{height:36px;padding:0 9px;background:var(--card);border:1.5px solid var(--line);font:inherit}
+#panel{padding:14px 14px 12px;margin-top:12px}
+#panel h2{margin:0 0 8px;font-size:12.5px;font-family:var(--mono);letter-spacing:1.2px;color:var(--sub);font-weight:600}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;font:600 12px var(--mono);letter-spacing:.3px}
+.row button{height:36px;padding:0 8px;background:var(--card);border:1.5px solid var(--line);font:inherit}
 .seg{display:flex}.seg button+button{border-left:0}
 .row button.on{background:#34576b;border-color:#34576b;color:#fff}
 .stp{display:flex;align-items:center;border:1.5px solid var(--line);height:36px}.stp button{border:0;height:32px;font-size:16px;padding:0 11px}.stp b{padding:0 4px}
 #sl{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 @media(max-width:420px){#sl{grid-template-columns:1fr}}
-.s{display:grid;grid-template-columns:1fr auto;align-items:baseline;padding:6px 9px 4px;border:1.5px solid #e2dbcd;font-size:15.5px;font-weight:600}
+.s{display:grid;grid-template-columns:1fr auto;align-items:baseline;padding:6px 9px 4px;border:1.5px solid #e2dbcd;font-size:15px;font-weight:600}
 .s.hot{border-color:var(--red)}.s.hot span{color:var(--red)}
-.s output{font:400 13px var(--mono);color:#5d564e}
+.s output{font:400 12.5px var(--mono);color:#5d564e}
 .s small{grid-column:1 / span 2;font:400 10.5px var(--mono);color:#8a8177;min-height:12px}
 .s input{grid-column:1 / span 2;-webkit-appearance:none;appearance:none;width:100%;height:30px;margin:0;background:transparent;cursor:ew-resize}
 .s input::-webkit-slider-runnable-track{height:2.5px;background:linear-gradient(90deg,#8d8d8d,#c57663)}
 .s input::-moz-range-track{height:2.5px;background:linear-gradient(90deg,#8d8d8d,#c57663)}
 .s input::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:22px;margin-top:-10px;background:#fffdf8;border:1.6px solid var(--ink);border-radius:2px}
 .s input::-moz-range-thumb{width:11px;height:19px;background:#fffdf8;border:1.6px solid var(--ink);border-radius:2px}
-.note{margin:12px 0 0;font-size:13px;line-height:1.4;color:var(--sub)}
+.note{margin:12px 0 0;font-size:13px;line-height:1.42;color:var(--sub)}
 .note code{font-family:var(--mono);font-size:12px;color:var(--ink)}
 </style>
 </head>
 <body>
 <header>
-  <h1>Spark Shuffle Lab</h1>
-  <p class="lede">A shuffle moves every surviving row across the network once. The cheapest shuffle has less data in it, or never happens.</p>
+  <h1>Spark Shuffle Lab · live</h1>
+  <p class="lede">A streaming job is running. Every few seconds Spark shuffles a new batch. Change anything and the running job reacts at once.</p>
 </header>
 <main>
-  <section>
-    <div id="bar"><button id="run" type="button" class="on">Pause Job</button><button id="follow" type="button">Follow one row</button><button id="reset" type="button">Reset</button></div>
-    <div id="scen"></div>
-    <svg id="scene" viewBox="0 0 640 760" role="img" aria-label="Rows flow from executors, through hashing and local disk, across the network into partitions"></svg>
+  <section id="left">
+    <div id="bar">
+      <button id="run" type="button" class="on">Pause</button>
+      <button class="sp" type="button" data-v="0.25">&frac14;&times;</button><button class="sp sel" type="button" data-v="1">1&times;</button><button class="sp" type="button" data-v="2">2&times;</button>
+      <button id="follow" type="button">Follow a row</button>
+      <button id="sound" type="button">Sound</button>
+    </div>
+    <div id="stage"><canvas id="cv" aria-label="Live drawing of the shuffle: rows arrive, executors hash and write them to disk, reduce tasks fetch them over the network"></canvas></div>
     <div id="steps"></div>
-    <div id="verdict"></div>
-    <p id="why"></p>
-    <div id="tl" class="box"><canvas></canvas><div class="cap"></div></div>
+    <div id="keys" class="box">
+      <p>HOLD A KEY TO FLOOD THE JOB WITH ONE COUNTRY · TAP AN EXECUTOR TO KILL IT</p>
+      <div class="k"></div>
+      <div class="f"><button type="button" data-f="kill">Kill executor<i>W</i></button><button type="button" data-f="disk">Slow disk<i>E</i></button><button type="button" data-f="net">Network blip<i>T</i></button></div>
+    </div>
   </section>
   <aside>
-  <div id="wide"></div>
-  <div id="panel" class="box">
-    <h2>JOIN / AGGREGATION STRATEGY</h2>
-    <div class="row"><span class="seg" id="modes"></span></div>
-    <div class="row"><button id="aqe" type="button">ADAPTIVE (AQE)</button><span class="stp"><button id="exm" type="button">&minus;</button><b id="exv">EXECUTORS 4</b><button id="exp" type="button">+</button></span></div>
-    <h2>SETTINGS AND INPUTS</h2>
-    <div id="sl"></div>
-    <p class="note">Numbers are illustrative, from a simple cost model, not benchmarks. Setting names and defaults are for Apache Spark 3.x:
-      <code>spark.sql.shuffle.partitions</code> = 200, <code>spark.sql.autoBroadcastJoinThreshold</code> = 10 MB,
-      adaptive target partition size 64 MB. Each executor has 4 cores. Drag the three round handles in the drawing, or use the sliders. Double-click a slider to reset it. Space pauses; keys 1 to 7 pick a scenario.</p>
-  </div>
+    <div id="scen"></div>
+    <div id="verdict"></div>
+    <p id="why"></p>
+    <div id="tl" class="box"><div class="ax"><i style="top:12px">batches</i><i style="top:50px">waiting</i><i style="top:78px">cpu</i><i style="top:93px">disk</i><i style="top:108px">network</i><i style="top:123px">tasks</i></div><canvas></canvas></div>
+    <div id="panel" class="box">
+      <h2>STRATEGY</h2>
+      <div class="row"><span class="seg" id="modes"></span></div>
+      <div class="row"><button id="aqe" type="button">ADAPTIVE (AQE)</button><span class="stp"><button id="exm" type="button">&minus;</button><b id="exv">EXECUTORS 4</b><button id="exp" type="button">+</button></span><button id="reset" type="button">RESET</button></div>
+      <h2>SETTINGS AND INPUTS</h2>
+      <div id="sl"></div>
+      <p class="note">This is a live model of Spark Structured Streaming: each trigger starts a micro-batch, which runs a map stage, a shuffle and a reduce stage. One tile is a block of rows. Dark tiles are serialized bytes.
+        Numbers come from a simple cost model and are illustrative, not benchmarks. Setting names and defaults are for Spark 3.x: <code>spark.sql.shuffle.partitions</code> = 200,
+        adaptive target size 64 MB, skew threshold 256 MB and 5&times; the median. Each executor has 4 cores. A change to partitions, strategy or AQE applies from the next batch; everything else acts at once.
+        Keys: Space pause, 1 to 7 scenarios, A S D F G H J K floods, W E T faults.</p>
+    </div>
   </aside>
 </main>
 <script>
 /* ==========================================================================
-   Spark Shuffle Lab
-   One state object S (real units) -> simulate() -> everything on screen.
+   Spark Shuffle Lab · live
+   A real-time simulation. One settings object S (real units) drives a running model `sim`;
+   the drawing, the gauges, the verdict and the explanation are all read from that model.
 
-   Cost rules (deliberately simple; directions are right, sizes are plausible):
-     data shuffled   = rows x kept% x bytes per row          (x 1.3 for a sort-merge join: two sides)
-     partition size  = even share, plus the whole hot key in one partition (a key never splits)
-     map stage time  = read + serialize (CPU) + write shuffle files (local disk)
-     reduce task     = overhead + fetch over the network + deserialize (+ sort for a join)
-                       + spill: written to and read back from disk when the task exceeds its memory
-     stage time      = tasks packed onto executors x 4 cores, first free core first
-     adaptive (AQE)  = merges neighbouring partitions under 64 MB; in a join, also splits a
-                       partition more than 5x the median and over 256 MB
-     broadcast join  = the small table is copied to every executor, so nothing is shuffled
+   What is modelled, per micro-batch:
+     map stage     every executor reads its rows, filters, hashes the key to a partition and serializes
+                   (CPU: 4 cores), then writes shuffle files to its local disk
+     reduce stage  one task per partition. A core picks a task (a fixed launch cost), fetches that
+                   partition's blocks from every executor over the network, deserializes and aggregates.
+                   A partition is never shared between cores. A task larger than its memory spills.
+     adaptive      merges neighbouring partitions up to 64 MB; in a join, splits a skewed partition
+     broadcast     the small table is copied to every executor, so nothing is shuffled
+     lost executor its queued work and its shuffle files are recomputed on the other executors
+   Rates (MB per second per core): read 250, serialize 120, deserialize 150, sort 90, join probe 200.
    ========================================================================== */
 'use strict';
-const $ = s => document.querySelector(s), NS = 'http://www.w3.org/2000/svg';
+const $ = s => document.querySelector(s);
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, p) => a + (b - a) * p;
-const prog = (t, a, b) => clamp((t - a) / (b - a), 0, 1), ease = p => p * p * (3 - 2 * p);
-const el = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
-const fmtRows = v => v >= 1e9 ? (v / 1e9).toFixed(v >= 1e10 ? 0 : 1) + ' B' : Math.round(v / 1e6) + ' M';
+const fmtN = v => v >= 1e9 ? (v / 1e9).toFixed(1) + ' B' : v >= 1e6 ? (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + ' M' : v >= 1e3 ? Math.round(v / 1e3) + ' k' : Math.round(v) + '';
 const fmtMB = v => v >= 1024 ? (v / 1024).toFixed(v >= 10240 ? 0 : 1) + ' GB' : v >= 10 ? Math.round(v) + ' MB' : v.toFixed(1) + ' MB';
-const fmtTime = s => s >= 3600 ? (s / 3600).toFixed(1) + ' h' : s >= 90 ? (s / 60).toFixed(1) + ' min' : s.toFixed(s < 10 ? 1 : 0) + ' s';
+const fmtS = s => s >= 60 ? (s / 60).toFixed(1) + ' min' : s.toFixed(1) + ' s';
+const num = v => v.toLocaleString('en-US');
 
-const CORES = 4, SER = 120, DESER = 150, SORT = 90, SCAN = 250, OVERHEAD = .12, TARGET = 64, SKEW_FACTOR = 5, SKEW_MIN = 256;   // MB/s per core, seconds, MB
-const KEYS = [['IN', '#27418f'], ['US', '#b8382b'], ['BR', '#3c7a62'], ['DE', '#c68948'], ['JP', '#7a5ea8'], ['FR', '#2f7f8f'], ['GB', '#8a6a3c'], ['MX', '#a0527a']];
-const BASE = { rows: 1e9, rowBytes: 100, keep: 100, parts: 200, mem: 1024, skew: 0, net: 400, disk: 300, exec: 4, mode: 'group', aqe: false };
+const CORES = 4, SCAN = 250, SER = 120, PROBE = 200, DESER = 150, SORT = 90;
+const OVERHEAD = .05, TARGET = 64, SKEW_FACTOR = 5, SKEW_MIN = 256, FLY = .3, MAXBATCH = 8, DOWN = 6;
+const INK = '#2a2521', SUB = '#6d655c', RED = '#b8382b', TEAL = '#2f7f8f', LINE = '#b9b0a3', MIXED = '#a9b8b4';
+const SERIF = '"Iowan Old Style","Palatino Linotype",Palatino,"Noto Serif",Georgia,serif', MONO = 'ui-monospace,Menlo,Consolas,monospace';
+/* the named keys: a colour, a note for the sound, and a fixed hash (partition = hash % partitions) */
+const KEYS = [['IN', '#27418f', 392, 7, 'A'], ['US', '#b8382b', 440, 131, 'S'], ['BR', '#3c7a62', 523, 58, 'D'], ['DE', '#c68948', 587, 1009, 'F'], ['JP', '#7a5ea8', 659, 344, 'G'], ['FR', '#2f7f8f', 784, 2203, 'H'], ['GB', '#8a6a3c', 880, 87, 'J'], ['MX', '#a0527a', 1047, 4001, 'K']];
+const BASE = { rate: 3e6, rowBytes: 100, keep: 100, parts: 200, mem: 256, skew: 0, net: 400, disk: 300, trigger: 4, exec: 4, mode: 'group', aqe: false };
 const SCEN = [
-  { name: 'Plain groupBy', tag: 'Every row crosses the network once', set: {} },
+  { name: 'Healthy stream', tag: 'Each batch finishes before the next', set: {} },
   { name: 'Filter first', tag: 'Less data in, less data shuffled', set: { keep: 15, rowBytes: 40 } },
   { name: 'Skewed key', tag: 'One key, one giant task', set: { skew: 40 } },
-  { name: 'Too few partitions', tag: 'Tasks too big for memory: spill', set: { parts: 8 } },
-  { name: 'Too many partitions', tag: 'A swarm of tiny tasks', set: { rows: 2e8, parts: 5000 } },
+  { name: 'Too few partitions', tag: 'Idle cores and spilling tasks', set: { parts: 2 } },
+  { name: 'Too many partitions', tag: 'A swarm of tiny tasks', set: { parts: 5000 } },
   { name: 'Broadcast join', tag: 'The shuffle that never happens', set: { mode: 'bhj' } },
-  { name: 'Adaptive execution', tag: 'Spark repairs the plan mid-run', set: { mode: 'smj', skew: 30, parts: 1000, aqe: true } },
+  { name: 'Adaptive execution', tag: 'Spark repairs the plan each batch', set: { mode: 'smj', skew: 30, parts: 1000, aqe: true } },
 ];
 const SLIDERS = [
-  { k: 'rows', label: 'Input rows', min: 1e8, max: 1e10, log: 1, fmt: fmtRows },
+  { k: 'rate', label: 'Input rate', min: 2e5, max: 4e7, log: 1, fmt: v => fmtN(v) + ' rows/s' },
   { k: 'rowBytes', label: 'Row size', min: 20, max: 1000, log: 1, fmt: v => Math.round(v) + ' B' },
   { k: 'keep', label: 'Rows kept by filter', min: 1, max: 100, fmt: v => Math.round(v) + '%' },
-  { k: 'parts', label: 'Shuffle partitions', min: 2, max: 5000, log: 1, fmt: v => Math.round(v).toLocaleString('en-US'), conf: 'spark.sql.shuffle.partitions' },
-  { k: 'mem', label: 'Memory per task', min: 64, max: 8192, log: 1, fmt: fmtMB },
+  { k: 'parts', label: 'Shuffle partitions', min: 1, max: 5000, log: 1, fmt: v => num(Math.round(v)), conf: 'spark.sql.shuffle.partitions' },
+  { k: 'mem', label: 'Memory per task', min: 8, max: 4096, log: 1, fmt: fmtMB },
   { k: 'skew', label: 'Hot-key share', min: 0, max: 90, fmt: v => Math.round(v) + '%' },
-  { k: 'net', label: 'Network / executor', min: 50, max: 2000, log: 1, fmt: v => Math.round(v) + ' MB/s' },
-  { k: 'disk', label: 'Disk / executor', min: 50, max: 2000, log: 1, fmt: v => Math.round(v) + ' MB/s' },
+  { k: 'net', label: 'Network / executor', min: 20, max: 2000, log: 1, fmt: v => Math.round(v) + ' MB/s' },
+  { k: 'disk', label: 'Disk / executor', min: 20, max: 2000, log: 1, fmt: v => Math.round(v) + ' MB/s' },
+  { k: 'trigger', label: 'Trigger interval', min: 1, max: 10, half: 1, fmt: v => v.toFixed(1) + ' s' },
 ];
 const MODES = [['group', 'GROUP BY'], ['smj', 'SORT-MERGE JOIN'], ['bhj', 'BROADCAST JOIN']];
-const CODE = { group: 'df.groupBy("country").count()', smj: 'orders.join(customers, "country")', bhj: 'orders.join(broadcast(countries), "country")' };
-const toPos = (d, v) => d.log ? Math.log(v / d.min) / Math.log(d.max / d.min) : (v - d.min) / (d.max - d.min);
-const fromPos = (d, p) => { const v = d.log ? d.min * Math.pow(d.max / d.min, p) : d.min + (d.max - d.min) * p; return d.k === 'rows' ? v : Math.round(v); };
+const CODE = { group: 'events.groupBy("country").count()', smj: 'events.join(customers, "country")', bhj: 'events.join(broadcast(countries), "country")' };
 const def = k => SLIDERS.find(d => d.k === k);
+const toPos = (d, v) => d.log ? Math.log(v / d.min) / Math.log(d.max / d.min) : (v - d.min) / (d.max - d.min);
+const fromPos = (d, p) => { const v = d.log ? d.min * Math.pow(d.max / d.min, p) : d.min + (d.max - d.min) * p; return d.k === 'rate' ? v : d.half ? Math.round(v * 2) / 2 : Math.round(v); };
+const pos = k => toPos(def(k), S[k]);
 
-let S = Object.assign({}, BASE), scen = 0, R = null, prev = null, stable = null, lastChange = 0, hot = null;
-let playing = true, clock = 0, follow = false;
+let S = Object.assign({}, BASE), scen = 0, playing = true, speed = 1, follow = false, drag = null, ref = null, lastChange = 0;
+let seed = 1;
+const rnd = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ seed >>> 15, seed | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 
-/* ---------- the model ---------- */
-function simulate(s) {
-  const scanMB = s.rows * s.rowBytes / 1e6, slots = s.exec * CORES;
-  if (s.mode === 'bhj') {
-    const t = scanMB / (slots * SCAN) + 1;
-    return { mode: 'bhj', dataMB: 0, mapTime: t, runtime: t, tasks: [], slots, spilled: 0, maxMB: 0, medMB: 0, hotMB: 0, typMB: 0, split: 0, merged: 0, taskCount: 0, overhead: 0 };
+/* ==========================================================================
+   The running model
+   ========================================================================== */
+const INBOX = 0, MAPQ = 1, WRITEQ = 2, DISK = 3, FLYING = 4, DROP = 5, LOCAL = 6;       // where a tile is
+const sim = { t: 0, tiles: [], inbox: [], lag: 0, ex: [], cores: [], b: null, last: null, no: 0, next: .5, acc: 0, q: 10,
+  hold: new Array(8).fill(false), hacc: new Array(8).fill(0), fault: { disk: false, net: false }, tick: false, fol: null, insp: -1,
+  u: { cpu: 0, disk: 0, net: 0, red: 0 }, r: { scan: 0, ser: 0, write: 0, net: 0, out: 0 }, busy: 0, backlog: 0, backPrev: 0, netMB: 0, outMB: 0 };
+const newExec = i => ({ i, mapq: [], writeq: [], disk: [], cpu: 0, dsk: 0, up: 0, maxMb: 0, dead: 0, x: 0, w: 0, cols: 1, uc: 0 });
+const aliveEx = () => sim.ex.filter(e => !e.dead);
+const waiting = () => sim.inbox.reduce((a, tl) => a + tl.mb, 0) + sim.lag;
+
+function resetSim() {
+  seed = 1; Object.assign(sim, { t: 0, tiles: [], inbox: [], lag: 0, b: null, last: null, no: 0, next: .5, acc: 0, fol: null, insp: -1, backlog: 0, backPrev: 0 });
+  sim.ex = []; sim.cores = []; setExec(S.exec); grid.all = true;
+}
+function setExec(n) {
+  while (sim.ex.length > n) evacuate(sim.ex.pop());                       // an executor that is removed hands its work to the others
+  while (sim.ex.length < n) sim.ex.push(newExec(sim.ex.length));
+  const old = sim.cores; sim.cores = [];
+  for (const e of sim.ex) for (let k = 0; k < CORES; k++) sim.cores.push(old.find(c => c.e === e && c.k === k) || { e, k, task: null, t: 0 });
+  if (LY.W) layout();
+}
+/* a new block of rows arrives at the source */
+function spawn(mb, key) {
+  if (sim.inbox.length >= LY.troughCap) { sim.lag += mb; return null; }  // the visible queue is full: count the rest
+  const tl = { mb, key, part: -1, task: null, st: INBOX, e: null, x: -12, y: LY.trough.y + 18, tx: 0, ty: 0, x0: 0, y0: 0, t0: 0, kept: null, retry: false, born: sim.t, a: 1, dead: false };
+  sim.inbox.push(tl); sim.tiles.push(tl);
+  if (follow && !sim.fol) sim.fol = { tl, t0: sim.t, task: null, end: 0, text: '', x: 0, y: 0 };
+  return tl;
+}
+/* the trigger fires: everything waiting (up to 8 s of input) becomes one micro-batch */
+function startBatch() {
+  const alive = aliveEx(), scan = S.rate * S.rowBytes / 1e6, cap = scan * MAXBATCH, q = sim.q, before = waiting(), take = [];
+  let mb = 0;
+  while (sim.inbox.length && mb < cap) { const tl = sim.inbox.shift(); take.push(tl); mb += tl.mb; }
+  while (sim.lag >= q && mb + q <= cap && take.length < 280) {
+    sim.lag -= q; mb += q;
+    const tl = { mb: q, key: rnd() * 100 < S.skew ? 0 : -1, part: -1, task: null, st: INBOX, e: null, x: LY.W - 30, y: LY.trough.y + 18, tx: 0, ty: 0, x0: 0, y0: 0, t0: 0, kept: null, retry: false, born: sim.t, a: 1, dead: false };
+    sim.tiles.push(tl); take.push(tl);
   }
-  const dataMB = s.rows * (s.keep / 100) * s.rowBytes / 1e6 * (s.mode === 'smj' ? 1.3 : 1);
-  const hotExtra = dataMB * s.skew / 100, each = (dataMB - hotExtra) / s.parts;
-  let parts = []; for (let i = 0; i < s.parts; i++) parts.push({ mb: each + (i === 0 ? hotExtra : 0) });
-  let split = 0, merged = 0;
-  if (s.aqe) {
-    const out = [];
-    for (const p of parts) {                                             // split a skewed partition (joins only)
-      if (s.mode === 'smj' && p.mb > SKEW_FACTOR * each && p.mb > SKEW_MIN) { const k = Math.ceil(p.mb / Math.max(TARGET, each)); for (let j = 0; j < k; j++) out.push({ mb: p.mb / k, split: true }); split += k; }
-      else out.push(p);
-    }
-    parts = []; let acc = null;
-    for (const p of out) {                                               // merge small neighbours up to the target size
-      if (p.mb >= TARGET || p.split) { if (acc) { parts.push(acc); acc = null; } parts.push(p); }
-      else { if (!acc) acc = { mb: 0, n: 0 }; acc.mb += p.mb; acc.n++; if (acc.mb >= TARGET) { parts.push(acc); acc = null; } }
-    }
-    if (acc) parts.push(acc);
-    for (const p of parts) if (p.n > 1) merged += p.n;
+  if (!take.length) return false;
+  const b = sim.b = { no: ++sim.no, start: sim.t, mode: S.mode, aqe: S.aqe, P: S.mode === 'bhj' ? 0 : S.parts, phase: 'map', mapLeft: take.length, inMB: mb, shuf: 0, tasks: null, qi: 0, requeue: [], done: 0,
+    oh: 0, busyT: 0, cpuT: 0, diskT: 0, netT: 0, mapEnd: 0, end: 0, split: 0, med: 0, max: null };
+  take.forEach((tl, i) => { const e = alive[i % alive.length]; tl.st = MAPQ; tl.e = e; tl.batch = b.no; e.mapq.push(tl); });
+  sim.backPrev = sim.backlog; sim.backlog = Math.max(0, before - scan * S.trigger * 1.2);       // input that should already have been processed
+  sim.tick = true; sim.insp = -1; grid.all = true;
+  return true;
+}
+/* map side of one executor: CPU (read, filter, hash, serialize), then local disk */
+function stepMap(e, dt, b, acc) {
+  if (e.mapq.length) { acc.cpu++; e.cpu += CORES * dt; } else e.cpu = 0;
+  while (e.mapq.length) {
+    const tl = e.mapq[0];
+    if (tl.kept === null) tl.kept = rnd() * 100 < S.keep;                // the filter is applied here, with the setting as it is now
+    const cost = tl.mb / SCAN + (tl.kept ? tl.mb / (b.mode === 'bhj' ? PROBE : SER) : 0);
+    if (e.cpu < cost) break;
+    e.cpu -= cost; e.mapq.shift(); acc.scan += tl.mb;
+    if (!tl.kept) { tl.st = DROP; b.mapLeft--; continue; }
+    acc.ser += tl.mb;
+    if (b.mode === 'bhj') { tl.st = LOCAL; b.mapLeft--; acc.rows += tl.mb * 1e6 / S.rowBytes; continue; }   // joined on the spot
+    if (tl.part < 0) { if (b.mode === 'smj') tl.mb *= 1.3; tl.part = (tl.key >= 0 ? KEYS[tl.key][3] : Math.floor(rnd() * b.P)) % b.P; b.shuf += tl.mb; }
+    tl.st = WRITEQ; e.writeq.push(tl);
   }
-  const netShare = s.net / CORES, diskShare = s.disk / CORES, free = new Array(slots).fill(0);
-  let end = 0, spilled = 0, maxMB = 0, overhead = 0;
-  const tasks = parts.map(p => {
-    const spill = p.mb > s.mem;
-    const t = OVERHEAD + p.mb / netShare + p.mb / DESER + (s.mode === 'smj' ? p.mb / SORT : 0) + (spill ? 2 * p.mb / diskShare : 0);
-    let m = 0; for (let i = 1; i < slots; i++) if (free[i] < free[m]) m = i;
-    const k = { mb: p.mb, t, spill, split: !!p.split, slot: m, start: free[m] };
-    free[m] += t; end = Math.max(end, free[m]); if (spill) spilled++; maxMB = Math.max(maxMB, p.mb); overhead += OVERHEAD;
-    return k;
+  if (e.writeq.length) { acc.dsk++; e.dsk += S.disk * (sim.fault.disk ? .15 : 1) * dt; } else e.dsk = 0;
+  while (e.writeq.length && e.dsk >= e.writeq[0].mb) {
+    const tl = e.writeq.shift(); e.dsk -= tl.mb; tl.st = DISK; e.disk.push(tl); if (tl.mb > e.maxMb) e.maxMb = tl.mb; b.mapLeft--; acc.write += tl.mb;
+  }
+  e.up = Math.min(e.up + S.net * (sim.fault.net ? .05 : 1) * dt, Math.max(S.net * .1, e.maxMb));     // what this executor may send right now
+}
+/* the map stage is over: decide the reduce tasks (this is where adaptive execution acts) */
+function plan(b) {
+  const P = b.P, size = new Float64Array(P), mine = sim.tiles.filter(tl => tl.batch === b.no && tl.part >= 0 && !tl.dead);
+  for (const tl of mine) size[tl.part] += tl.mb;
+  const medP = Array.from(size).sort((x, y) => x - y)[P >> 1], tasks = [], of = new Array(P);
+  const mk = extra => { const t = Object.assign({ i: tasks.length, size: 0, left: [], buf: 0, got: 0, st: 0, fc: 0, t0: 0, t1: 0, split: false, n: 1, maxMb: 0 }, extra); tasks.push(t); return t; };
+  if (!b.aqe) for (let p = 0; p < P; p++) { of[p] = [mk()]; of[p][0].size = size[p]; }
+  else {
+    let acc = null;
+    for (let p = 0; p < P; p++) {
+      if (b.mode === 'smj' && size[p] > SKEW_FACTOR * medP && size[p] > SKEW_MIN) {                    // a skewed partition is split (joins only)
+        acc = null; const k = Math.min(32, Math.ceil(size[p] / TARGET)); of[p] = []; for (let j = 0; j < k; j++) of[p].push(mk({ split: true })); b.split += k;
+      } else { if (!acc || acc.size >= TARGET) acc = mk({ n: 0 }); acc.size += size[p]; acc.n++; of[p] = [acc]; }   // small neighbours are merged
+    }
+  }
+  const rr = new Int32Array(P);
+  for (const tl of mine) { const ts = of[tl.part], t = ts[rr[tl.part]++ % ts.length]; tl.task = t; t.left.push(tl); if (ts.length > 1) t.size += tl.mb; if (tl.mb > t.maxMb) t.maxMb = tl.mb; }
+  const sorted = tasks.map(t => t.size).sort((x, y) => x - y);
+  b.med = sorted[sorted.length >> 1]; b.max = tasks.reduce((a, t) => t.size > a.size ? t : a, tasks[0]); b.tasks = tasks; grid.all = true;
+}
+const rateOf = (b, t) => { let r = b.mode === 'smj' ? 1 / (1 / DESER + 1 / SORT) : DESER; if (t.size > S.mem) r = 1 / (1 / r + 2 / (S.disk * (sim.fault.disk ? .15 : 1) / CORES)); return r; };
+/* one core for one frame: launch a task, fetch its blocks, deserialize and aggregate */
+function stepCore(c, dt, b) {
+  let rem = dt, guard = 0;
+  while (rem > 1e-9 && guard++ < 60) {
+    let t = c.task;
+    if (!t) {
+      t = b.requeue.pop(); while (!t && b.qi < b.tasks.length) { const n = b.tasks[b.qi++]; if (n.st === 0) t = n; }
+      if (!t) return;
+      c.task = t; t.st = 1; c.t = OVERHEAD; if (!t.t0) t.t0 = sim.t; t.fc = Math.max(S.net / CORES * .1, t.maxMb); grid.dirty.push(t);
+    }
+    if (t.st === 1) { const d = Math.min(rem, c.t); c.t -= d; rem -= d; b.oh += d; if (c.t > 1e-9) return; t.st = 2; grid.dirty.push(t); }
+    const nf = sim.fault.net ? .05 : 1;                                   // fetch: limited by this core's share of the network and by each sender
+    t.fc = Math.min(t.fc + S.net * nf / CORES * rem, Math.max(S.net * nf / CORES * .1, t.maxMb));
+    for (let i = t.left.length - 1; i >= 0; i--) {
+      const tl = t.left[i]; if (tl.st !== DISK || t.fc < tl.mb || tl.e.up < tl.mb) continue;
+      t.fc -= tl.mb; tl.e.up -= tl.mb; t.buf += tl.mb; t.got += tl.mb; sim.netMB += tl.mb;
+      t.left.splice(i, 1); tl.e.disk.splice(tl.e.disk.indexOf(tl), 1);
+      tl.st = FLYING; tl.t0 = sim.t; tl.x0 = tl.x; tl.y0 = tl.y; const p = grid.center(t.i); tl.tx = p[0] - 5; tl.ty = p[1] - 3.5;
+    }
+    const r = rateOf(b, t), amt = Math.min(t.buf, r * rem);
+    t.buf -= amt; sim.outMB += amt;
+    if (!t.left.length && t.buf <= 1e-6) { rem -= amt / r; t.st = 3; t.t1 = sim.t; c.task = null; b.done++; grid.dirty.push(t); }
+    else rem = 0;
+  }
+}
+function finish(b) {
+  b.end = sim.t; b.dur = b.end - b.start; if (!b.mapEnd) b.mapEnd = b.end;
+  sim.b = null; sim.last = b; sim.next = Math.max(b.start + S.trigger, sim.t);
+  for (const c of sim.cores) c.task = null;
+  Snd.batch(b.dur <= S.trigger);
+}
+/* an executor disappears: its queued rows and its shuffle files have to be produced again elsewhere */
+function evacuate(e) {
+  const others = sim.ex.filter(o => o !== e && !o.dead), b = sim.b; let i = 0;
+  if (b) b.mapLeft += e.disk.length;
+  for (const tl of e.mapq.concat(e.writeq, e.disk)) { const o = others[i++ % others.length]; tl.st = MAPQ; tl.e = o; tl.retry = true; o.mapq.push(tl); }
+  e.mapq = []; e.writeq = []; e.disk = []; e.cpu = e.dsk = e.up = e.maxMb = 0;
+  for (const c of sim.cores) if (c.e === e && c.task) { const t = c.task; t.st = 0; c.task = null; if (b) b.requeue.push(t); grid.dirty.push(t); }
+}
+function kill(e) { if (!e || e.dead || aliveEx().length < 2) return false; e.dead = sim.t + DOWN; evacuate(e); return true; }
+
+/* advance the model by dt seconds */
+function step(dt) {
+  sim.t += dt;
+  const scan = S.rate * S.rowBytes / 1e6, tps = clamp(scan / 5, 2, 28), q = sim.q = scan / tps;
+  sim.acc += tps * dt; while (sim.acc >= 1) { sim.acc--; spawn(q, rnd() * 100 < S.skew ? 0 : -1); }               // the source never stops
+  for (let k = 0; k < 8; k++) if (sim.hold[k]) { sim.hacc[k] += 16 * dt; while (sim.hacc[k] >= 1) { sim.hacc[k]--; spawn(q, k); } }
+  for (const e of sim.ex) if (e.dead && sim.t >= e.dead) e.dead = 0;                                              // a replacement arrives
+  if (!sim.b && sim.t >= sim.next && !startBatch()) sim.next = sim.t + .2;
+  const b = sim.b, acc = { cpu: 0, dsk: 0, scan: 0, ser: 0, write: 0, rows: 0 }, alive = aliveEx().length;
+  sim.netMB = 0; sim.outMB = 0; let busy = 0;
+  if (b) {
+    for (const e of sim.ex) if (!e.dead) stepMap(e, dt, b, acc);
+    if (b.phase === 'map') { b.cpuT += dt * acc.cpu / alive; b.diskT += dt * acc.dsk / alive; }
+    if (b.phase === 'map' && b.mapLeft === 0) { b.mapEnd = sim.t; if (b.mode === 'bhj') finish(b); else { plan(b); b.phase = 'reduce'; } }
+    if (sim.b && b.phase === 'reduce') {
+      for (const c of sim.cores) if (!c.e.dead) { stepCore(c, dt, b); if (c.task) busy++; }
+      b.busyT += busy * dt; b.netT += dt * clamp(sim.netMB / (alive * S.net * (sim.fault.net ? .05 : 1) * dt), 0, 1);
+      if (b.done === b.tasks.length) finish(b);
+    }
+  }
+  /* smoothed gauges */
+  const cores = alive * CORES, k = 1 - Math.exp(-dt / .25), k2 = 1 - Math.exp(-dt / .6), u = sim.u, r = sim.r;
+  u.cpu += (acc.cpu / alive - u.cpu) * k; u.disk += (acc.dsk / alive - u.disk) * k;
+  u.net += (clamp(sim.netMB / (alive * S.net * (sim.fault.net ? .05 : 1) * dt), 0, 1) - u.net) * k; u.red += (busy / cores - u.red) * k;
+  r.scan += (acc.scan / dt - r.scan) * k2; r.ser += (acc.ser / dt - r.ser) * k2; r.write += (acc.write / dt - r.write) * k2; r.net += (sim.netMB / dt - r.net) * k2;
+  r.out += ((acc.rows + sim.outMB * 1e6 / (S.rowBytes * (S.mode === 'smj' ? 1.3 : 1))) / dt - r.out) * k2; sim.busy = busy;
+  for (const e of sim.ex) e.uc += ((e.mapq.length ? 1 : 0) - e.uc) * k;
+}
+
+/* what is holding the job back, worked out from the numbers of one batch */
+function diag(b) {
+  const now = b.end || sim.t, dur = now - b.start, mapT = (b.mapEnd || now) - b.start, redT = b.mapEnd ? now - b.mapEnd : 0, cores = aliveEx().length * CORES;
+  const d = { b, dur, late: dur > S.trigger, kind: 'cpu', cores, sp: 0, n: b.tasks ? b.tasks.length : 0 };
+  if (b.mode === 'bhj') { d.kind = 'bhj'; return d; }
+  if (b.tasks) for (const t of b.tasks) if (t.size > S.mem) d.sp++;
+  if (b.tasks && redT > mapT * .8) {
+    const m = b.max, mt = m.t0 ? (m.t1 || sim.t) - m.t0 : 0;
+    d.kind = m.size > SKEW_FACTOR * Math.max(b.med, .5) && m.size > TARGET && d.n >= 4 && mt > .4 * redT ? 'hot' : d.sp ? 'spill' : d.n < cores ? 'few'
+      : b.oh > .45 * b.busyT ? 'overhead' : b.netT > .75 * redT ? 'net' : 'reduce';
+  } else d.kind = b.diskT > b.cpuT * 1.05 ? 'disk' : 'cpu';
+  return d;
+}
+function judged() { const b = sim.b, l = sim.last; return b && (!l || sim.t - b.start > Math.max(S.trigger, l.dur)) ? b : l || b; }
+function why() {
+  const b = judged(); if (!b) return 'Waiting for the first trigger.';
+  const d = diag(b), m = b.max, lost = sim.ex.some(e => e.dead);
+  let s = lost ? '<b>Executor lost.</b> Its shuffle files went with it, so that part of the map stage is being recomputed on the others. ' : '';
+  if (d.kind === 'bhj') return s + `Broadcast join: the small table is copied to every executor, so the big table is <b>never shuffled</b>. Each batch is a single map stage of ${fmtS(d.dur)}.`;
+  s += d.late ? `<b>Falling behind:</b> a batch takes ${fmtS(d.dur)}${b.end ? '' : ' so far'}, but a new one is due every ${S.trigger} s. ` : `Keeping up: a batch takes ${fmtS(d.dur)} of the ${S.trigger} s trigger. `;
+  s += { hot: () => `One task holds <b>${fmtMB(m.size)}</b> while a typical one holds ${fmtMB(b.med)}. A key is never split across partitions, so a single core has to do all of it.`,
+    spill: () => `<b>${num(d.sp)} of ${num(d.n)} tasks spill to disk</b>: the largest holds ${fmtMB(m.size)} but each has ${fmtMB(S.mem)} of memory.` + (d.n < d.cores ? ` Only ${d.n} of ${d.cores} cores have work.` : ''),
+    few: () => `Only <b>${d.n} task${d.n > 1 ? 's' : ''} for ${d.cores} cores</b>: a partition cannot be shared between cores, so the rest sit idle.`,
+    overhead: () => `<b>${num(d.n)} tasks, most of them tiny</b>: ${Math.min(99, Math.round(100 * b.oh / Math.max(b.busyT, .001)))}% of the core time goes to launching tasks instead of moving data.`,
+    net: () => `The <b>network</b> is the limit: ${fmtMB(b.shuf)} per batch has to cross it.`,
+    reduce: () => `Most of the time goes to deserializing and aggregating ${fmtMB(b.shuf)} on the reduce side.`,
+    disk: () => `Local <b>disk</b> is the limit: every shuffled byte is written to a file before it can be fetched.`,
+    cpu: () => `Most of the time goes to reading rows and serializing them (<b>CPU</b>).` }[d.kind]();
+  if (b.aqe && b.tasks && d.n !== b.P) s += ` Adaptive execution turned ${num(b.P)} partitions into ${num(d.n)} tasks${b.split ? `, splitting the hot one into ${b.split}` : ''}.`;
+  return s;
+}
+
+/* ==========================================================================
+   The drawing (one canvas, redrawn every frame from the model)
+   ========================================================================== */
+const stage = $('#stage'), cv = $('#cv'), ctx = cv.getContext('2d'), LY = {}, HANDLE = {};
+for (const id of ['rate', 'keep', 'net', 'parts']) {
+  const h = HANDLE[id] = document.createElement('div'); h.className = 'h'; h.dataset.h = id; stage.appendChild(h);
+  h.addEventListener('pointerdown', e => {
+    e.preventDefault(); try { h.setPointerCapture(e.pointerId); } catch (x) {} drag = id;
+    const mv = ev => { const r = stage.getBoundingClientRect(), x = (ev.clientX - r.left) / r.width * LY.W; change({ [id]: fromPos(def(id), clamp((x - LY.x0) / (LY.x1 - LY.x0), 0, 1)) }); };
+    const up = () => { h.removeEventListener('pointermove', mv); drag = null; paintControls(); };
+    h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up, { once: true }); h.addEventListener('pointercancel', up, { once: true });
   });
-  const sorted = tasks.map(k => k.mb).sort((a, b) => a - b), medMB = sorted[sorted.length >> 1];
-  const mapTime = scanMB / (slots * SCAN) + dataMB / (slots * SER) + dataMB / s.exec / s.disk;
-  return { mode: s.mode, dataMB, mapTime, runtime: mapTime + end, tasks, slots, spilled, maxMB, medMB, hotMB: each + hotExtra, typMB: each, split, merged, taskCount: tasks.length, overhead: overhead / slots, reduce: end };
+  h.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
 }
-/* one sentence saying what dominates this run, written from the numbers */
-function why(r, s) {
-  if (r.mode === 'bhj') return 'Broadcast join: the small table (under the 10 MB limit) is copied to every executor, so the big table is <b>never shuffled</b>. Nothing crosses the network.';
-  const big = r.tasks.reduce((a, k) => k.t > a.t ? k : a, r.tasks[0]), medT = OVERHEAD + r.medMB / (s.net / CORES) + r.medMB / DESER;
-  if (r.split) return `Adaptive execution <b>split the hot partition into ${r.split} tasks</b>${r.merged ? ` and merged ${r.merged.toLocaleString('en-US')} small ones` : ''}, so no single task holds the job back.`;
-  if (r.maxMB > 5 * r.medMB && r.taskCount > 1) return `The hot key puts <b>${fmtMB(r.maxMB)} in one partition</b>: that task takes ${fmtTime(big.t)} while a typical one takes ${fmtTime(medT)}. A key is never split across partitions, so more partitions do not help.`;
-  if (r.spilled) return `<b>${r.spilled.toLocaleString('en-US')} of ${r.taskCount.toLocaleString('en-US')} tasks spill to disk</b>: each holds about ${fmtMB(r.medMB)} but has ${fmtMB(s.mem)} of memory. More partitions or more memory would fix it.`;
-  if (r.merged) return `Adaptive execution <b>merged ${r.merged.toLocaleString('en-US')} tiny partitions</b> into ${r.taskCount.toLocaleString('en-US')} tasks of about 64 MB.`;
-  if (r.medMB < 8 && r.overhead > .25 * r.reduce) return `With ${s.parts.toLocaleString('en-US')} partitions each task carries only <b>${fmtMB(r.medMB)}</b>: about ${Math.round(100 * r.overhead / r.reduce)}% of the reduce stage is per-task overhead.`;
-  return `Balanced: ${r.taskCount.toLocaleString('en-US')} tasks of about ${fmtMB(r.medMB)} each fit in memory. All ${fmtMB(r.dataMB)} still has to be serialized, written, fetched and deserialized.`;
+/* the reduce tasks: one cell per task, painted into its own canvas and only where something changed */
+const grid = { cv: document.createElement('canvas'), n: -1, cols: 1, rows: 1, cw: 1, ch: 1, big: false, all: true, dirty: [],
+  fit() { const A = LY.grid, n = Math.max(1, this.n); if (n <= 16) { this.cols = n; this.rows = 1; } else { this.cols = Math.ceil(Math.sqrt(n * A.w / A.h)); this.rows = Math.ceil(n / this.cols); }
+    this.cw = A.w / this.cols; this.ch = A.h / this.rows; this.big = this.cw >= 12 && this.ch >= 24; },
+  center(i) { return [LY.grid.x + (i % this.cols + .5) * this.cw, LY.grid.y + (Math.floor(i / this.cols) + .5) * this.ch]; },
+  at(x, y) { const A = LY.grid; if (x < A.x || y < A.y || x >= A.x + A.w || y >= A.y + A.h) return -1; const i = Math.floor((y - A.y) / this.ch) * this.cols + Math.floor((x - A.x) / this.cw); return i < this.n ? i : -1; },
+  cell(g, i, t) {
+    const x = (i % this.cols) * this.cw, y = Math.floor(i / this.cols) * this.ch, cw = this.cw, ch = this.ch, st = t ? t.st : 0, spill = !!t && t.size > S.mem;
+    g.clearRect(x, y, cw, ch);
+    if (this.big) {                                                       // a tall cell: its height stands for the memory of one task
+      g.fillStyle = '#efeadb'; g.fillRect(x + 1, y + 1, cw - 2, ch - 2);
+      if (t && t.size > 0) {
+        const hh = Math.min(1, t.size / S.mem) * (ch - 4), pr = clamp((t.got - t.buf) / t.size, 0, 1);
+        g.fillStyle = st === 3 ? (spill ? '#e3bcb3' : '#cfdccf') : spill ? '#e7c1b8' : st === 2 ? '#b9d5d9' : '#ddd6c5'; g.fillRect(x + 2, y + ch - 2 - hh, cw - 4, hh);
+        if (st === 2) { g.fillStyle = spill ? RED : TEAL; g.fillRect(x + 2, y + ch - 2 - hh * pr, cw - 4, hh * pr); }
+        if (spill) { g.fillStyle = RED; g.fillRect(x + 1, y + 1, cw - 2, 3); }
+        if (cw >= 30) { g.font = `9px ${MONO}`; g.textAlign = 'center'; g.fillStyle = spill ? RED : SUB; g.fillText(fmtMB(t.size), x + cw / 2, y + 14); }
+      }
+      g.strokeStyle = st === 2 ? (spill ? RED : TEAL) : st === 1 ? '#c68948' : t && t.split ? '#2c6b62' : LINE; g.lineWidth = st === 1 || st === 2 ? 2 : 1; g.strokeRect(x + 1, y + 1, cw - 2, ch - 2);
+    } else {                                                              // a small cell: colour only
+      const gap = cw >= 6 ? 1 : cw >= 3 ? .5 : 0;
+      g.fillStyle = st === 3 ? (spill ? '#e3bcb3' : '#cfdccf') : st === 2 ? (spill ? RED : TEAL) : st === 1 ? '#e0b65c' : t && t.size > 0 ? (spill ? '#e7c1b8' : '#d3cbb6') : '#ece7d9';
+      g.fillRect(x + gap / 2, y + gap / 2, cw - gap, ch - gap);
+      if (t && t.split && cw >= 6) { g.strokeStyle = '#2c6b62'; g.lineWidth = 1; g.strokeRect(x + 1, y + 1, cw - 2, ch - 2); }
+    }
+  },
+  paint() {
+    const b = sim.b || sim.last, tasks = b && b.tasks, n = tasks ? tasks.length : b ? b.P : S.mode === 'bhj' ? 0 : S.parts;
+    if (n !== this.n) { this.n = n; this.fit(); this.all = true; }
+    const g = this.cv.getContext('2d'); g.setTransform(LY.k, 0, 0, LY.k, 0, 0);
+    if (this.all) { g.clearRect(0, 0, LY.grid.w, LY.grid.h); for (let i = 0; i < n; i++) this.cell(g, i, tasks && tasks[i]); this.all = false; this.dirty.length = 0; return; }
+    for (const t of this.dirty) if (tasks && tasks[t.i] === t) this.cell(g, t.i, t);
+    this.dirty.length = 0;
+    if (tasks && this.big) for (const c of sim.cores) if (c.task) this.cell(g, c.task.i, c.task);
+  } };
+
+function layout() {
+  const wide = matchMedia('(min-width:901px)').matches;
+  stage.style.maxWidth = wide ? Math.max(360, (innerHeight - 262) * 640 / 706) + 'px' : '';
+  const css = stage.clientWidth || 360, W = css >= 540 ? 640 : 440, H = 706, dpr = Math.min(2.5, window.devicePixelRatio || 1);
+  cv.width = Math.round(css * dpr); cv.height = Math.round(css * H / W * dpr); cv.style.height = (css * H / W) + 'px';
+  Object.assign(LY, { W, H, k: cv.width / W, x0: 104, x1: W - 24, rateY: 50, trough: { x: 12, y: 62, w: W - 24, h: 44 }, filterY: 124, exY: 138, exH: 258, netY: 431, grid: { x: 12, y: 480, w: W - 24, h: 150 }, partY: 654, outY: 694 });
+  LY.tcols = Math.floor((W - 32) / 12); LY.troughCap = LY.tcols * 4;
+  const n = sim.ex.length, w = (W - 24 - (n - 1) * 6) / n;
+  sim.ex.forEach((e, i) => { e.i = i; e.x = 12 + i * (w + 6); e.w = w; e.cols = Math.max(1, Math.floor((w - 8) / 12)); });
+  grid.cv.width = Math.round(LY.grid.w * LY.k); grid.cv.height = Math.round(LY.grid.h * LY.k); grid.fit(); grid.all = true;
+  chart.size();
+}
+const txt = (s, x, y, o = {}) => { ctx.font = `${o.i ? 'italic ' : ''}${o.b ? '600 ' : ''}${o.s || 11}px ${o.m ? MONO : SERIF}`; ctx.fillStyle = o.c || SUB; ctx.textAlign = o.a || 'left'; ctx.fillText(s, x, y); };
+function rail(y, p, id) {
+  const g = ctx, x = lerp(LY.x0, LY.x1, p), hot = drag === id, h = HANDLE[id], l = (x / LY.W * 100).toFixed(2) + '%', t = (y / LY.H * 100).toFixed(2) + '%';
+  g.strokeStyle = hot ? RED : LINE; g.lineWidth = 2.2; g.lineCap = 'round'; g.beginPath(); g.moveTo(LY.x0, y); g.lineTo(LY.x1, y); g.stroke();
+  if (hot) { g.fillStyle = 'rgba(184,56,43,.1)'; g.strokeStyle = RED; g.lineWidth = 1.2; g.beginPath(); g.arc(x, y, 16, 0, 7); g.fill(); g.stroke(); }
+  g.fillStyle = hot ? '#c8402f' : '#fffdf8'; g.strokeStyle = hot ? '#8f2a20' : INK; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 7.5, 0, 7); g.fill(); g.stroke();
+  if (h.style.left !== l) h.style.left = l; if (h.style.top !== t) h.style.top = t;
+}
+function tag(s, x, y, col) {                                              // a small filled label, kept inside the drawing
+  ctx.font = `600 9.5px ${MONO}`; const w = ctx.measureText(s).width + 10; x = clamp(x - w / 2, 4, LY.W - w - 4);
+  ctx.fillStyle = col; ctx.fillRect(x, y - 11, w, 15); ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(s, x + 5, y);
+}
+/* where every tile wants to be, from its place in its queue */
+function place() {
+  const T = LY.trough;
+  sim.inbox.forEach((tl, i) => { tl.tx = T.x + 5 + Math.min(LY.tcols - 1, Math.floor(i / 4)) * 12; tl.ty = T.y + 5 + (i % 4) * 9; });
+  for (const e of sim.ex) {
+    const x0 = e.x + (e.w - e.cols * 12 + 2) / 2, y = LY.exY;
+    const stack = (list, bottom, rows) => list.forEach((tl, i) => { tl.tx = x0 + (i % e.cols) * 12; tl.ty = bottom - Math.min(rows - 1, Math.floor(i / e.cols)) * 9; });
+    stack(e.mapq, y + 96, 9); stack(e.writeq, y + 146, 4); stack(e.disk, y + LY.exH - 22, 8);
+  }
+}
+function moveTiles(dt) {
+  const k = 1 - Math.exp(-dt * 16); let any = false;
+  for (const tl of sim.tiles) {
+    if (tl.st === FLYING) {                                               // a curved hop across the network
+      const f = (sim.t - tl.t0) / FLY; if (f >= 1) { tl.dead = any = true; Snd.land(tl.key); continue; }
+      const u = f * f * (3 - 2 * f), mx = (tl.x0 + tl.tx) / 2, my = LY.netY;
+      tl.x = (1 - u) * (1 - u) * tl.x0 + 2 * u * (1 - u) * mx + u * u * tl.tx; tl.y = (1 - u) * (1 - u) * tl.y0 + 2 * u * (1 - u) * my + u * u * tl.ty;
+    } else if (tl.st === DROP) { tl.a -= dt * 3; tl.x += dt * 34; tl.y += dt * 10; if (tl.a <= 0) tl.dead = any = true; }
+    else if (tl.st === LOCAL) { tl.y += (LY.outY - 16 - tl.y) * (1 - Math.exp(-dt * 4)); tl.a -= dt * 1.2; if (tl.a <= 0) tl.dead = any = true; }
+    else { tl.x += (tl.tx - tl.x) * k; tl.y += (tl.ty - tl.y) * k; }
+  }
+  if (any) sim.tiles = sim.tiles.filter(tl => !tl.dead);
+}
+function draw() {
+  const g = ctx, W = LY.W, b = sim.b, lb = b || sim.last, scan = S.rate * S.rowBytes / 1e6, alive = aliveEx().length, bhj = (lb ? lb.mode : S.mode) === 'bhj';
+  g.setTransform(LY.k, 0, 0, LY.k, 0, 0); g.clearRect(0, 0, W, LY.H); g.textBaseline = 'alphabetic'; g.lineCap = 'butt';
+  /* status and the query */
+  const el = b ? sim.t - b.start : 0, late = b && el > S.trigger;
+  txt(b ? `BATCH ${b.no} · ${b.phase === 'map' ? 'MAP' : 'REDUCE'} · ${el.toFixed(1)} s` : `NEXT BATCH IN ${Math.max(0, sim.next - sim.t).toFixed(1)} s`, 12, 19, { m: 1, s: 10.5, b: 1, c: late ? RED : INK });
+  g.font = `${W > 500 ? 11.5 : 9.2}px ${MONO}`; const code = CODE[S.mode], cw = g.measureText(code).width + 14;
+  g.fillStyle = '#1f1d14'; g.fillRect(W - 12 - cw, 5, cw, 21); g.fillStyle = '#ece8db'; g.textAlign = 'left'; g.fillText(code, W - 5 - cw, 19.5);
+  /* source */
+  const T = LY.trough, wait = waiting();
+  txt('SOURCE', 12, 42, { m: 1, s: 9.5 }); txt(`${fmtN(S.rate)} rows/s in · ${fmtMB(scan)}/s`, LY.x1, 41, { i: 1, s: 11.5, a: 'right', c: drag === 'rate' ? RED : SUB });
+  rail(LY.rateY, pos('rate'), 'rate');
+  g.fillStyle = sim.lag > 0 ? '#f3e1da' : '#f1ecdf'; g.fillRect(T.x, T.y, T.w, T.h); g.strokeStyle = sim.lag > 0 ? RED : LINE; g.lineWidth = sim.lag > 0 ? 1.8 : 1.2; g.strokeRect(T.x, T.y, T.w, T.h);
+  /* filter */
+  txt('FILTER', 12, LY.filterY + 3.5, { m: 1, s: 9.5 }); txt(`keeps ${Math.round(S.keep)}% of rows before the shuffle`, LY.x1, LY.filterY - 9, { i: 1, s: 11.5, a: 'right', c: drag === 'keep' ? RED : SUB });
+  rail(LY.filterY, pos('keep'), 'keep');
+  /* executors */
+  for (const e of sim.ex) {
+    const x = e.x, w = e.w, y = LY.exY, top = y + 166, bot = y + LY.exH - 9, rx = w / 2 - 5, cx = x + w / 2;
+    g.fillStyle = '#f3efe4'; g.fillRect(x, y, w, LY.exH); g.strokeStyle = INK; g.lineWidth = 1.4; g.strokeRect(x, y, w, LY.exH);
+    txt((w < 66 ? 'EX ' : 'EXEC ') + (e.i + 1), x + 5, y + 13, { m: 1, s: 9.5, b: 1, c: INK });
+    for (let k = 0; k < CORES; k++) {                                     // four cores: lit when working
+      const c = sim.cores.find(q => q.e === e && q.k === k), on = !e.dead && (b && b.phase === 'reduce' ? !!(c && c.task) : k < Math.round(e.uc * CORES));
+      g.fillStyle = on ? TEAL : '#d8d1c2'; g.fillRect(x + w - 8 - k * 6.5, y + 5, 4.5, 8);
+    }
+    g.strokeStyle = LINE; g.lineWidth = 1; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(x + 3, y + 109); g.lineTo(x + w - 3, y + 109); g.stroke(); g.setLineDash([]);
+    if (w >= 96) txt(bhj ? 'join' : 'hash · serialize', x + w - 5, y + 119, { m: 1, s: 7.5, a: 'right', c: '#9a9186' });
+    if (!bhj) { g.fillStyle = '#e9e3d5'; g.strokeStyle = '#8a8177'; g.lineWidth = 1.1; g.beginPath(); g.ellipse(cx, bot - 6, rx, 6, 0, 0, Math.PI); g.lineTo(cx - rx, top); g.ellipse(cx, top, rx, 6, 0, Math.PI, 0); g.lineTo(cx + rx, bot - 6); g.fill(); g.stroke();
+      g.beginPath(); g.ellipse(cx, top, rx, 6, 0, 0, Math.PI); g.stroke(); }
+  }
+  /* network */
+  if (!bhj) {
+    const nf = sim.fault.net ? .05 : 1, th = (9 + 28 * pos('net')) * (sim.fault.net ? .3 : 1), y = LY.netY - th / 2;
+    g.fillStyle = '#ebe5d5'; g.fillRect(12, y, W - 24, th); g.fillStyle = 'rgba(47,127,143,.3)'; g.fillRect(12, y, (W - 24) * clamp(sim.u.net, 0, 1), th);
+    g.strokeStyle = sim.fault.net ? RED : LINE; g.lineWidth = 1.2; g.strokeRect(12, y, W - 24, th);
+    txt('NETWORK', 12, LY.netY - 24, { m: 1, s: 9.5 }); txt(`${fmtMB(sim.r.net)}/s of ${fmtMB(alive * S.net * nf)}/s`, LY.x1, LY.netY - 24, { i: 1, s: 11.5, a: 'right', c: drag === 'net' ? RED : SUB });
+    rail(LY.netY, pos('net'), 'net');
+  } else { HANDLE.net.style.top = '-200%'; txt('no shuffle: the big table never crosses the network', W / 2, LY.netY + 4, { i: 1, s: 13, a: 'center', c: '#2c6b62' }); }
+  /* reduce tasks */
+  const A = LY.grid;
+  if (!bhj) {
+    grid.paint(); const n = grid.n;
+    txt('REDUCE', 12, A.y - 7, { m: 1, s: 9.5 });
+    txt(lb && lb.tasks && lb.aqe && n !== lb.P ? `${num(lb.P)} partitions → ${num(n)} tasks (adaptive) · ${sim.busy}/${alive * CORES} cores` : `${num(n)} tasks · ${sim.busy} of ${alive * CORES} cores busy`, W - 12, A.y - 7, { i: 1, s: 11.5, a: 'right' });
+    g.drawImage(grid.cv, A.x, A.y, A.w, A.h);
+    txt('PARTITIONS', 12, LY.partY + 3.5, { m: 1, s: 9.5 });
+    txt(`spark.sql.shuffle.partitions = ${num(S.parts)}${b && b.P !== S.parts ? ' (from next batch)' : ''}`, LY.x1, LY.partY - 10, { i: 1, s: 11.5, a: 'right', c: drag === 'parts' ? RED : SUB });
+    for (const v of [2, 20, 200, 2000]) { const x = lerp(LY.x0, LY.x1, toPos(def('parts'), v)); g.strokeStyle = LINE; g.lineWidth = 1; g.beginPath(); g.moveTo(x, LY.partY + 5); g.lineTo(x, LY.partY + 10); g.stroke(); txt(v, x, LY.partY + 20, { m: 1, s: 8, a: 'center', c: '#9a9186' }); }
+    rail(LY.partY, pos('parts'), 'parts');
+  } else { grid.n = -1; HANDLE.parts.style.top = '-200%'; txt('There is no reduce stage to wait for.', W / 2, A.y + A.h / 2, { i: 1, s: 13, a: 'center' }); }
+  txt(`RESULT · ${fmtN(sim.r.out)} rows/s out`, 12, LY.outY, { m: 1, s: 9.5, c: INK }); txt(`1 tile ≈ ${fmtN(sim.q * 1e6 / S.rowBytes)} rows`, W - 12, LY.outY, { i: 1, s: 11, a: 'right' });
+  /* tiles */
+  for (const tl of sim.tiles) {
+    const col = tl.key >= 0 ? KEYS[tl.key][1] : MIXED; g.globalAlpha = tl.a < 1 ? Math.max(0, tl.a) : 1;
+    if (tl.st === WRITEQ || tl.st === DISK || tl.st === FLYING) { g.fillStyle = '#26221c'; g.fillRect(tl.x, tl.y, 10, 7); g.fillStyle = col; g.fillRect(tl.x, tl.y, 3, 7); }
+    else { g.fillStyle = col; g.fillRect(tl.x, tl.y, 10, 7); }
+    if (tl.retry) { g.strokeStyle = RED; g.lineWidth = 1; g.strokeRect(tl.x - .5, tl.y - .5, 11, 8); }
+  }
+  g.globalAlpha = 1;
+  if (sim.lag > 0) txt(`+ ${fmtMB(sim.lag)} more waiting`, T.x + T.w - 6, T.y + T.h - 6, { m: 1, s: 9.5, b: 1, a: 'right', c: RED });
+  txt(`${fmtMB(wait)} waiting`, 62, 42, { i: 1, s: 11.5, c: sim.lag > 0 ? RED : SUB });
+  /* lost executors */
+  for (const e of sim.ex) if (e.dead) {
+    g.fillStyle = 'rgba(38,33,30,.82)'; g.fillRect(e.x, LY.exY, e.w, LY.exH); g.strokeStyle = RED; g.lineWidth = 2; g.strokeRect(e.x, LY.exY, e.w, LY.exH);
+    txt('LOST', e.x + e.w / 2, LY.exY + 120, { m: 1, s: 13, b: 1, a: 'center', c: '#fff' }); txt(`back in ${(e.dead - sim.t).toFixed(1)} s`, e.x + e.w / 2, LY.exY + 138, { m: 1, s: 9, a: 'center', c: '#d8d1c2' });
+  }
+  /* the limit, named where it is */
+  const jb = judged(), d = jb && diag(jb);
+  if (d && d.late) {
+    const name = { hot: 'LIMIT · ONE HOT TASK', spill: 'LIMIT · SPILLING TO DISK', few: 'LIMIT · TOO FEW TASKS', overhead: 'LIMIT · TASK LAUNCH OVERHEAD', net: 'LIMIT · NETWORK', reduce: 'LIMIT · REDUCE CPU', disk: 'LIMIT · LOCAL DISK', cpu: 'LIMIT · MAP CPU', bhj: '' }[d.kind];
+    if (d.kind === 'hot' && jb.max && jb === lb) { const p = grid.center(jb.max.i); g.strokeStyle = RED; g.lineWidth = 2; g.strokeRect(p[0] - grid.cw / 2 - 2, p[1] - grid.ch / 2 - 2, grid.cw + 4, grid.ch + 4); tag(name, p[0], Math.max(A.y + 12, p[1] - grid.ch / 2 - 6), RED); }
+    else if (name) tag(name, W / 2, d.kind === 'net' ? LY.netY + 30 : d.kind === 'disk' ? LY.exY + 160 : d.kind === 'cpu' ? LY.exY + 30 : A.y + 14, RED);
+  }
+  /* a task that was tapped */
+  if (sim.insp >= 0 && lb && lb.tasks && lb.tasks[sim.insp]) {
+    const t = lb.tasks[sim.insp], p = grid.center(t.i);
+    g.strokeStyle = INK; g.lineWidth = 1.6; g.strokeRect(p[0] - grid.cw / 2 - 1.5, p[1] - grid.ch / 2 - 1.5, grid.cw + 3, grid.ch + 3);
+    tag(`task ${t.i + 1} · ${fmtMB(t.size)} · ${['waiting', 'launching', 'running', 'done'][t.st]}${t.size > S.mem ? ' · spills' : ''}${t.n > 1 ? ` · ${t.n} partitions` : ''}${t.split ? ' · split' : ''}`, p[0], p[1] + grid.ch / 2 + 15 > A.y + A.h ? p[1] - grid.ch / 2 - 6 : p[1] + grid.ch / 2 + 15, INK);
+  }
+  /* one row, followed from the source to the result */
+  const f = sim.fol;
+  if (f) {
+    const tl = f.tl;
+    if (!f.end) {
+      if (f.task) { const p = grid.center(f.task.i); f.x = p[0]; f.y = p[1]; f.text = `in task ${f.task.i + 1} · being aggregated`; if (f.task.st === 3) { f.text = `done · ${(sim.t - f.t0).toFixed(1)} s from source to result`; f.end = sim.t + 1.8; } }
+      else if (tl.dead && tl.st === FLYING && tl.task) f.task = tl.task;
+      else { f.x = tl.x + 5; f.y = tl.y + 3.5; f.text = ['waiting at the source', 'waiting for a core', 'serialized · waiting for disk', 'in a shuffle file on local disk', 'crossing the network', 'filtered out', 'joined on the spot'][tl.st]; if (tl.dead) f.end = sim.t + 1.2; }
+    } else if (sim.t > f.end) sim.fol = null;
+    g.strokeStyle = INK; g.lineWidth = 1.8; g.setLineDash([3, 3]); g.beginPath(); g.arc(f.x, f.y, 11, 0, 7); g.stroke(); g.setLineDash([]);
+    tag(f.text, f.x, f.y - 16 < 30 ? f.y + 26 : f.y - 16, '#34576b');
+  }
 }
 
-/* ---------- controls ---------- */
-const ui = { sl: {}, mode: {}, sc: [] };
+/* ==========================================================================
+   Scrolling gauges: one column per moment, like the bird's spectrogram
+   ========================================================================== */
+const chart = { cv: $('#tl canvas'), g: null, W: 0, H: 0, k: 1, carry: 0,
+  size() { const k = Math.min(2, window.devicePixelRatio || 1), w = Math.round(this.cv.clientWidth * k), h = Math.round(132 * k); if (!w || (w === this.W && h === this.H)) return;
+    this.W = this.cv.width = w; this.H = this.cv.height = h; this.k = k; this.g = this.cv.getContext('2d'); this.g.fillStyle = '#faf7ef'; this.g.fillRect(0, 0, w, h); },
+  heat(u) { u = clamp(u, 0, 1); return u > .97 ? '#16454e' : `rgb(${[250, 247, 239].map((v, i) => Math.round(v + ([47, 127, 143][i] - v) * Math.pow(u, .8))).join(',')})`; },
+  draw(dt) {
+    if (!this.g) return; this.carry += dt * 22 * this.k; const dx = Math.floor(this.carry); if (dx < 1) return; this.carry -= dx;
+    const g = this.g, k = this.k, x = this.W - dx, b = sim.b, nominal = S.rate * S.rowBytes / 1e6 * S.trigger, w = waiting();
+    g.drawImage(this.cv, -dx, 0); g.fillStyle = '#faf7ef'; g.fillRect(x, 0, dx, this.H);
+    if (b) { g.fillStyle = b.phase === 'map' ? '#b7c7c4' : TEAL; g.fillRect(x, 4 * k, dx, 18 * k); if (sim.t - b.start > S.trigger) { g.fillStyle = RED; g.fillRect(x, 0, dx, 4 * k); } }   // which stage; red when overdue
+    if (sim.tick) { sim.tick = false; g.fillStyle = INK; g.fillRect(x, 0, Math.max(1, k), 24 * k); }                                                                            // a batch starts
+    const hh = 32 * k * clamp(w / (nominal * 4), 0, 1); g.fillStyle = w > nominal * 1.7 ? '#d98d80' : '#c9c0ae'; g.fillRect(x, 66 * k - hh, dx, hh);                             // input waiting
+    [sim.u.cpu, sim.u.disk, sim.u.net, sim.u.red].forEach((u, i) => { g.fillStyle = this.heat(u); g.fillRect(x, (72 + i * 15) * k, dx, 13 * k); });                             // how busy each resource is
+  } };
+
+/* ==========================================================================
+   Sound (off until asked for): each key has a note, so a hot key can be heard
+   ========================================================================== */
+const Snd = { ctx: null, on: false, last: 0,
+  toggle() { if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false; this.ctx = new AC(); } this.on = !this.on; if (this.on) this.ctx.resume(); return this.on; },
+  note(f, vol, len) { if (!this.on) return; const c = this.ctx, t = c.currentTime, o = c.createOscillator(), g = c.createGain(); o.frequency.value = f; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .006); g.gain.exponentialRampToValueAtTime(.0001, t + len); o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + len + .03); },
+  land(key) { const n = performance.now(); if (!this.on || n - this.last < 42) return; this.last = n; this.note(key >= 0 ? KEYS[key][2] : 1319, key >= 0 ? .07 : .018, .1); },
+  batch(ok) { if (!this.on) return; if (ok) { this.note(659, .05, .2); setTimeout(() => this.note(988, .05, .28), 90); } else this.note(165, .09, .6); } };
+
+/* ==========================================================================
+   Controls
+   ========================================================================== */
+const ui = { sl: {}, mode: {}, sc: [], key: [], chip: [], v: [] };
 SCEN.forEach((c, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'sc'; b.innerHTML = `<b>${c.name}</b><i>${c.tag}</i>`; b.onclick = () => choose(i); $('#scen').appendChild(b); ui.sc.push(b); });
 MODES.forEach(([m, name]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = name; b.onclick = () => change({ mode: m }); $('#modes').appendChild(b); ui.mode[m] = b; });
 for (const d of SLIDERS) {
   const c = document.createElement('label'); c.className = 's'; c.innerHTML = `<span>${d.label}</span><output></output><input type="range" min="0" max="1000" step="1"><small>${d.conf || ''}</small>`;
   const inp = c.querySelector('input');
-  inp.addEventListener('input', () => { hot = d.k; change({ [d.k]: fromPos(d, inp.value / 1000) }); });
-  inp.addEventListener('change', () => { hot = null; paint(); });
-  inp.addEventListener('dblclick', () => change({ [d.k]: scenario()[d.k] }));
+  inp.addEventListener('input', () => { drag = d.k; change({ [d.k]: fromPos(d, inp.value / 1000) }); });
+  inp.addEventListener('change', () => { drag = null; paintControls(); });
+  inp.addEventListener('dblclick', () => change({ [d.k]: Object.assign({}, BASE, SCEN[scen].set)[d.k] }));
   $('#sl').appendChild(c); ui.sl[d.k] = { c, inp, out: c.querySelector('output') };
 }
+for (let i = 0; i < 6; i++) { const s = document.createElement('span'); s.innerHTML = '<u style="text-decoration:none"></u><b></b>'; $('#steps').appendChild(s); ui.chip.push(s); }
+for (let i = 0; i < 6; i++) { const v = document.createElement('div'); v.className = 'v box'; v.innerHTML = '<u></u><b></b><i></i>'; $('#verdict').appendChild(v); ui.v.push(v); }
+/* flood keys and fault keys: they act for as long as they are held */
+const holdable = (el, set) => { const off = () => set(false); el.addEventListener('pointerdown', e => { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (x) {} set(true); }); el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off); el.addEventListener('contextmenu', e => e.preventDefault()); };
+const setKey = (k, on) => { if (on && !sim.hold[k]) for (let i = 0; i < 6; i++) spawn(sim.q, k); sim.hold[k] = on; ui.key[k].classList.toggle('on', on); ui.key[k].style.background = on ? KEYS[k][1] : ''; };
+KEYS.forEach((K, k) => { const b = document.createElement('button'); b.type = 'button'; b.innerHTML = `${K[0]}<i>${K[4]}</i>`; b.style.borderBottomColor = K[1]; $('#keys .k').appendChild(b); ui.key.push(b); holdable(b, on => setKey(k, on)); });
+const fbtn = f => $(`#keys [data-f=${f}]`);
+const setFault = (f, on) => { sim.fault[f] = on; fbtn(f).classList.toggle('on', on); };
+holdable(fbtn('disk'), on => setFault('disk', on)); holdable(fbtn('net'), on => setFault('net', on));
+const killOne = () => { const a = aliveEx(); kill(a[a.length - 1]); };
+fbtn('kill').addEventListener('click', killOne);
+cv.addEventListener('click', e => {                                       // tap an executor to kill it, or a task to inspect it
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * LY.W, y = (e.clientY - r.top) / r.height * LY.H;
+  if (y >= LY.exY && y <= LY.exY + LY.exH) { kill(sim.ex.find(q => x >= q.x && x <= q.x + q.w)); return; }
+  const i = grid.at(x, y); sim.insp = i === sim.insp ? -1 : i;
+});
 $('#aqe').onclick = () => change({ aqe: !S.aqe });
 $('#exm').onclick = () => change({ exec: clamp(S.exec - 1, 2, 8) }); $('#exp').onclick = () => change({ exec: clamp(S.exec + 1, 2, 8) });
-$('#run').onclick = () => { playing = !playing; $('#run').classList.toggle('on', playing); $('#run').textContent = playing ? 'Pause Job' : 'Run Job'; };
-$('#follow').onclick = () => { follow = !follow; $('#follow').classList.toggle('on', follow); };
 $('#reset').onclick = () => choose(scen);
-const scenario = () => Object.assign({}, BASE, SCEN[scen].set);
-function choose(i) { scen = i; prev = null; S = scenario(); clock = 0; refresh(); }
-/* any change: remember the run before this burst of changes, so the verdict can show the difference */
+$('#run').onclick = () => { playing = !playing; $('#run').classList.toggle('on', playing); $('#run').textContent = playing ? 'Pause' : 'Run'; };
+$('#follow').onclick = () => { follow = !follow; sim.fol = null; $('#follow').classList.toggle('lit', follow); };
+$('#sound').onclick = () => $('#sound').classList.toggle('lit', Snd.toggle());
+document.querySelectorAll('#bar .sp').forEach(b => b.onclick = () => { speed = +b.dataset.v; document.querySelectorAll('#bar .sp').forEach(o => o.classList.toggle('sel', o === b)); });
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.repeat || e.ctrlKey || e.metaKey) return; const c = e.key.toUpperCase(), k = KEYS.findIndex(K => K[4] === c);
+  if (e.code === 'Space') { e.preventDefault(); $('#run').click(); } else if (c >= '1' && c <= '7') choose(+c - 1); else if (k >= 0) setKey(k, true); else if (c === 'W') killOne(); else if (c === 'E') setFault('disk', true); else if (c === 'T') setFault('net', true);
+});
+addEventListener('keyup', e => { const c = e.key.toUpperCase(), k = KEYS.findIndex(K => K[4] === c); if (k >= 0) setKey(k, false); else if (c === 'E') setFault('disk', false); else if (c === 'T') setFault('net', false); });
+
+function choose(i) { scen = i; ref = null; S = Object.assign({}, BASE, SCEN[i].set); resetSim(); paintControls(); }
+/* any change acts on the running job; remember the batch time from before, to show the difference */
 function change(patch) {
-  const now = performance.now(); if (now - lastChange > 900 && stable) prev = stable; lastChange = now;
-  Object.assign(S, patch); refresh();
+  const now = performance.now(); if (now - lastChange > 1500 && sim.last) ref = sim.last.dur; lastChange = now;
+  Object.assign(S, patch); if (patch.exec) setExec(S.exec); grid.all = true; paintControls();
 }
-function refresh() { R = simulate(S); stable = { runtime: R.runtime, dataMB: R.dataMB, maxMB: R.maxMB, spilled: R.spilled }; plan(); paint(); drawTimeline(); }
-
-/* ---------- the drawing ---------- */
-const scene = $('#scene'), gStatic = el('g', {}, scene), gTiles = el('g', {}, scene), gTop = el('g', {}, scene);
-const ring = el('circle', { r: 13, fill: 'none', stroke: '#1f1d14', 'stroke-width': 2, 'stroke-dasharray': '3 3', visibility: 'hidden' }, gTop);
-/* three draggable handles, each tied to one setting */
-const HANDLES = { keep: mkHandle('keep'), mem: mkHandle('mem'), parts: mkHandle('parts') };
-function mkHandle(k) {
-  const g = el('g', {}, gTop), rail = el('line', { class: 'rail', stroke: '#b9b0a3', 'stroke-width': 2.5, 'stroke-linecap': 'round' }, g), lab = el('text', { class: 'lab', 'font-size': 14, 'font-style': 'italic', fill: '#6d655c' }, g);
-  const rg = el('circle', { class: 'ring', r: 19 }, g), kn = el('circle', { class: 'knob', r: 9 }, g), hit = el('circle', { class: 'hit', r: 26 }, g);
-  hit.addEventListener('pointerdown', e => {
-    e.preventDefault(); try { hit.setPointerCapture(e.pointerId); } catch (x) {} hot = k; paint();
-    const mv = ev => { const m = scene.getScreenCTM(), x = (ev.clientX - m.e) / m.a, y = (ev.clientY - m.f) / m.d, d = def(k);
-      change({ [k]: fromPos(d, clamp(k === 'mem' ? (G.memLo - y) / (G.memLo - G.memHi) : (x - 90) / 520, 0, 1)) }); };
-    const up = () => { hit.removeEventListener('pointermove', mv); hot = null; paint(); };
-    hit.addEventListener('pointermove', mv); hit.addEventListener('pointerup', up, { once: true }); hit.addEventListener('pointercancel', up, { once: true });
-  });
-  hit.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
-  return { g, rail, lab, rg, kn, hit };
-}
-const G = { memLo: 636, memHi: 506 };                                    // where the memory line can travel (low memory .. high memory)
-let tiles = [], tileEls = [], levels = [], copies = [];
-/* a small seeded generator, so the same settings always draw the same tiles */
-const rnd = n => { let t = (n + 0x6D2B79F5) | 0; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-
-/* work out where everything sits for the current settings and redraw the still parts */
-function plan() {
-  const n = S.exec, bhj = S.mode === 'bhj', visP = bhj ? 0 : Math.min(8, S.parts), W = 616 / n, tw = n > 5 ? 10 : 14, th = n > 5 ? 7 : 9, per = Math.max(6, Math.floor(60 / n));
-  G.visP = visP; G.tw = tw; G.th = th; G.exec = []; G.tray = [];
-  const cw = CODE[S.mode].length * 8.5 + 28;
-  let h = `<rect x="${320 - cw / 2}" y="8" width="${cw}" height="32" fill="#1f1d14"/><text class="mono" x="320" y="29" text-anchor="middle" font-size="14" fill="#ece8db">${CODE[S.mode]}</text>
-    <text x="12" y="79" font-size="12" class="mono" fill="#8a8177" letter-spacing="1">FILTER</text>
-    <text x="12" y="106" font-size="12" class="mono" fill="#8a8177" letter-spacing="1">STAGE 1 · MAP SIDE</text>`;
-  for (let e = 0; e < n; e++) {
-    const x = 12 + e * W, w = W - 8; G.exec.push({ x, w });
-    h += `<rect x="${x}" y="112" width="${w}" height="260" fill="#f3efe4" stroke="#2a2521" stroke-width="1.6"/><text class="mono" x="${x + 6}" y="128" font-size="${n > 5 ? 10 : 12}" font-weight="600" fill="#2a2521">${n > 5 ? 'EX' : 'EXEC'} ${e + 1}</text>`;
-    if (!bhj) h += `<ellipse cx="${x + w / 2}" cy="358" rx="${Math.min(34, w / 2 - 6)}" ry="9" fill="#d8d1c2" stroke="#8a8177"/><rect x="${x + w / 2 - Math.min(34, w / 2 - 6)}" y="336" width="${2 * Math.min(34, w / 2 - 6)}" height="22" fill="#e6e0d2" stroke="#8a8177"/><ellipse cx="${x + w / 2}" cy="336" rx="${Math.min(34, w / 2 - 6)}" ry="9" fill="#f1ecdf" stroke="#8a8177"/>`;
-    else h += `<rect x="${x + 5}" y="${316}" width="${w - 10}" height="50" fill="#e6efe9" stroke="#2c6b62" stroke-dasharray="4 3"/><text x="${x + w / 2}" y="361" text-anchor="middle" font-size="10" class="mono" fill="#2c6b62">joined here</text>`;
-  }
-  if (!bhj) {
-    h += `<line x1="12" y1="238" x2="628" y2="238" stroke="#b9b0a3" stroke-dasharray="4 4"/><text class="mono" x="626" y="233" text-anchor="end" font-size="11" fill="#6d655c">hash(key) % ${S.parts.toLocaleString('en-US')}</text>
-      <text x="320" y="420" text-anchor="middle" font-size="12" class="mono" fill="#8a8177" letter-spacing="2">NETWORK</text><text x="320" y="440" text-anchor="middle" font-size="15" font-style="italic" fill="#6d655c">${fmtMB(R.dataMB)} crosses between executors</text>
-      <text x="12" y="478" font-size="12" class="mono" fill="#8a8177" letter-spacing="1">STAGE 2 · REDUCE SIDE</text>`;
-    const TW = 600 / visP, memY = lerp(G.memLo, G.memHi, toPos(def('mem'), S.mem)); G.memY = memY;
-    for (let p = 0; p < visP; p++) {
-      const x = 12 + p * TW, w = TW - 8, mb = p === 0 ? R.hotMB : R.typMB, over = mb > S.mem && !(R.split && p === 0); G.tray.push({ x, w, mb, over });
-      h += `<rect x="${x}" y="486" width="${w}" height="164" fill="#efeadb" stroke="${over ? '#b8382b' : '#2a2521'}" stroke-width="${over ? 2.6 : 1.6}"/>`;
-      h += `<text class="mono" x="${x + w / 2}" y="666" text-anchor="middle" font-size="11" fill="${over ? '#b8382b' : '#5d564e'}" font-weight="${over ? 700 : 400}">${fmtMB(mb)}${over ? ' SPILL' : R.split && p === 0 ? ' ÷ ' + R.split : ''}</text>`;
-      if (R.split && p === 0) for (let j = 1; j < 5; j++) h += `<line x1="${x + j * w / 5}" y1="486" x2="${x + j * w / 5}" y2="650" stroke="#2c6b62" stroke-dasharray="3 3"/>`;
-    }
-    h += `<text x="12" y="690" font-size="12" class="mono" fill="#8a8177" letter-spacing="1">PARTITIONS</text>`;
-    for (const v of [2, 20, 200, 2000]) { const x = 90 + 520 * toPos(def('parts'), v); h += `<line x1="${x}" y1="706" x2="${x}" y2="718" stroke="#b9b0a3"/><text class="mono" x="${x}" y="732" text-anchor="middle" font-size="10" fill="#8a8177">${v}</text>`; }
-    h += `<text x="320" y="752" text-anchor="middle" font-size="13" font-style="italic" fill="#6d655c">${visP} of ${R.taskCount.toLocaleString('en-US')} ${S.aqe && R.taskCount !== S.parts ? 'tasks after adaptive planning' : 'partitions'} shown · 1 tile = ${fmtRows(S.rows / (per * n))} rows</text>`;
-  } else {
-    h += `<rect x="250" y="56" width="140" height="34" fill="#dbe4f5" stroke="#27418f"/><text class="mono" x="320" y="78" text-anchor="middle" font-size="12" fill="#27418f">countries · 8 MB</text>
-      <text x="320" y="430" text-anchor="middle" font-size="12" class="mono" fill="#8a8177" letter-spacing="2">NETWORK</text><text x="320" y="452" text-anchor="middle" font-size="16" font-style="italic" fill="#2c6b62">no shuffle: the big table never moves</text>
-      <text x="320" y="560" text-anchor="middle" font-size="15" font-style="italic" fill="#6d655c">There is no second stage to wait for.</text>
-      <text x="320" y="752" text-anchor="middle" font-size="13" font-style="italic" fill="#6d655c">1 tile = ${fmtRows(S.rows / (per * n))} rows</text>`;
-  }
-  gStatic.innerHTML = h;
-  /* tiles: each has a key, a fate at the filter, and a place to be at every step */
-  tiles = []; const trayN = new Array(Math.max(1, visP)).fill(0);
-  G.exec.forEach((ex, e) => {
-    const cols = Math.max(1, Math.floor((ex.w - 10) / (tw + 3))), bucket = new Array(Math.max(1, visP)).fill(0); let local = 0;
-    for (let i = 0; i < per; i++) {
-      const id = e * 131 + i * 17, key = rnd(id) < S.skew / 100 ? 0 : Math.floor(rnd(id + 7) * 8), kept = rnd(id + 3) < S.keep / 100, p = visP ? key % visP : 0;
-      const t = { e, key, kept, p, lag: rnd(id + 11) * .5, ax: ex.x + 5 + (i % cols) * (tw + 3), ay: 140 + Math.floor(i / cols) * (th + 3) };
-      if (kept && visP) {
-        const tr = G.tray[p], tc = Math.max(1, Math.floor((tr.w - 8) / (tw + 3))), j = trayN[p]++;
-        t.bx = ex.x + 5 + (ex.w - 10) * (p + .5) / visP - tw / 2; t.by = 306 - bucket[p]++ * (th + 2);
-        t.dx = ex.x + ex.w / 2 - tw / 2; t.dy = 340; t.ex = tr.x + 4 + (j % tc) * (tw + 3); t.ey = Math.max(490, 638 - Math.floor(j / tc) * (th + 2));
-      } else if (kept) { t.lx = ex.x + 9 + (local % cols) * (tw + 3) * .92; t.ly = 350 - Math.floor(local / cols) * (th + 2); local++; }
-      tiles.push(t);
-    }
-  });
-  while (tileEls.length < tiles.length) tileEls.push(el('rect', { rx: 1.5, 'stroke-width': 1.6 }, gTiles));
-  tileEls.forEach((r, i) => { const t = tiles[i]; r.setAttribute('visibility', t ? 'visible' : 'hidden'); if (t) { r.setAttribute('width', tw); r.setAttribute('height', th); r.setAttribute('stroke', KEYS[t.key][1]); } });
-  levels.forEach(l => l.remove()); levels = G.tray.map(tr => el('rect', { x: tr.x + 1.5, width: tr.w - 3, fill: tr.over ? '#b8382b' : '#2f7f8f', 'fill-opacity': .16 }, gStatic));
-  G.followed = tiles.findIndex(t => t.kept && t.e === 0);
-  copies.forEach(c => c.remove()); copies = bhj ? G.exec.map(() => el('rect', { width: 30, height: 14, fill: '#dbe4f5', stroke: '#27418f', 'stroke-width': 1.4 }, gStatic)) : [];
-}
-/* everything that only changes when a setting changes */
-function paint() {
-  for (const d of SLIDERS) { const u = ui.sl[d.k]; u.inp.value = Math.round(toPos(d, S[d.k]) * 1000); u.out.textContent = d.fmt(S[d.k]); u.c.classList.toggle('hot', hot === d.k); }
+function paintControls() {
+  for (const d of SLIDERS) { const u = ui.sl[d.k]; if (drag !== d.k || document.activeElement !== u.inp) u.inp.value = Math.round(toPos(d, S[d.k]) * 1000); u.out.textContent = d.fmt(S[d.k]); u.c.classList.toggle('hot', drag === d.k); }
   for (const m in ui.mode) ui.mode[m].classList.toggle('on', S.mode === m);
-  $('#aqe').classList.toggle('on', S.aqe); $('#exv').textContent = 'EXECUTORS ' + S.exec;
-  ui.sc.forEach((b, i) => b.classList.toggle('on', i === scen));
-  const bhj = S.mode === 'bhj', H = HANDLES, place = (h, x, y, x1, y1, x2, y2, text, tx, ty, anchor) => {
-    h.rail.setAttribute('x1', x1); h.rail.setAttribute('y1', y1); h.rail.setAttribute('x2', x2); h.rail.setAttribute('y2', y2);
-    for (const c of [h.kn, h.rg, h.hit]) { c.setAttribute('cx', x); c.setAttribute('cy', y); }
-    h.lab.textContent = text; h.lab.setAttribute('x', tx); h.lab.setAttribute('y', ty); h.lab.setAttribute('text-anchor', anchor);
-  };
-  place(H.keep, 90 + 520 * toPos(def('keep'), S.keep), 74, 90, 74, 610, 74, `keeps ${Math.round(S.keep)}% of rows before the shuffle`, 610, 62, 'end');
-  H.keep.g.setAttribute('visibility', bhj ? 'hidden' : 'visible'); H.mem.g.setAttribute('visibility', bhj ? 'hidden' : 'visible'); H.parts.g.setAttribute('visibility', bhj ? 'hidden' : 'visible');
-  if (!bhj) {
-    place(H.mem, 622, G.memY, 12, G.memY, 612, G.memY, `memory per task ${fmtMB(S.mem)}`, 606, G.memY - 6, 'end'); H.mem.rail.setAttribute('stroke-dasharray', '7 5');
-    place(H.parts, 90 + 520 * toPos(def('parts'), S.parts), 712, 90, 712, 610, 712, `spark.sql.shuffle.partitions = ${S.parts.toLocaleString('en-US')}`, 610, 698, 'end');
-  }
-  for (const k in H) H[k].g.classList.toggle('hot', hot === k);
-  /* verdict, with the change since the run before */
-  const cell = (name, val, now, was, extra) => { let d = '', cls = '';
-    if (prev && was > 0 && Math.abs(now - was) / was > .005) { const p = (now - was) / was * 100; d = (p > 0 ? '▲ +' : '▼ ') + (Math.abs(p) >= 1000 ? Math.round(p / 100) + 'x' : p.toFixed(0) + '%'); cls = p > 0 ? 'bad' : 'good'; }
-    else if (prev && was === 0 && now > 0) { d = '▲ new'; cls = 'bad'; } else if (prev && was > 0 && now === 0) { d = '▼ gone'; cls = 'good'; }
-    return `<div class="v box"><u>${name}</u><b>${val}</b><i class="${cls}">${d || extra || ''}</i></div>`; };
-  const p = prev || {};
-  $('#verdict').innerHTML = cell('Run time', fmtTime(R.runtime), R.runtime, p.runtime) + cell('Data shuffled', bhj ? '0' : fmtMB(R.dataMB), R.dataMB, p.dataMB)
-    + cell('Largest task', bhj ? 'none' : fmtMB(R.maxMB), R.maxMB, p.maxMB, bhj ? '' : R.maxMB > S.mem ? 'over memory' : 'fits in memory') + cell('Tasks spilled', bhj ? '0' : R.spilled.toLocaleString('en-US') + ' / ' + R.taskCount.toLocaleString('en-US'), R.spilled, p.spilled);
-  $('#why').innerHTML = why(R, S);
-  const names = bhj ? ['1 Broadcast the small table', '2 Read and filter', '3 Join inside each executor', '4 Done: no shuffle'] : ['1 Read and filter', '2 Hash the key → partition', '3 Serialize to bytes', '4 Write shuffle file to disk', '5 Fetch over the network', '6 Deserialize and aggregate'];
-  $('#steps').innerHTML = names.map(n => `<span>${n}</span>`).join('');
+  $('#aqe').classList.toggle('on', S.aqe); $('#exv').textContent = 'EXECUTORS ' + S.exec; ui.sc.forEach((b, i) => b.classList.toggle('on', i === scen));
+}
+/* the words and numbers around the drawing, a few times a second */
+function paintText() {
+  const b = judged(), bhj = S.mode === 'bhj', r = sim.r, d = b && diag(b), set = (i, name, val, sub, cls) => { const v = ui.v[i]; v.className = 'v box ' + (cls || ''); v.children[0].textContent = name; v.children[1].textContent = val; v.children[2].textContent = sub || ''; };
+  const dur = b ? (b.end || sim.t) - b.start : 0, grow = sim.backlog > sim.backPrev * 1.05 + 1;
+  set(0, 'Input', fmtN(S.rate) + '/s', fmtMB(S.rate * S.rowBytes / 1e6) + '/s');
+  set(1, 'Batch time', b ? fmtS(dur) : '–', ref && b && Math.abs(dur - ref) / ref > .12 ? `was ${fmtS(ref)}` : `trigger ${S.trigger} s`, d && d.late ? 'bad' : 'good');
+  set(2, 'Late input', sim.backlog > 0 ? fmtMB(sim.backlog) : 'none', sim.backlog > 0 ? (grow ? '▲ growing' : '▼ shrinking') : 'keeping up', sim.backlog > 0 ? 'bad' : 'good');
+  set(3, 'Shuffled / batch', b ? (b.mode === 'bhj' ? '0' : fmtMB(b.shuf)) : '–', b && b.inMB ? `of ${fmtMB(b.inMB)} read` : '');
+  set(4, 'Largest task', b && b.max ? fmtMB(b.max.size) : bhj ? 'none' : '–', b && b.max ? (b.max.size > S.mem ? 'over memory' : 'fits in memory') : '', b && b.max && b.max.size > S.mem ? 'bad' : '');
+  set(5, 'Tasks', d && b.tasks ? num(d.n) : bhj ? '0' : num(S.parts), d && b.tasks ? (d.sp ? `${num(d.sp)} spill` : 'none spill') : '', d && d.sp ? 'bad' : '');
+  $('#why').innerHTML = why();
+  const chips = bhj ? [['1 Read + filter', fmtMB(r.scan) + '/s', r.scan > 1], ['2 Join with broadcast table', fmtMB(r.ser) + '/s', r.ser > 1], ['3 Write shuffle files', 'skipped', false], ['4 Fetch over network', 'skipped', false], ['5 Deserialize + aggregate', 'skipped', false], ['6 Result', fmtN(r.out) + ' rows/s', r.out > 1]]
+    : [['1 Read + filter', fmtMB(r.scan) + '/s', r.scan > 1], ['2 Hash key + serialize', fmtMB(r.ser) + '/s', r.ser > 1], ['3 Write shuffle files', fmtMB(r.write) + '/s', r.write > 1], ['4 Fetch over network', fmtMB(r.net) + '/s', r.net > 1], ['5 Deserialize + aggregate', sim.busy + ' cores', sim.busy > 0], ['6 Result', fmtN(r.out) + ' rows/s', r.out > 1]];
+  chips.forEach((c, i) => { const s = ui.chip[i]; s.children[0].textContent = c[0]; s.children[1].textContent = c[1]; s.classList.toggle('on', c[2]); });
 }
 
-/* ---------- the task timeline (drawn once per change, then a moving playhead) ---------- */
-const cv = $('#tl canvas'), buf = document.createElement('canvas');
-$('#tl .cap').innerHTML = '<span><i style="background:#b7c7c4"></i>map: read, hash, write</span><span><i style="background:#2f7f8f"></i>reduce task</span><span><i style="background:#b8382b"></i>spilled to disk</span><span><i style="background:#2c6b62"></i>split by AQE</span><span><i style="background:#cfc6b6"></i>previous run</span>';
-function drawTimeline() {
-  const dpr = Math.min(2, window.devicePixelRatio || 1), w = Math.max(200, Math.round(cv.clientWidth * dpr)), h = Math.round(170 * dpr);
-  buf.width = cv.width = w; buf.height = cv.height = h;
-  const g = buf.getContext('2d'), L = 34 * dpr, top = 26 * dpr, span = Math.max(R.runtime, prev ? prev.runtime : 0), X = t => L + (w - L - 56 * dpr) * t / span;
-  g.fillStyle = '#faf7ef'; g.fillRect(0, 0, w, h); g.font = `${10 * dpr}px ui-monospace,Menlo,Consolas,monospace`; g.textBaseline = 'middle';
-  if (prev) { g.fillStyle = '#cfc6b6'; g.fillRect(L, 5 * dpr, X(prev.runtime) - L, 5 * dpr); }
-  g.fillStyle = '#2a2521'; g.fillRect(L, 13 * dpr, X(R.runtime) - L, 5 * dpr); g.fillText(fmtTime(R.runtime), X(R.runtime) + 5 * dpr, 15.5 * dpr);
-  const lane = (h - top - 4 * dpr) / S.exec, row = (lane - 3 * dpr) / CORES;
-  for (let e = 0; e < S.exec; e++) {
-    const y = top + e * lane; g.fillStyle = '#6d655c'; g.fillText('ex' + (e + 1), 3 * dpr, y + lane / 2);
-    g.fillStyle = '#b7c7c4'; g.fillRect(L, y, Math.max(1, X(R.mapTime) - L), lane - 3 * dpr);
-  }
-  for (const k of R.tasks) {
-    const e = Math.floor(k.slot / CORES), c = k.slot % CORES, x = X(R.mapTime + k.start), ww = Math.max(.6, X(R.mapTime + k.start + k.t) - x - (k.t > span / 400 ? .6 : 0));
-    g.fillStyle = k.spill ? '#b8382b' : k.split ? '#2c6b62' : '#2f7f8f'; g.fillRect(x, top + e * lane + c * row, ww, Math.max(1, row - 1));
-  }
-  G.tlX = X; G.dpr = dpr;
-}
-addEventListener('resize', drawTimeline);
+/* on wide screens the scenarios sit beside the drawing; on phones they go above it */
+const mq = matchMedia('(min-width:901px)');
+function arrange() { if (mq.matches) $('aside').insertBefore($('#scen'), $('#verdict')); else $('#left').insertBefore($('#scen'), stage); layout(); }
+mq.addEventListener('change', arrange); addEventListener('resize', layout);
 
-/* ---------- animation: rows move through the six steps in a nine-second loop ---------- */
-const LOOP = 9, T = [0, 1.2, 2.6, 3.6, 4.8, 6.8, 9];
-let last = performance.now();
+/* ---------- the frame loop ---------- */
+let last = performance.now(), textT = 0;
 function frame(ts) {
   requestAnimationFrame(frame);
-  const dt = Math.min(.1, (ts - last) / 1000); last = ts; if (playing) clock = (clock + dt) % LOOP;
-  const bhj = S.mode === 'bhj', tw = G.tw;
-  tiles.forEach((t, i) => {
-    const r = tileEls[i], u = Math.max(0, clock - t.lag); let x = t.ax, y = t.ay, o = 1, dark = false, s = 1;
-    if (!t.kept) { const f = prog(u, .5, 1.3); o = 1 - f; y += 16 * f; }
-    else if (bhj) { const f = ease(prog(u, 2.2, 4)); x = lerp(t.ax, t.lx, f); y = lerp(t.ay, t.ly, f); }
-    else if (u < T[2]) { const f = ease(prog(u, T[1], T[2])); x = lerp(t.ax, t.bx, f); y = lerp(t.ay, t.by, f); }
-    else if (u < T[3]) { x = t.bx; y = t.by; dark = u > T[2] + .45; }
-    else if (u < T[4]) { const f = ease(prog(u, T[3], T[4])); x = lerp(t.bx, t.dx, f); y = lerp(t.by, t.dy, f); dark = true; o = 1 - .45 * f; }
-    else { const f = ease(prog(u, T[4], T[5] - .3)), mx = (t.dx + t.ex) / 2, my = 418;                 // a curved hop across the network
-      x = (1 - f) * (1 - f) * t.dx + 2 * f * (1 - f) * mx + f * f * t.ex; y = (1 - f) * (1 - f) * t.dy + 2 * f * (1 - f) * my + f * f * t.ey; dark = f < .96; o = .55 + .45 * f; }
-    r.setAttribute('x', x.toFixed(1)); r.setAttribute('y', y.toFixed(1)); r.setAttribute('opacity', o.toFixed(2)); r.setAttribute('fill', dark ? '#1f1d14' : KEYS[t.key][1]);
-    if (follow && i === G.followed) { ring.setAttribute('cx', x + tw / 2); ring.setAttribute('cy', y + G.th / 2); }
-  });
-  ring.setAttribute('visibility', follow && G.followed >= 0 ? 'visible' : 'hidden');
-  gTiles.setAttribute('opacity', follow ? .45 : 1); if (follow && G.followed >= 0) { tileEls[G.followed].setAttribute('opacity', 1); gTiles.appendChild(tileEls[G.followed]); }
-  /* broadcast join: a copy of the small table travels to every executor before any row is read */
-  copies.forEach((c, e) => { const f = ease(prog(clock, .2 + e * .12, 1.8 + e * .12)), ex = G.exec[e]; c.setAttribute('x', lerp(305, ex.x + ex.w - 36, f)); c.setAttribute('y', lerp(66, 118, f)); });
-  /* partitions fill as rows arrive; anything above the memory line is what spills */
-  const rise = ease(prog(clock, T[4] + .4, T[5] + .6));
-  G.tray.forEach((tr, p) => { const full = clamp(tr.mb / S.mem, 0, 3) * (650 - G.memY), hgt = Math.min(162, full * rise); levels[p].setAttribute('y', 650 - hgt); levels[p].setAttribute('height', hgt); });
-  /* light the step that is happening now */
-  const chips = $('#steps').children, step = bhj ? (clock < 2.2 ? 0 : clock < 3 ? 1 : clock < 4.4 ? 2 : 3) : T.findIndex((v, i) => clock >= v && clock < T[i + 1]);
-  for (let i = 0; i < chips.length; i++) chips[i].classList.toggle('on', i === step);
-  /* timeline playhead: the first half of the loop is the map stage, the rest the reduce stage */
-  if (G.tlX) { const g = cv.getContext('2d'), d = G.dpr, t = bhj ? R.runtime * prog(clock, 0, 4.4) : clock < T[4] ? R.mapTime * clock / T[4] : R.mapTime + (R.runtime - R.mapTime) * prog(clock, T[4], 8.4);
-    g.drawImage(buf, 0, 0); g.fillStyle = '#2a2521'; g.fillRect(G.tlX(t), 22 * d, 1.5 * d, cv.height); }
+  const dt = Math.min(.05, (ts - last) / 1000) * (playing ? speed : 0); last = ts;
+  if (dt > 0) { step(dt); place(); moveTiles(dt); chart.draw(dt); }
+  draw();
+  if (ts - textT > 200) { textT = ts; paintText(); }
 }
-/* on wide screens the scenarios, verdict and timeline sit beside the drawing; on phones they stack around it */
-const mq = matchMedia('(min-width:901px)');
-function arrange() {
-  const sec = $('main > section'), slot = $('#wide'), ids = ['#scen', '#verdict', '#why', '#tl'];
-  if (mq.matches) ids.forEach(i => slot.appendChild($(i)));
-  else { sec.insertBefore($('#scen'), scene); ['#verdict', '#why', '#tl'].forEach(i => sec.appendChild($(i))); }
-  if (R) drawTimeline();
-}
-mq.addEventListener('change', arrange); arrange();
-addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.code === 'Space') { e.preventDefault(); $('#run').click(); } else if (e.key >= '1' && e.key <= '7') choose(+e.key - 1); });
-choose(0);
+arrange(); choose(0);
 requestAnimationFrame(frame);
-window.__lab = { get S() { return S; }, get R() { return R; }, choose, change, simulate, SCEN, BASE };
+window.__lab = { sim, get S() { return S; }, choose, change, kill, setKey, setFault, diag, judged, SCEN };
 </script>
 </body>
 </html>
