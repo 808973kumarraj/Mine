@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Chat metrics verification</title>
+<style>
+:root{--bg:#0b1020;--panel:#131a2c;--panel2:#182138;--line:#26314d;--text:#e7ecf7;--mute:#8d9bbb;
+--accent:#6ea8fe;--ok:#4ade80;--okbg:#10301f;--bad:#ff7b88;--badbg:#431820;--warn:#ffd166}
+*{box-sizing:border-box}
+body{margin:0;padding:28px 32px 24px;width:1600px;background:var(--bg);color:var(--text);
+font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+.mono{font-family:ui-monospace,Menlo,Consolas,"DejaVu Sans Mono",monospace}
+header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px}
+h1{margin:0;font-size:24px;letter-spacing:-.01em}
+.sub{color:var(--mute);margin-top:4px}
+.stamp{text-align:right}
+.pill{display:inline-block;padding:6px 14px;border-radius:999px;font-weight:700;font-size:13px;letter-spacing:.04em}
+.pill.ok{background:var(--okbg);color:var(--ok);border:1px solid #1f6b3f}
+.pill.bad{background:var(--badbg);color:var(--bad);border:1px solid #8a2c3a}
+.stamp .ts{margin-top:8px;font-size:15px}
+.stamp .lbl,.lbl{color:var(--mute);font-size:11px;text-transform:uppercase;letter-spacing:.07em}
+.cards{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card b{display:block;font-size:26px;margin-top:2px;font-variant-numeric:tabular-nums}
+.card small{color:var(--mute)}
+.grid{display:grid;grid-template-columns:560px 1fr;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+.panel h2{margin:0 0 12px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute)}
+.kv{margin-bottom:11px}.kv:last-child{margin-bottom:0}
+.kv .v{font-size:12px;color:var(--accent);word-break:break-all}
+.kv .m{color:var(--mute);font-size:11px}
+.chk{display:flex;gap:9px;padding:4px 0;border-bottom:1px solid var(--line)}
+.chk:last-child{border-bottom:0}
+.y{color:var(--ok);font-weight:700}.x{color:var(--bad);font-weight:700}
+.bar{display:grid;grid-template-columns:150px 1fr 34px;gap:10px;align-items:center;margin:6px 0}
+.bar .t{height:9px;background:var(--panel2);border-radius:5px;overflow:hidden}
+.bar .t i{display:block;height:100%;border-radius:5px;background:var(--accent)}
+.bar span:last-child{text-align:right;font-variant-numeric:tabular-nums}
+table{border-collapse:collapse;width:100%}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);background:var(--panel2)}
+tbody tr:nth-child(even){background:#10172a}
+.r{text-align:right;font-variant-numeric:tabular-nums}
+td.mono,td .mono{font-size:12px}
+.badge{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11px;font-weight:600}
+.Answer{background:#143a2a;color:#6ee7a8}.Explanation{background:#15325c;color:#8cc0ff}
+.Error{background:var(--badbg);color:#ff9aa5}.Task{background:#463a12;color:#ffd666}
+tfoot td{font-weight:700;background:var(--panel2);border-bottom:0}
+.scope{color:var(--mute);font-size:12px;border-top:1px solid var(--line);padding-top:12px}
+.scope b{color:var(--text)}
+</style></head><body>
+<header>
+  <div>
+    <h1>Chat response metrics &mdash; verification report</h1>
+    <div class="sub">Dataset: <span class="mono">chat-metrics.csv</span> &middot; cross-checked against the Hermes session store
+      (<span class="mono">hermes sessions export</span>) &middot; branch <span class="mono">ccr-663688e4-roxi6g</span></div>
+  </div>
+  <div class="stamp"><span class="pill bad">&#10007; 1 OF 10 CHECKS FAILED</span>
+    <div class="ts mono">2026-11-15 23:21:02 UTC</div>
+    <div class="lbl">Verified at (host clock) &middot; epoch 1794784862</div>
+  </div>
+</header>
+
+<div class="cards">
+  <div class="card"><span class="lbl">Records verified</span><b>10 / 16</b><small>106 of 112 field checks passed</small></div>
+  <div class="card"><span class="lbl">Completed / failed</span><b>11 / 5</b><small>68.8% of turns got a model reply</small></div>
+  <div class="card"><span class="lbl">Output tokens</span><b>54,396</b><small>sum over 16 sessions</small></div>
+  <div class="card"><span class="lbl">Total tokens</span><b>947,563</b><small>input + output + cache</small></div>
+  <div class="card"><span class="lbl">Response time</span><b>676.6 s</b><small>median 17.4 s &middot; mean 61.1 s (completed)</small></div>
+  <div class="card"><span class="lbl">Tool calls</span><b>39</b><small>across 7 sessions</small></div>
+</div>
+
+<div class="grid">
+  <div>
+    <div class="panel"><h2>Hash verification (SHA-256)</h2>
+      <div class="kv"><div class="lbl">chat-metrics.csv &middot; 13,021 bytes</div><div class="v mono">0d227f59cfa1b18e7710b33ed8b1d56bfd8583214cc2991fc2652717e368bd42</div>
+        <div class="m mono">git blob cfd389cbfe57 <span class="y">&#10003;</span> matches HEAD</div></div>
+      <div class="kv"><div class="lbl">chat-metrics.html &middot; 21,292 bytes</div><div class="v mono">2da537c78acc0a8bfb64a416d298832d2838b124660e0693e54eff7f1bbbf3a0</div>
+        <div class="m mono">git blob 5ae7e78a7fc0 <span class="y">&#10003;</span> matches HEAD</div></div>
+      <div class="kv"><div class="lbl">Manifest root &middot; chained hash of all 16 row hashes</div><div class="v mono">3a8fa8eae47abe15ce3f48ecd7a918e4cb3048b0c8ff3aff091b9546f82cd00e</div></div>
+      <div class="kv"><div class="lbl">Git commit containing the dataset</div><div class="v mono">77b38131ee3a09ba0edd04c8ae7f691685a6e25d</div>
+        <div class="m mono">committed 2026-11-15T23:19:00+00:00</div></div>
+    </div>
+    <div class="panel"><h2>Integrity checks &middot; 9 / 10 passed</h2><div class="chk"><span class="y">&#10003;</span><span>CSV holds exactly 16 records</span></div><div class="chk"><span class="y">&#10003;</span><span>Record numbers are 1..N with no gaps</span></div><div class="chk"><span class="y">&#10003;</span><span>Session ids are unique</span></div><div class="chk"><span class="y">&#10003;</span><span>Timestamps are in ascending order</span></div><div class="chk"><span class="y">&#10003;</span><span>HTML table has one row per CSV record</span></div><div class="chk"><span class="y">&#10003;</span><span>HTML totals equal CSV sums</span></div><div class="chk"><span class="y">&#10003;</span><span>Session store reachable</span></div><div class="chk"><span class="x">&#10007;</span><span>Every record matches the session store</span></div><div class="chk"><span class="y">&#10003;</span><span>chat-metrics.csv identical to committed blob</span></div><div class="chk"><span class="y">&#10003;</span><span>chat-metrics.html identical to committed blob</span></div></div>
+    <div class="panel"><h2>Records by type</h2><div class="bar"><span class="mono">Error</span><div class="t"><i style="width:31.2%;background:#ff9aa5"></i></div><span>5</span></div><div class="bar"><span class="mono">Explanation</span><div class="t"><i style="width:31.2%;background:#8cc0ff"></i></div><span>5</span></div><div class="bar"><span class="mono">Answer</span><div class="t"><i style="width:25.0%;background:#6ee7a8"></i></div><span>4</span></div><div class="bar"><span class="mono">Task</span><div class="t"><i style="width:12.5%;background:#ffd666"></i></div><span>2</span></div></div>
+    <div class="panel"><h2>Records by model</h2><div class="bar"><span class="mono">claude-fable-5-2</span><div class="t"><i style="width:56.2%;background:var(--accent)"></i></div><span>9</span></div><div class="bar"><span class="mono">anthropic/claude-opus-4.6</span><div class="t"><i style="width:25.0%;background:var(--accent)"></i></div><span>4</span></div><div class="bar"><span class="mono">claude-opus-4-6</span><div class="t"><i style="width:12.5%;background:var(--accent)"></i></div><span>2</span></div><div class="bar"><span class="mono">anthropic/claude-opus-5.5</span><div class="t"><i style="width:6.2%;background:var(--accent)"></i></div><span>1</span></div></div>
+  </div>
+  <div>
+    <div class="panel"><h2>Per-record ledger &middot; 16 records &middot; 20 sessions in store at verification time</h2>
+      <table><thead><tr><th class="r">#</th><th>Time (UTC)</th><th>Session</th><th>Type</th><th>Model</th>
+        <th class="r">Out tok</th><th class="r">Total tok</th><th class="r">Time</th><th class="r">Tools</th>
+        <th>Row SHA-256</th><th>Store match</th></tr></thead>
+      <tbody><tr><td class="r">1</td><td class="mono">2026-11-15 21:32:49</td><td class="mono">ca663bb7</td><td><span class="badge Error">Error</span></td><td class="mono">anthropic/claude-opus-4.6</td><td class="r">0</td><td class="r">0</td><td class="r">0.7 s</td><td class="r">0</td><td class="mono" style="color:var(--accent)">a94d96d525df57fc2af37b56&hellip;</td><td><span class="y">&#10003;</span> <span class="mono">7/7</span></td></tr><tr><td class="r">2</td><td class="mono">2026-11-15 21:32:56</td><td class="mono">0ee50b47</td><td><span class="badge Error">Error</span></td><td class="mono">anthropic/claude-opus-5.5</td><td class="r">0</td><td class="r">0</td><td class="r">1.4 s</td><td class="r">0</td><td class="mono" style="color:var(--accent)">7e479b3035c1398373318304&hellip;</td><td><span class="y">&#10003;</span> <span class="mono">7/7</span></td></tr><tr><td class="r">3</td><td class="mono">2026-11-15 22:24:38</td><td class="mono">d1397b0b</td><td><span class="badge Error">Error</span></td><td class="mono">anthropic/claude-opus-4.6</td><td class="r">0</td><td class="r">0</td><td class="r">1.5 s</td><td class="r">0</td><td class="mono" style="color:var(--accent)">5e7705e098af0b6d00a295b6&hellip;</td><td><span class="y">&#10003;</span> <span class="mono">7/7</span></td></tr><tr><td class="r">4</td><td class="mono">2026-11-15 22:24:59</td><td class="mono">30c6c743</td><td><span class="badge Error">Error</span></td><td class="mono">anthropic/claude-opus-4.6</td><td class="r">0</td><td class="r">0</td><td class="r">0.2 s</td><td class="r">0</td><td class="mono" style="color:var(--accent)">13dc555da01e1e8237a07eaa&hellip;</td><td><span class="y">&#10003;</span> <span class="mono">7/7</span></td></tr><tr><td class="r">5</td><td class="mono">2026-11-15 22:25:24</td><td class="mono">efeefb30</td><td><span class="badge Error">Error</span></td><td class="mono">anthropic/claude-opus-4.6</td><td class="r">0</td><td class="r">0</td><td class="r">0.3 s</td><td class="r">0</td><td class="mono" style="color:var(--accent)">d3b2c4d086d43964e06756ce&hellip;</td><td><span class="x">&#10007;</span> <span class="mono">6/7</span></td></tr><tr><td class="r">6</td><td class="mono">2026-11-15 22:26:07</td><td class="mono">ac06ddb1</td><td><span class="badge Answer">Answer</span></td><td class="mono">claude-opus-4-6</td><td class="r">6</td><td class="r">13,313</td><td class="r">11.9 s</td><td class="r">0</td><td class="mono" style="color:var(--accent)">a790b4ef8d67f28e42ceb224&hellip;</td><td><span class="y">&#10003;</span> <span class="mono">7/7</span></td></tr><tr><td class="r">7</td><td class="mono">2026-11-15 22:27:18</td><td class="mono">6287e291</td><td><span class="badge Answer">Answer</span></td><td class="mono">claude-opus-4-6</td><td class="r">10</td><td class="r">14,412</td><td class="r">1.7 s</td><td class="r">0</td><td class="mono" style="color:var(--accent)">e8bb30bbad4118ba32d1c113&hellip;</td><td><span class="x">&#10007;</span> <span class="mono">6/7</span></td></tr><tr><td class="r">8</td><td class="mono">2026-11-15 22:28:26</td><td class="mono">35acb75d</td><td><span class="badge Answer">Answer</span></td><td class="mono">claude-fable-5-2</td><td class="r">62</td><td class="r">17,535</td><td class="r">3.2 s</td><td class="r">0</td><td class="mono" style="color:var(--accent)">383234c7d4822a16c104abb9&hellip;</td><td><span class="y">&#10003;</span> <span class="mono">7/7</span></td></tr><tr><td class="r">9</td><td class="mono">2026-11-15 22:28:44</td><td class="mono">1bdae5a9</td><td><span class="badge Answer">Answer</span></td><td class="mono">claude-fable-5-2</td><td class="r">96</td><td class="r">19,057</td><td class="r">3.4 s</td><td class="r">0</td><td class="mono" style="color:var(--accent)">b5c59ce6d4905b686927f2fc&hellip;</td><td><span class="x">&#10007;</span> <span class="mono">6/7</span></td></tr><tr><td class="r">10</td><td class="mono">2026-11-15 22:33:54</td><td class="mono">869651bf</td><td><span class="badge Explanation">Explanation</span></td><td class="mono">claude-fable-5-2</td><td class="r">1,291</td><td class="r">67,387</td><td class="r">18.1 s</td><td class="r">3</td><td class="mono" style="color:var(--accent)">457217d32e81aca9d1ff5167&hellip;</td><td><span class="x">&#10007;</span> <span class="mono">6/7</span></td></tr><tr><td class="r">11</td><td class="mono">2026-11-15 22:35:00</td><td class="mono">58e6b67d</td><td><span class="badge Explanation">Explanation</span></td><td class="mono">claude-fable-5-2</td><td class="r">1,286</td><td class="r">104,913</td><td class="r">21.8 s</td><td class="r">4</td><td class="mono" style="color:var(--accent)">2e95d8b5da82197f1f1d2a68&hellip;</td><td><span class="y">&#10003;</span> <span class="mono">7/7</span></td></tr><tr><td class="r">12</td><td class="mono">2026-11-15 23:01:25</td><td class="mono">15b0eded</td><td><span class="badge Explanation">Explanation</span></td><td class="mono">claude-fable-5-2</td><td class="r">1,167</td><td class="r">66,194</td><td class="r">19.8 s</td><td class="r">3</td><td class="mono" style="color:var(--accent)">249e1ae898b9cdc2cef9ed1b&hellip;</td><td><span class="x">&#10007;</span> <span class="mono">6/7</span></td></tr><tr><td class="r">13</td><td class="mono">2026-11-15 23:02:55</td><td class="mono">745c9e96</td><td><span class="badge Explanation">Explanation</span></td><td class="mono">claude-fable-5-2</td><td class="r">1,297</td><td class="r">51,302</td><td class="r">17.4 s</td><td class="r">2</td><td class="mono" style="color:var(--accent)">e3cbf8c6652104061e012396&hellip;</td><td><span class="y">&#10003;</span> <span class="mono">7/7</span></td></tr><tr><td class="r">14</td><td class="mono">2026-11-15 23:03:27</td><td class="mono">58851fb8</td><td><span class="badge Explanation">Explanation</span></td><td class="mono">claude-fable-5-2</td><td class="r">1,300</td><td class="r">50,558</td><td class="r">15.9 s</td><td class="r">2</td><td class="mono" style="color:var(--accent)">aad1c9a247c9f65d8a4e46ea&hellip;</td><td><span class="x">&#10007;</span> <span class="mono">6/7</span></td></tr><tr><td class="r">15</td><td class="mono">2026-11-15 23:07:33</td><td class="mono">1eddb69f</td><td><span class="badge Task">Task</span></td><td class="mono">claude-fable-5-2</td><td class="r">46,045</td><td class="r">484,784</td><td class="r">515.2 s</td><td class="r">21</td><td class="mono" style="color:var(--accent)">8b518105eebebb89eda005b6&hellip;</td><td><span class="y">&#10003;</span> <span class="mono">7/7</span></td></tr><tr><td class="r">16</td><td class="mono">2026-11-15 23:15:25</td><td class="mono">0e748230</td><td><span class="badge Task">Task</span></td><td class="mono">claude-fable-5-2</td><td class="r">1,836</td><td class="r">58,108</td><td class="r">44.1 s</td><td class="r">4</td><td class="mono" style="color:var(--accent)">a0a76e64a2d8ea69ed891b76&hellip;</td><td><span class="y">&#10003;</span> <span class="mono">7/7</span></td></tr></tbody>
+      <tfoot><tr><td></td><td colspan="4">Total</td><td class="r">54,396</td><td class="r">947,563</td>
+        <td class="r">676.6 s</td><td class="r">39</td><td colspan="2"></td></tr></tfoot></table>
+    </div>
+    <div class="panel"><h2>How to reproduce</h2>
+      <div class="mono" style="color:var(--accent)">sha256sum chat-metrics.csv chat-metrics.html &nbsp;&amp;&amp;&nbsp; python3 chat-metrics-verify.py</div>
+      <div class="sub">Row hash = SHA-256 of the row's fields as compact JSON (UTF-8). Manifest root = each row hash folded into the previous
+      link, so changing, removing or reordering any row changes the root. Store match compares session id, message, start time, model,
+      output tokens, total tokens and tool calls with the live session store.</div>
+    </div>
+  </div>
+</div>
+
+<div class="scope"><b>Scope.</b> This report shows that the dataset is internally consistent, identical to what is committed in git, and
+agrees with the session store on the machine where it ran. 5 of the 16 recorded turns are errors that never reached a model.
+The hashes are unsigned and the timestamp comes from the host clock, so they detect later changes to the files but are not independent
+third-party attestation.</div>
+</body></html>
