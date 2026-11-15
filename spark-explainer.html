@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Apache Spark Works — An Interactive Guide</title>
+<style>
+:root{
+  --bg:#0a0f1e; --bg2:#0f1629; --panel:#141c33; --panel2:#1a2440; --line:#2a3658;
+  --text:#e6ecff; --muted:#9aa9cc; --spark:#ff7a2f; --spark2:#ffb347;
+  --cyan:#4cc9f0; --violet:#b388ff; --green:#5ee6a8; --red:#ff5d73; --yellow:#ffd166;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:70px}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--cyan)}
+code,pre{font-family:var(--mono)}
+code{background:#0006;border:1px solid var(--line);border-radius:5px;padding:.05em .35em;font-size:.88em}
+
+/* nav */
+nav{position:sticky;top:0;z-index:20;background:#0a0f1ee6;backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+nav .in{max-width:1180px;margin:auto;padding:10px 20px;display:flex;align-items:center;gap:6px;overflow-x:auto}
+nav .logo{font-weight:800;margin-right:auto;white-space:nowrap;display:flex;align-items:center;gap:8px}
+nav .logo span{color:var(--spark)}
+nav a{color:var(--muted);text-decoration:none;padding:6px 12px;border-radius:999px;font-size:.9rem;white-space:nowrap;transition:.2s}
+nav a:hover{color:var(--text)}
+nav a.active{background:var(--spark);color:#1a0d00;font-weight:600}
+
+/* hero */
+header{position:relative;overflow:hidden;padding:90px 20px 70px;text-align:center;background:radial-gradient(900px 400px at 50% -10%,#ff7a2f33,transparent 70%)}
+header h1{font-size:clamp(2.2rem,6vw,4rem);line-height:1.1;margin:0 0 16px;letter-spacing:-.02em}
+header h1 em{font-style:normal;background:linear-gradient(90deg,var(--spark),var(--spark2));-webkit-background-clip:text;background-clip:text;color:transparent}
+header p{max-width:720px;margin:0 auto 28px;color:var(--muted);font-size:1.1rem}
+.flow{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:10px}
+.flow b{background:var(--panel);border:1px solid var(--line);padding:8px 16px;border-radius:999px;font-weight:600;font-size:.9rem;animation:pulse 5s infinite}
+.flow b:nth-of-type(2){animation-delay:1s}.flow b:nth-of-type(3){animation-delay:2s}.flow b:nth-of-type(4){animation-delay:3s}.flow b:nth-of-type(5){animation-delay:4s}
+.flow i{color:var(--spark);font-style:normal}
+@keyframes pulse{0%,20%,100%{border-color:var(--line);box-shadow:none}10%{border-color:var(--spark);box-shadow:0 0 22px #ff7a2f66}}
+.orb{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--spark2);opacity:0;animation:rise 7s linear infinite}
+@keyframes rise{0%{transform:translateY(0);opacity:0}15%{opacity:.8}100%{transform:translateY(-320px);opacity:0}}
+
+/* sections */
+main{max-width:1180px;margin:auto;padding:0 20px 80px}
+section{padding:60px 0 20px;opacity:0;transform:translateY(24px);transition:opacity .7s,transform .7s}
+section.seen{opacity:1;transform:none}
+.kicker{color:var(--spark);font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:.78rem}
+h2{font-size:clamp(1.6rem,3.5vw,2.3rem);margin:.2em 0 .4em;letter-spacing:-.01em}
+h3{margin:0 0 .5em;font-size:1.08rem}
+.lead{color:var(--muted);max-width:820px;margin:0 0 26px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px}
+.grid{display:grid;gap:18px}
+.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}
+.g-main{grid-template-columns:minmax(0,1.9fr) minmax(260px,1fr)}
+@media(max-width:900px){.g2,.g3,.g-main{grid-template-columns:1fr}}
+.sub{margin-top:18px}
+.muted{color:var(--muted)}.small{font-size:.88rem}
+
+/* controls */
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button{font:inherit;font-size:.9rem;font-weight:600;color:var(--text);background:var(--panel2);border:1px solid var(--line);padding:8px 14px;border-radius:10px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--spark);transform:translateY(-1px)}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+button.primary{background:linear-gradient(135deg,var(--spark),#ff9a4d);color:#1a0d00;border-color:transparent}
+button.wideop{border-color:#b388ff88}
+button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+label.ctl{display:flex;align-items:center;gap:8px;font-size:.88rem;color:var(--muted)}
+input[type=range]{accent-color:var(--spark);width:120px}
+input[type=checkbox]{accent-color:var(--spark);width:16px;height:16px}
+.caption{min-height:3.2em;margin-top:12px;padding:10px 14px;border-left:3px solid var(--spark);background:#0005;border-radius:0 10px 10px 0;font-size:.93rem}
+
+/* architecture svg */
+#archSvg{width:100%;height:auto;display:block}
+#archSvg text{fill:var(--text);font-family:inherit;pointer-events:none}
+#archSvg .node{cursor:pointer}
+#archSvg .box{fill:var(--panel2);stroke:var(--line);stroke-width:1.5;transition:.3s}
+#archSvg .node:hover .box,#archSvg .node.sel .box{stroke:var(--spark)}
+#archSvg .inner{fill:#0b1226;stroke:var(--line);transition:.3s}
+#archSvg .inner.hot{fill:#ff7a2f33;stroke:var(--spark)}
+#archSvg .wire{fill:none;stroke:var(--line);stroke-width:1.5;stroke-dasharray:4 5}
+#archSvg .ex.off{opacity:.35}
+#archSvg .ex.dead .box{stroke:var(--red);fill:#3a1420}
+#archSvg .slotbg{fill:#0b1226;stroke:var(--line)}
+#archSvg .slotfill{fill:var(--green)}
+#archSvg .t1{font-weight:700;font-size:15px}
+#archSvg .t2{font-size:10.5px;fill:var(--muted)}
+#archSvg .t3{font-size:11px}
+ol.steps{margin:0;padding:0;list-style:none;counter-reset:s}
+ol.steps li{counter-increment:s;padding:7px 10px 7px 40px;position:relative;border-radius:8px;font-size:.9rem;color:var(--muted);transition:.3s}
+ol.steps li::before{content:counter(s);position:absolute;left:8px;top:7px;width:22px;height:22px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);font-size:.75rem;display:grid;place-items:center;font-weight:700}
+ol.steps li.on{background:#ff7a2f22;color:var(--text)}
+ol.steps li.on::before{background:var(--spark);color:#1a0d00;border-color:transparent}
+ol.steps li.done::before{background:var(--green);color:#052;border-color:transparent;content:"✓"}
+
+/* code */
+pre{margin:0;background:#070b17;border:1px solid var(--line);border-radius:12px;padding:14px 16px;overflow-x:auto;font-size:.84rem;line-height:1.55}
+pre .c{color:#62749c;font-style:italic}pre .s{color:var(--green)}pre .k{color:var(--violet)}pre .n{color:var(--yellow)}
+.tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.tabs button.on{background:var(--spark);color:#1a0d00;border-color:transparent}
+table.cmp{width:100%;border-collapse:collapse;font-size:.9rem}
+table.cmp th,table.cmp td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+table.cmp th{color:var(--muted);font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em}
+table.cmp td:first-child{color:var(--muted);white-space:nowrap}
+table.cmp tr:last-child td{border-bottom:0}
+.tag{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid}
+.tag.o{color:var(--spark2);border-color:#ff7a2f77}.tag.c{color:var(--cyan);border-color:#4cc9f077}.tag.v{color:var(--violet);border-color:#b388ff77}.tag.g{color:var(--green);border-color:#5ee6a877}
+
+/* lineage */
+.lineage{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;margin:16px 0;min-height:130px}
+.stage{border:1.5px dashed var(--line);border-radius:14px;padding:8px 10px 10px;background:#0004}
+.stage-h{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.stage.run{border-color:var(--green)}
+.stage-b{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.lnode{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:92px;text-align:center;animation:pop .3s}
+.lnode b{display:block;font-family:var(--mono);font-size:.82rem}
+.lnode small{font-size:.68rem;color:var(--cyan)}
+.lnode.wide small{color:var(--violet)}.lnode.wide{border-color:#b388ff88}
+.lnode.src small{color:var(--muted)}
+.parts{display:flex;gap:3px;justify-content:center;margin-top:6px}
+.parts i{width:14px;height:14px;border-radius:3px;background:#0b1226;border:1px solid var(--line);transition:.25s}
+.parts i.on{background:var(--green);border-color:var(--green);box-shadow:0 0 8px #5ee6a888}
+.arrow{color:var(--muted);font-size:1.1rem}
+.shuffle{display:flex;flex-direction:column;justify-content:center;align-items:center;font-size:.68rem;font-weight:700;color:var(--violet);letter-spacing:.08em;padding:0 2px}
+.shuffle span{font-size:1.5rem;line-height:1}
+.shuffle.hot{color:var(--spark2);text-shadow:0 0 12px var(--spark)}
+@keyframes pop{from{transform:scale(.7);opacity:0}}
+.stat{display:inline-flex;gap:6px;align-items:baseline;background:#0005;border:1px solid var(--line);border-radius:10px;padding:5px 12px;font-size:.85rem;color:var(--muted)}
+.stat b{color:var(--text);font-family:var(--mono);font-size:1rem}
+
+/* catalyst */
+.stepper{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.stepper button{flex:1;min-width:120px;text-align:left;padding:10px 12px}
+.stepper button small{display:block;font-weight:400;color:var(--muted);font-size:.72rem}
+.stepper button.on{border-color:var(--spark);background:#ff7a2f22}
+#planSvg{display:block;margin:auto;max-width:100%;height:auto}
+#planSvg rect{fill:var(--panel2);stroke:var(--line);stroke-width:1.5}
+#planSvg g.new rect{stroke:var(--spark);fill:#ff7a2f1f}
+#planSvg g.scan rect{stroke:var(--cyan)}
+#planSvg g.cg rect{stroke:var(--green);fill:#5ee6a814}
+#planSvg g{animation:pop .35s backwards;transform-box:fill-box;transform-origin:center}
+#planSvg line{stroke:var(--line);stroke-width:1.5}
+#planSvg .pt{font-weight:700;font-size:13px;fill:var(--text)}
+#planSvg .pd{font-size:10.5px;fill:var(--muted);font-family:var(--mono)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.78rem;color:var(--muted);margin-top:10px;justify-content:center}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;border:1.5px solid}
+
+/* streaming */
+canvas{display:block;width:100%;height:auto;border-radius:12px;background:#070b17;border:1px solid var(--line)}
+.wins{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.win{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:9px;background:#0005;border:1px solid var(--line);font-size:.82rem;font-family:var(--mono)}
+.win.final{opacity:.6}
+.win .wl{min-width:118px}
+.win .chip{padding:1px 8px;border-radius:999px;color:#08101f;font-weight:700;min-width:30px;text-align:center}
+.win .st{margin-left:auto;font-family:inherit;font-size:.72rem;color:var(--green)}
+.win.final .st{color:var(--muted)}
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+
+/* ML */
+.pipe{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.pstage{background:var(--panel2);border:1.5px solid var(--line);border-radius:12px;padding:10px 14px;cursor:pointer;text-align:center;transition:.25s;font:inherit;color:var(--text)}
+.pstage b{display:block;font-size:.92rem}
+.pstage small{font-size:.7rem;color:var(--muted)}
+.pstage.on{border-color:var(--spark);background:#ff7a2f22;box-shadow:0 0 18px #ff7a2f44}
+.dfwrap{overflow-x:auto;margin-top:14px}
+table.df{border-collapse:collapse;font-family:var(--mono);font-size:.8rem;white-space:nowrap}
+table.df th,table.df td{border:1px solid var(--line);padding:6px 10px;text-align:left}
+table.df th{background:var(--panel2)}
+table.df .newcol{background:#ff7a2f22;animation:pop .4s}
+#kmCanvas{cursor:crosshair}
+#costSvg{width:100%;height:60px;display:block}
+
+footer{border-top:1px solid var(--line);text-align:center;color:var(--muted);padding:26px 20px;font-size:.85rem}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}html{scroll-behavior:auto}section{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<nav><div class="in">
+  <div class="logo">✦ <span>Spark</span> Explained</div>
+  <a href="#arch">Architecture</a>
+  <a href="#rdd">RDD vs DataFrame</a>
+  <a href="#sql">Spark SQL</a>
+  <a href="#stream">Streaming</a>
+  <a href="#ml">ML</a>
+</div></nav>
+
+<header id="top">
+  <h1>How <em>Apache Spark</em> works</h1>
+  <p>Spark turns one program into thousands of small tasks, runs them in parallel across a cluster, and recovers when machines fail. Press the buttons, drag the sliders, and watch it happen.</p>
+  <div class="flow">
+    <b>Your code</b><i>→</i><b>Logical plan</b><i>→</i><b>DAG of stages</b><i>→</i><b>Tasks on executors</b><i>→</i><b>Result</b>
+  </div>
+</header>
+
+<main>
+
+<!-- ================= ARCHITECTURE ================= -->
+<section id="arch">
+  <div class="kicker">01 · Architecture</div>
+  <h2>One driver, many executors</h2>
+  <p class="lead">A Spark application is a <b>driver</b> process that plans the work and a set of <b>executor</b> processes that do it. A <b>cluster manager</b> hands out the machines. Run a job below, and click any box to see what it does.</p>
+
+  <div class="grid g-main">
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <button class="primary" id="archRun">▶ Run a job</button>
+        <label class="ctl">Executors <input type="range" id="archN" min="2" max="4" value="3"><b id="archNv">3</b></label>
+        <label class="ctl"><input type="checkbox" id="archFail"> Kill an executor mid-job</label>
+      </div>
+      <svg id="archSvg" viewBox="0 0 900 420" role="img" aria-label="Spark cluster diagram with driver, cluster manager and executors"></svg>
+      <div class="caption" id="archCap">Press <b>Run a job</b> to follow an action such as <code>df.count()</code> through the cluster.</div>
+    </div>
+    <div class="grid" style="align-content:start">
+      <div class="card">
+        <h3>What happens in a job</h3>
+        <ol class="steps" id="archSteps">
+          <li>Driver asks the cluster manager for resources</li>
+          <li>Cluster manager launches executors</li>
+          <li>Driver turns your code into a DAG of stages and tasks</li>
+          <li>Tasks are shipped to executors</li>
+          <li>Executors run tasks, one per partition per core</li>
+          <li>Results and status flow back to the driver</li>
+        </ol>
+      </div>
+      <div class="card" id="archInfo" aria-live="polite">
+        <h3>Click a component</h3>
+        <p class="muted small" style="margin:0">Select the driver, the cluster manager, or an executor in the diagram.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= RDD vs DATAFRAME ================= -->
+<section id="rdd">
+  <div class="kicker">02 · Data abstractions</div>
+  <h2>RDD vs DataFrame</h2>
+  <p class="lead">Both are distributed, immutable, partitioned collections evaluated lazily. The difference is how much Spark knows about your data. An RDD holds opaque objects; a DataFrame holds rows with a schema, so Spark can optimise the query for you.</p>
+
+  <div class="grid g2">
+    <div class="card">
+      <h3>Same question, three APIs: average age per department</h3>
+      <div class="tabs" id="codeTabs">
+        <button data-t="rdd" class="on">RDD</button><button data-t="df">DataFrame</button><button data-t="sql">SQL</button>
+      </div>
+      <pre id="codeBox"></pre>
+      <p class="small muted" id="codeNote" style="margin:12px 0 0"></p>
+    </div>
+    <div class="card">
+      <h3>Side by side</h3>
+      <table class="cmp">
+        <tr><th></th><th>RDD</th><th>DataFrame / Dataset</th></tr>
+        <tr><td>Holds</td><td>Arbitrary objects</td><td>Rows with named, typed columns</td></tr>
+        <tr><td>You say</td><td><i>How</i> to compute (lambdas)</td><td><i>What</i> you want (expressions)</td></tr>
+        <tr><td>Optimiser</td><td>None. Runs exactly as written</td><td>Catalyst rewrites the plan</td></tr>
+        <tr><td>Memory</td><td>JVM or pickled Python objects</td><td>Tungsten compact binary format</td></tr>
+        <tr><td>Python cost</td><td>Each row crosses JVM ↔ Python</td><td>Stays in the JVM for built-in functions</td></tr>
+        <tr><td>Use when</td><td>Unstructured data, custom partitioning, low-level control</td><td>Almost everything else</td></tr>
+      </table>
+      <p class="small muted" style="margin:12px 0 0">A <b>Dataset</b> (Scala/Java) is a DataFrame with compile-time types. In fact <code>DataFrame = Dataset[Row]</code>. Under the hood every DataFrame query still compiles down to RDDs.</p>
+    </div>
+  </div>
+
+  <div class="card sub">
+    <h3>Playground: lazy evaluation, lineage and stages</h3>
+    <p class="small muted" style="margin-top:0">Transformations only record a recipe (the <b>lineage</b>). Nothing runs until an <b>action</b>. <span class="tag c">narrow</span> transformations work partition by partition and are pipelined into one stage. <span class="tag v">wide</span> transformations need a <b>shuffle</b>, which starts a new stage.</p>
+    <div class="row">
+      <span class="small muted">Narrow:</span>
+      <button data-op="map">+ map</button><button data-op="filter">+ filter</button><button data-op="flatMap">+ flatMap</button>
+      <span class="small muted">Wide:</span>
+      <button class="wideop" data-op="reduceByKey">+ reduceByKey</button><button class="wideop" data-op="sortByKey">+ sortByKey</button><button class="wideop" data-op="repartition">+ repartition</button>
+      <button id="linUndo">↶ Undo</button><button id="linClear">Clear</button>
+    </div>
+    <div class="lineage" id="lineage"></div>
+    <div class="grid g2">
+      <div>
+        <div class="row" style="margin-bottom:10px">
+          <span class="small muted">Action:</span>
+          <button class="primary" data-act="collect()">▶ collect()</button>
+          <button class="primary" data-act="count()">▶ count()</button>
+        </div>
+        <div class="row">
+          <span class="stat">Jobs <b id="stJobs">0</b></span>
+          <span class="stat">Stages <b id="stStages">0</b></span>
+          <span class="stat">Tasks <b id="stTasks">0</b></span>
+        </div>
+        <div class="caption" id="linCap"></div>
+      </div>
+      <pre id="linCode"></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SPARK SQL ================= -->
+<section id="sql">
+  <div class="kicker">03 · Spark SQL</div>
+  <h2>From a query to running code: the Catalyst optimiser</h2>
+  <p class="lead">SQL strings and DataFrame calls both become the same tree of operators. Catalyst rewrites that tree through several phases before anything touches data. Step through them.</p>
+
+  <div class="card">
+    <pre id="sqlQuery" style="margin-bottom:16px"></pre>
+    <div class="stepper" id="sqlStepper"></div>
+    <div class="grid g-main">
+      <div>
+        <svg id="planSvg" role="img" aria-label="Query plan tree"></svg>
+        <div class="legend">
+          <span><i style="border-color:var(--spark);background:#ff7a2f33"></i>changed in this phase</span>
+          <span><i style="border-color:var(--cyan)"></i>data source</span>
+          <span><i style="border-color:var(--green);background:#5ee6a822"></i>fused by codegen</span>
+        </div>
+        <p class="small muted" style="text-align:center;margin:8px 0 0">Data flows bottom to top.</p>
+      </div>
+      <div>
+        <h3 id="sqlTitle"></h3>
+        <p class="small" id="sqlDesc" style="margin-top:0"></p>
+        <div id="sqlExtra"></div>
+        <div class="row" style="margin-top:14px">
+          <button id="sqlPrev">← Back</button><button class="primary" id="sqlNext">Next phase →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= STREAMING ================= -->
+<section id="stream">
+  <div class="kicker">04 · Structured Streaming</div>
+  <h2>A stream is a table that never stops growing</h2>
+  <p class="lead">Structured Streaming runs the same DataFrame query repeatedly on small <b>micro-batches</b> of new rows and updates the result incrementally. This demo counts events per key in 5-second event-time windows. Hollow dots are events that arrive late.</p>
+
+  <div class="grid g-main">
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <button id="stPause">⏸ Pause</button>
+        <label class="ctl">Events/sec <input type="range" id="stRate" min="1" max="20" value="6"><b id="stRateV">6</b></label>
+        <label class="ctl">Trigger interval <input type="range" id="stTrig" min="1" max="6" step="0.5" value="2"><b id="stTrigV">2s</b></label>
+        <label class="ctl">Watermark delay <input type="range" id="stWm" min="0" max="12" value="5"><b id="stWmV">5s</b></label>
+      </div>
+      <canvas id="stCanvas" width="760" height="240"></canvas>
+      <div class="stats">
+        <span class="stat">Batches <b id="sBatches">0</b></span>
+        <span class="stat">Input rows <b id="sRows">0</b></span>
+        <span class="stat">Max event time <b id="sMax">–</b></span>
+        <span class="stat">Watermark <b id="sWm">–</b></span>
+        <span class="stat">Dropped late <b id="sDrop">0</b></span>
+      </div>
+      <pre style="margin-top:14px" id="stCode"></pre>
+    </div>
+    <div class="grid" style="align-content:start">
+      <div class="card">
+        <h3>Result table (windowed counts)</h3>
+        <p class="small muted" style="margin:0">Updated after every micro-batch.</p>
+        <div class="wins" id="stWins"><span class="small muted">Waiting for the first batch…</span></div>
+      </div>
+      <div class="card small">
+        <h3>What to try</h3>
+        <p style="margin:0 0 8px"><b>Trigger interval</b>: longer means bigger batches and higher latency, but less overhead per row.</p>
+        <p style="margin:0 0 8px"><b>Watermark delay</b>: how long Spark waits for late data. The watermark is <i>max event time seen − delay</i>. Once it passes a window's end, that window is finalised, its state is freed, and later events for it are dropped.</p>
+        <p style="margin:0">Set the delay to 0 and watch the dropped count climb. Set it to 12 and windows stay open longer, which costs memory.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ML ================= -->
+<section id="ml">
+  <div class="kicker">05 · Machine learning</div>
+  <h2>MLlib: pipelines and distributed training</h2>
+  <p class="lead">MLlib builds models from two kinds of parts. A <b>Transformer</b> turns one DataFrame into another by adding columns. An <b>Estimator</b> learns from a DataFrame and produces a Transformer (the fitted model). A <b>Pipeline</b> chains them.</p>
+
+  <div class="card">
+    <h3>A text-classification pipeline</h3>
+    <div class="row" style="margin-bottom:12px"><button class="primary" id="pipeFit">▶ pipeline.fit(training)</button><span class="small muted">or click a stage</span></div>
+    <div class="pipe" id="pipe"></div>
+    <p class="small" id="pipeDesc" style="margin:14px 0 0"></p>
+    <div class="dfwrap"><table class="df" id="pipeDf"></table></div>
+  </div>
+
+  <div class="grid g-main sub">
+    <div class="card">
+      <h3>Distributed training, live: k-means</h3>
+      <div class="row" style="margin-bottom:10px">
+        <button class="primary" id="kmStep">Step</button>
+        <button id="kmRun">▶ Run</button>
+        <button id="kmReset">New data</button>
+        <label class="ctl">k <input type="range" id="kmK" min="2" max="6" value="3"><b id="kmKv">3</b></label>
+      </div>
+      <canvas id="kmCanvas" width="560" height="340"></canvas>
+      <div class="caption" id="kmCap"></div>
+    </div>
+    <div class="grid" style="align-content:start">
+      <div class="card small">
+        <h3>Why this parallelises</h3>
+        <p style="margin:0 0 8px"><b>Assign</b> is a <code>map</code>: each executor labels the points in its own partitions with the nearest centroid. No executor needs another's data.</p>
+        <p style="margin:0 0 8px"><b>Update</b> is a <code>reduce</code>: executors send per-cluster sums and counts, and the driver averages them into new centroids, then broadcasts them for the next round.</p>
+        <p style="margin:0">Only the small centroid list moves between rounds, never the dataset. Most MLlib algorithms follow this pattern. Click the canvas to add points.</p>
+      </div>
+      <div class="card">
+        <h3>Cost per iteration</h3>
+        <svg id="costSvg" viewBox="0 0 300 60" preserveAspectRatio="none"></svg>
+        <div class="row" style="margin-top:8px">
+          <span class="stat">Iteration <b id="kmIter">0</b></span>
+          <span class="stat">WSSSE <b id="kmCost">–</b></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer>A single self-contained HTML file. No network requests, no dependencies. Diagrams are simplified models of Spark's behaviour.</footer>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const NS = 'http://www.w3.org/2000/svg';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const PAL = ['#ff8a3d', '#4cc9f0', '#b388ff', '#5ee6a8', '#ffd166', '#ff5d73'];
+function S(tag, attrs, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function hl(code) {
+  const esc = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return esc.replace(/(#.*$|\/\/.*$)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|\b(lambda|import|from|return|while|if|continue|SELECT|FROM|WHERE|GROUP BY|JOIN|ON|AS|AND)\b|\b(\d+(?:\.\d+)?)\b/gm,
+    (m, c, s, k, n) => c ? `<span class="c">${m}</span>` : s ? `<span class="s">${m}</span>` : k ? `<span class="k">${m}</span>` : `<span class="n">${m}</span>`);
+}
+
+/* ---------- hero sparks, nav, reveal ---------- */
+const hero = $('#top');
+for (let i = 0; i < 18; i++) {
+  const o = document.createElement('span');
+  o.className = 'orb';
+  o.style.cssText = `left:${Math.random() * 100}%;bottom:${-10 + Math.random() * 30}px;animation-delay:${Math.random() * 7}s;animation-duration:${5 + Math.random() * 5}s`;
+  hero.appendChild(o);
+}
+const visible = {};
+const io = new IntersectionObserver(es => es.forEach(e => {
+  visible[e.target.id] = e.isIntersecting;
+  if (e.isIntersecting) e.target.classList.add('seen');
+}), { threshold: 0.05 });
+$$('section').forEach(s => io.observe(s));
+const spy = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) $$('nav a').forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + e.target.id));
+}), { rootMargin: '-45% 0px -50% 0px' });
+$$('section').forEach(s => spy.observe(s));
+
+/* ================= ARCHITECTURE ================= */
+const arch = { run: 0, ex: [], rows: [] };
+const archSvg = $('#archSvg');
+const INFO = {
+  driver: ['Driver', 'The process running your <code>main()</code> and the SparkSession. It turns your code into a plan, splits the plan into stages and tasks, decides which executor runs which task, and collects results. If the driver dies, the application dies.'],
+  session: ['SparkSession · your code', 'The entry point to Spark. Calls like <code>spark.read</code> or <code>df.filter()</code> only build a plan here. No data moves until an action such as <code>count()</code> or <code>write</code>.'],
+  dag: ['DAG Scheduler', 'Takes the lineage graph of an action and cuts it into <b>stages</b> at every shuffle boundary. It submits stages in dependency order and resubmits them if shuffle output is lost.'],
+  task: ['Task Scheduler', 'Turns each stage into one <b>task per partition</b> and sends tasks to executors, preferring executors that already hold the data (locality). It retries failed tasks, up to 4 attempts by default.'],
+  cm: ['Cluster Manager', 'YARN, Kubernetes, or Spark Standalone. It owns the machines and grants the driver containers to run executors in. It does not see your data or schedule individual tasks.'],
+  ex: ['Executor', 'A JVM process on a worker node, started for this application only. Each core is a <b>task slot</b>. Executors run tasks, keep cached partitions and shuffle files in their BlockManager, and send heartbeats to the driver.']
+};
+function showInfo(key, node) {
+  $$('#archSvg .node').forEach(n => n.classList.remove('sel'));
+  if (node) node.classList.add('sel');
+  $('#archInfo').innerHTML = `<h3>${INFO[key][0]}</h3><p class="small" style="margin:0">${INFO[key][1]}</p>`;
+}
+function clickable(g, key) {
+  g.classList.add('node'); g.setAttribute('tabindex', '0'); g.setAttribute('role', 'button'); g.setAttribute('aria-label', INFO[key][0]);
+  const f = e => { e.stopPropagation(); showInfo(key, g); };
+  g.addEventListener('click', f);
+  g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); f(e); } });
+}
+function buildArch() {
+  arch.run++;
+  archSvg.innerHTML = '';
+  const n = +$('#archN').value;
+  const gW = S('g', {}, archSvg), gN = S('g', {}, archSvg);
+  arch.dots = S('g', {}, archSvg);
+  // driver
+  const d = S('g', {}, gN); clickable(d, 'driver');
+  S('rect', { class: 'box', x: 30, y: 110, width: 230, height: 220, rx: 14 }, d);
+  S('text', { class: 't1', x: 46, y: 136 }, d, 'Driver');
+  S('text', { class: 't2', x: 100, y: 136 }, d, 'plans and coordinates');
+  arch.rows = ['session', 'dag', 'task'].map((k, i) => {
+    const g = S('g', {}, gN); clickable(g, k);
+    const r = S('rect', { class: 'box inner', x: 45, y: 152 + i * 56, width: 200, height: 44, rx: 8 }, g);
+    S('text', { class: 't3', x: 145, y: 179 + i * 56, 'text-anchor': 'middle' }, g, INFO[k][0]);
+    return r;
+  });
+  // cluster manager
+  const c = S('g', {}, gN); clickable(c, 'cm');
+  S('rect', { class: 'box', x: 350, y: 20, width: 200, height: 70, rx: 14 }, c);
+  S('text', { class: 't1', x: 450, y: 50, 'text-anchor': 'middle' }, c, 'Cluster Manager');
+  S('text', { class: 't2', x: 450, y: 70, 'text-anchor': 'middle' }, c, 'YARN · Kubernetes · Standalone');
+  S('path', { class: 'wire', d: 'M145,110 V55 H350' }, gW);
+  // executors
+  const h = (400 - (n - 1) * 12) / n;
+  arch.ex = [];
+  for (let i = 0; i < n; i++) {
+    const y = 10 + i * (h + 12), cy = y + h / 2;
+    const g = S('g', { class: 'ex off' }, gN); clickable(g, 'ex');
+    S('rect', { class: 'box', x: 640, y, width: 230, height: h, rx: 14 }, g);
+    S('text', { class: 't1', x: 655, y: y + 22 }, g, 'Executor ' + (i + 1));
+    S('text', { class: 't2', x: 855, y: y + 22, 'text-anchor': 'end' }, g, '2 cores');
+    const slots = [0, 1].map(j => {
+      const x = 655 + j * 105;
+      S('rect', { class: 'slotbg', x, y: y + 32, width: 95, height: 16, rx: 4 }, g);
+      const fill = S('rect', { class: 'slotfill', x, y: y + 32, width: 0, height: 16, rx: 4 }, g);
+      const label = S('text', { class: 't2', x: x + 47, y: y + 44, 'text-anchor': 'middle' }, g, 'idle slot');
+      return { fill, label, tok: 0 };
+    });
+    S('rect', { class: 'inner', x: 655, y: y + 56, width: 200, height: 20, rx: 4 }, g);
+    S('text', { class: 't2', x: 755, y: y + 70, 'text-anchor': 'middle' }, g, 'BlockManager · cache · shuffle files');
+    S('path', { class: 'wire', d: `M260,220 L640,${cy + 8}` }, gW);
+    S('path', { class: 'wire', d: `M550,55 L640,${y + 16}` }, gW);
+    arch.ex.push({ g, slots, alive: true, top: [640, y + 16], mid: [640, cy + 8] });
+  }
+  $$('#archSteps li').forEach(li => li.className = '');
+  $('#archCap').innerHTML = 'Press <b>Run a job</b> to follow an action such as <code>df.count()</code> through the cluster.';
+}
+function dot(pts, color = '#ff7a2f', dur = 700) {
+  return new Promise(res => {
+    const c = S('circle', { r: 6, fill: color, cx: pts[0][0], cy: pts[0][1] }, arch.dots);
+    const segs = []; let total = 0;
+    for (let i = 1; i < pts.length; i++) { const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); segs.push(l); total += l; }
+    const t0 = performance.now();
+    (function f(t) {
+      let p = Math.min(1, (t - t0) / dur), dist = p * total, i = 0;
+      while (i < segs.length - 1 && dist > segs[i]) dist -= segs[i++];
+      const q = segs[i] ? dist / segs[i] : 1;
+      c.setAttribute('cx', pts[i][0] + (pts[i + 1][0] - pts[i][0]) * q);
+      c.setAttribute('cy', pts[i][1] + (pts[i + 1][1] - pts[i][1]) * q);
+      if (p < 1 && c.isConnected) requestAnimationFrame(f); else { c.remove(); res(); }
+    })(t0);
+  });
+}
+function runSlot(slot, dur, name) {
+  return new Promise(res => {
+    const tok = ++slot.tok, t0 = performance.now();
+    slot.label.textContent = name;
+    (function f(t) {
+      if (slot.tok !== tok) return res(false);
+      const p = Math.min(1, (t - t0) / dur);
+      slot.fill.setAttribute('width', 95 * p);
+      if (p < 1) requestAnimationFrame(f); else res(true);
+    })(t0);
+  });
+}
+function clearSlot(s) { s.tok++; s.fill.setAttribute('width', 0); s.label.textContent = 'idle slot'; }
+function setStep(i, html) {
+  $$('#archSteps li').forEach((li, j) => li.className = j < i ? 'done' : j === i ? 'on' : '');
+  $('#archCap').innerHTML = html;
+}
+async function runJob() {
+  buildArch();
+  const me = arch.run, ok = () => me === arch.run;
+  const fail = $('#archFail').checked, D = [260, 220], ex = arch.ex;
+  const hot = i => arch.rows.forEach((r, j) => r.classList.toggle('hot', j === i));
+  setStep(0, 'The driver starts and asks the cluster manager for containers to run executors in.');
+  await dot([[145, 110], [145, 55], [350, 55]]); if (!ok()) return;
+  setStep(1, 'The cluster manager starts executor processes on worker nodes. They register with the driver directly.');
+  await Promise.all(ex.map(e => dot([[550, 55], e.top], '#4cc9f0'))); if (!ok()) return;
+  ex.forEach(e => e.g.classList.remove('off'));
+  await sleep(500); if (!ok()) return;
+  setStep(2, 'Your code calls an action. Until now, transformations only built a plan.');
+  hot(0); await sleep(900); if (!ok()) return;
+  setStep(2, 'The DAG Scheduler cuts the plan at the shuffle into <b>2 stages</b>.');
+  hot(1); await sleep(1100); if (!ok()) return;
+  setStep(2, `The Task Scheduler creates one task per partition: <b>${ex.length * 2} tasks</b> per stage.`);
+  hot(2); await sleep(1100); if (!ok()) return;
+  for (let st = 0; st < 2; st++) {
+    const live = ex.filter(e => e.alive);
+    setStep(3, `<b>Stage ${st}</b>: the driver serialises ${live.length * 2} tasks (code plus partition info) and sends them to executors.`);
+    await Promise.all(live.flatMap(e => [dot([D, e.mid]), sleep(150).then(() => dot([D, e.mid]))])); if (!ok()) return;
+    setStep(4, `<b>Stage ${st}</b>: each core runs one task on one partition. ${st ? 'Tasks read the shuffled data and finish the aggregation.' : 'Tasks read input, apply the pipelined narrow transformations, and write shuffle files.'}`);
+    const work = live.flatMap((e, i) => e.slots.map((s, j) => runSlot(s, 1300 + Math.random() * 900, `task ${st}.${i * 2 + j}`)));
+    if (fail && st === 0) {
+      const v = ex[ex.length - 1];
+      await sleep(650); if (!ok()) return;
+      v.alive = false; v.g.classList.add('dead'); v.slots.forEach(clearSlot);
+      v.slots.forEach(s => s.label.textContent = 'lost');
+      $('#archCap').innerHTML = `<b>Executor ${ex.length} died.</b> Its heartbeats stop and its two running tasks are lost.`;
+      await Promise.all(work); if (!ok()) return;
+      await sleep(600); if (!ok()) return;
+      setStep(3, 'The driver still has the lineage, so it simply <b>reschedules the lost tasks</b> on a surviving executor. No data is lost.');
+      ex[0].slots.forEach(clearSlot);
+      await Promise.all([dot([D, ex[0].mid], '#ff5d73'), sleep(150).then(() => dot([D, ex[0].mid], '#ff5d73'))]); if (!ok()) return;
+      setStep(4, 'The retried tasks recompute those two partitions from the source.');
+      await Promise.all(ex[0].slots.map((s, j) => runSlot(s, 1200, 'retry 0.' + ((ex.length - 1) * 2 + j)))); if (!ok()) return;
+    } else { await Promise.all(work); if (!ok()) return; }
+    const alive = ex.filter(e => e.alive);
+    setStep(5, st ? 'Executors send the final results back to the driver.' : 'Executors report where their shuffle output lives, so stage 1 knows where to fetch it.');
+    await Promise.all(alive.map(e => dot([e.mid, D], '#5ee6a8'))); if (!ok()) return;
+    alive.forEach(e => e.slots.forEach(clearSlot));
+    await sleep(400); if (!ok()) return;
+  }
+  hot(-1);
+  setStep(6, `<b>Job finished.</b> The driver returns the result to your program. Executors stay up for the next job${fail ? ', and the driver would ask the cluster manager for a replacement executor' : ''}.`);
+}
+$('#archRun').onclick = runJob;
+$('#archN').oninput = e => { $('#archNv').textContent = e.target.value; buildArch(); };
+buildArch();
+
+/* ================= RDD vs DATAFRAME ================= */
+const CODE = {
+  rdd: [`lines = sc.textFile("people.csv")
+people = lines.map(lambda l: l.split(","))
+
+avg_age = (people
+  .map(lambda p: (p[2], (int(p[1]), 1)))    # (dept, (age, 1))
+  .reduceByKey(lambda a, b: (a[0] + b[0], a[1] + b[1]))
+  .mapValues(lambda s: s[0] / s[1])
+  .collect())`, 'You spell out every step. Spark sees only opaque lambdas, so it cannot reorder, prune, or push anything down. It runs exactly what you wrote.'],
+  df: [`from pyspark.sql.functions import avg
+
+df = spark.read.csv("people.csv", header=True, inferSchema=True)
+
+df.groupBy("dept").agg(avg("age")).show()`, 'You describe the result. Spark knows the columns and types, so Catalyst can read only <code>dept</code> and <code>age</code>, pick the aggregation strategy, and generate tight JVM code.'],
+  sql: [`df.createOrReplaceTempView("people")
+
+spark.sql("""
+  SELECT dept, AVG(age)
+  FROM people
+  GROUP BY dept
+""").show()`, 'SQL and the DataFrame API are two front ends to the same engine. This compiles to the identical physical plan as the DataFrame version.']
+};
+function showCode(t) {
+  $$('#codeTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  $('#codeBox').innerHTML = hl(CODE[t][0]);
+  $('#codeNote').innerHTML = CODE[t][1];
+}
+$$('#codeTabs button').forEach(b => b.onclick = () => showCode(b.dataset.t));
+showCode('rdd');
+
+const OPS = {
+  map: { code: '.map(lambda w: (w, 1))' },
+  filter: { code: '.filter(lambda x: len(x) > 0)' },
+  flatMap: { code: '.flatMap(lambda line: line.split(" "))' },
+  reduceByKey: { wide: 1, code: '.reduceByKey(lambda a, b: a + b)' },
+  sortByKey: { wide: 1, code: '.sortByKey()' },
+  repartition: { wide: 1, code: '.repartition(4)' }
+};
+const lin = { ops: ['flatMap', 'map', 'reduceByKey'], jobs: 0, stages: 0, tasks: 0, run: 0, action: null };
+function linStages() {
+  const st = [['textFile']];
+  lin.ops.forEach(o => OPS[o].wide ? st.push([o]) : st[st.length - 1].push(o));
+  return st;
+}
+function renderLin(msg) {
+  lin.run++;
+  const node = n => {
+    const o = OPS[n];
+    return `<div class="lnode ${!o ? 'src' : o.wide ? 'wide' : ''}"><b>${n}</b><small>${!o ? 'source' : o.wide ? 'wide' : 'narrow'}</small><div class="parts"><i></i><i></i><i></i><i></i></div></div>`;
+  };
+  $('#lineage').innerHTML = linStages().map((st, i) =>
+    (i ? '<div class="shuffle"><span>⤮</span>SHUFFLE</div>' : '') +
+    `<div class="stage"><div class="stage-h">Stage ${i}</div><div class="stage-b">${st.map(node).join('<span class="arrow">→</span>')}</div></div>`).join('');
+  $('#linCode').innerHTML = hl('rdd = (sc.textFile("hdfs://logs/*.txt")   # 4 partitions\n' +
+    lin.ops.map(o => '    ' + OPS[o].code + '\n').join('') + ')\n' +
+    (lin.action ? `rdd.${lin.action}   # action: triggers a job` : '# no action yet: nothing has executed'));
+  $('#stJobs').textContent = lin.jobs; $('#stStages').textContent = lin.stages; $('#stTasks').textContent = lin.tasks;
+  $('#linCap').innerHTML = msg || `Lineage recorded: ${lin.ops.length} transformation${lin.ops.length === 1 ? '' : 's'}, <b>0 bytes read</b>. Spark is waiting for an action.`;
+  $$('[data-op]').forEach(b => b.disabled = lin.ops.length >= 7);
+}
+$$('[data-op]').forEach(b => b.onclick = () => { lin.ops.push(b.dataset.op); lin.action = null; renderLin(); });
+$('#linUndo').onclick = () => { lin.ops.pop(); lin.action = null; renderLin(); };
+$('#linClear').onclick = () => { lin.ops = []; lin.action = null; renderLin(); };
+$$('[data-act]').forEach(b => b.onclick = async () => {
+  lin.action = b.dataset.act;
+  renderLin(`<code>${lin.action}</code> called. The driver walks the lineage backwards and builds the stages.`);
+  const me = lin.run, ok = () => me === lin.run;
+  const stages = $$('#lineage .stage'), shuf = $$('#lineage .shuffle');
+  await sleep(700); if (!ok()) return;
+  for (let i = 0; i < stages.length; i++) {
+    if (i) {
+      shuf[i - 1].classList.add('hot');
+      $('#linCap').innerHTML = `Shuffle: rows are regrouped by key across the network so each key lands in one partition.`;
+      await sleep(800); if (!ok()) return;
+      shuf[i - 1].classList.remove('hot');
+    }
+    stages[i].classList.add('run');
+    $('#linCap').innerHTML = `<b>Stage ${i}</b>: 4 tasks, one per partition. Narrow transformations run back to back inside each task.`;
+    for (const n of $$('.lnode', stages[i])) {
+      $$('i', n).forEach((p, k) => setTimeout(() => ok() && p.classList.add('on'), k * 90));
+      await sleep(520); if (!ok()) return;
+    }
+    stages[i].classList.remove('run');
+  }
+  lin.jobs++; lin.stages += stages.length; lin.tasks += stages.length * 4;
+  $('#stJobs').textContent = lin.jobs; $('#stStages').textContent = lin.stages; $('#stTasks').textContent = lin.tasks;
+  $('#linCap').innerHTML = `<b>Job done:</b> ${stages.length} stage${stages.length > 1 ? 's' : ''} × 4 partitions = ${stages.length * 4} tasks. Run the action again and Spark recomputes everything, unless you <code>cache()</code>.`;
+});
+renderLin();
+
+/* ================= SPARK SQL ================= */
+$('#sqlQuery').innerHTML = hl(`SELECT c.name, SUM(o.amount) AS total
+FROM orders o JOIN customers c ON o.cust_id = c.id
+WHERE o.year = 2024
+GROUP BY c.name`);
+const N = (t, d, k, c) => ({ t, d, k, c: c || [] });
+const PHASES = [
+  { name: 'Parse', sub: 'unresolved plan', title: '1. Parser → unresolved logical plan',
+    desc: 'The text is parsed into a tree of operators. Spark has checked the syntax only. It does not yet know whether <code>orders</code> exists or what type <code>amount</code> is.',
+    tree: N('Aggregate', "group: name · sum(amount)", '', [N('Filter', 'year = 2024', '', [N('Join Inner', 'cust_id = id', '', [N('UnresolvedRelation', 'orders'), N('UnresolvedRelation', 'customers')])])]) },
+  { name: 'Analyze', sub: 'resolve names & types', title: '2. Analyzer → resolved logical plan',
+    desc: 'The analyzer looks up every table and column in the <b>catalog</b>, attaches data types, and gives each column a unique ID such as <code>amount#3</code>. A misspelled column fails here with an <code>AnalysisException</code>, before any data is read.',
+    tree: N('Aggregate', '[name#12] sum(amount#3) AS total#20', 'new', [N('Filter', 'year#4 = 2024', 'new', [N('Join Inner', 'cust_id#2 = id#11', 'new', [N('Relation orders', '[id#1,cust_id#2,amount#3,year#4]', 'new'), N('Relation customers', '[id#11, name#12, email#13]', 'new')])])]) },
+  { name: 'Optimize', sub: 'rule-based rewrites', title: '3. Optimizer → optimized logical plan',
+    desc: 'Rules rewrite the tree into a cheaper equivalent. <b>Predicate pushdown</b> moved the filter below the join, so only 2024 orders get joined. <b>Column pruning</b> added projections so unused columns such as <code>email</code> are never carried along.',
+    tree: N('Aggregate', '[name#12] sum(amount#3) AS total#20', '', [N('Join Inner', 'cust_id#2 = id#11', '', [N('Project', '[cust_id#2, amount#3]', 'new', [N('Filter', 'isnotnull(year#4) AND year#4=2024', 'new', [N('Relation orders', 'parquet', 'scan')])]), N('Project', '[id#11, name#12]', 'new', [N('Relation customers', 'parquet', 'scan')])])]),
+    extra: '<p class="small muted" style="margin:0">Compare with the previous phase: the Filter used to sit <i>above</i> the Join.</p>' },
+  { name: 'Plan', sub: 'choose algorithms', title: '4. Planner → physical plan',
+    desc: 'Logical operators become concrete algorithms, chosen using table statistics. <code>customers</code> is small, so Spark <b>broadcasts</b> it to every executor and avoids shuffling <code>orders</code>. The aggregate is split into a partial step, an <b>Exchange</b> (shuffle), and a final step. The filter is pushed into the Parquet reader itself.',
+    tree: N('HashAggregate', 'final · sum(amount)', 'new', [N('Exchange', 'hashpartitioning(name, 200)', 'new', [N('HashAggregate', 'partial · sum(amount)', 'new', [N('BroadcastHashJoin', 'cust_id = id · BuildRight', 'new', [N('FileScan parquet orders', 'PushedFilters: [year = 2024]', 'scan'), N('BroadcastExchange', 'HashedRelationBroadcastMode', 'new', [N('FileScan parquet customers', 'ReadSchema: id, name', 'scan')])])])])]),
+    extra: '<p class="small muted" style="margin:0">Each <b>Exchange</b> is a stage boundary, exactly like a wide transformation in the RDD playground. Adaptive Query Execution can re-plan here at runtime using real shuffle sizes.</p>' },
+  { name: 'Codegen', sub: 'whole-stage codegen', title: '5. Tungsten → generated code',
+    desc: 'Instead of calling each operator once per row, Spark fuses the operators of a stage into a single generated Java function, compiled to bytecode at runtime. In <code>explain()</code> output these appear as <code>*(n)</code>.',
+    tree: N('*(2) HashAggregate', 'final · sum(amount)', 'cg', [N('Exchange', 'hashpartitioning(name, 200)', '', [N('*(1) HashAggregate', 'partial · sum(amount)', 'cg', [N('*(1) BroadcastHashJoin', 'cust_id = id · BuildRight', 'cg', [N('*(1) FileScan orders', 'PushedFilters: [year = 2024]', 'cg'), N('BroadcastExchange', 'HashedRelationBroadcastMode', '', [N('*(3) FileScan customers', 'ReadSchema: id, name', 'cg')])])])])]),
+    code: `// stage *(1), roughly:
+while (scan.hasNext()) {
+  row = scan.next();
+  name = broadcast.get(row.custId);
+  if (name == null) continue;
+  agg.add(name, row.amount);
+}` }
+];
+let sqlI = 0;
+function drawPlan(root) {
+  const svg = $('#planSvg'); svg.innerHTML = '';
+  const BW = 250, BH = 46, DX = 266, DY = 70;
+  let leaf = 0, maxD = 0; const nodes = [];
+  (function lay(n, d) {
+    n.y = d; maxD = Math.max(maxD, d);
+    n.c.forEach(c => lay(c, d + 1));
+    n.x = n.c.length ? n.c.reduce((a, c) => a + c.x, 0) / n.c.length : leaf++;
+    nodes.push(n);
+  })(root, 0);
+  const W = leaf * DX + 8, H = maxD * DY + BH + 8;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
+  const px = n => 4 + n.x * DX + DX / 2, py = n => 4 + n.y * DY;
+  nodes.forEach(n => n.c.forEach(c => S('line', { x1: px(n), y1: py(n) + BH, x2: px(c), y2: py(c) }, svg)));
+  nodes.sort((a, b) => b.y - a.y).forEach((n, i) => {
+    const g = S('g', { class: n.k || '', style: `animation-delay:${i * 60}ms` }, svg);
+    S('rect', { x: px(n) - BW / 2, y: py(n), width: BW, height: BH, rx: 9 }, g);
+    S('text', { class: 'pt', x: px(n), y: py(n) + 19, 'text-anchor': 'middle' }, g, n.t);
+    S('text', { class: 'pd', x: px(n), y: py(n) + 36, 'text-anchor': 'middle' }, g, n.d || '');
+  });
+}
+function showPhase(i) {
+  sqlI = Math.max(0, Math.min(PHASES.length - 1, i));
+  const p = PHASES[sqlI];
+  $$('#sqlStepper button').forEach((b, j) => b.classList.toggle('on', j === sqlI));
+  $('#sqlTitle').textContent = p.title; $('#sqlDesc').innerHTML = p.desc;
+  $('#sqlExtra').innerHTML = (p.extra || '') + (p.code ? `<pre>${hl(p.code)}</pre>` : '');
+  $('#sqlPrev').disabled = sqlI === 0; $('#sqlNext').disabled = sqlI === PHASES.length - 1;
+  drawPlan(p.tree);
+}
+$('#sqlStepper').innerHTML = PHASES.map(p => `<button>${p.name}<small>${p.sub}</small></button>`).join('');
+$$('#sqlStepper button').forEach((b, i) => b.onclick = () => showPhase(i));
+$('#sqlPrev').onclick = () => showPhase(sqlI - 1);
+$('#sqlNext').onclick = () => showPhase(sqlI + 1);
+showPhase(0);
+
+/* ================= STREAMING ================= */
+$('#stCode').innerHTML = hl(`events = spark.readStream.format("kafka").load()
+
+counts = (events
+  .withWatermark("event_time", "5 seconds")
+  .groupBy(window("event_time", "5 seconds"), "key")
+  .count())
+
+counts.writeStream.outputMode("update").trigger(processingTime="2 seconds").start()`);
+function hiDpi(cv) {
+  const w = +cv.getAttribute('width'), h = +cv.getAttribute('height'), r = window.devicePixelRatio || 1;
+  cv.width = w * r; cv.height = h * r;
+  const ctx = cv.getContext('2d'); ctx.scale(r, r);
+  return [ctx, w, h];
+}
+const stCv = $('#stCanvas'), [sx] = hiDpi(stCv);
+const st = { t: 0, acc: 0, trigT: 0, fly: [], buf: [], proc: [], wins: new Map(), maxEt: null, wm: null, batches: 0, rows: 0, drop: 0, pulse: 0, lastN: 0, paused: false };
+const WIN = 5, KEYS = 3;
+const fmt = s => s == null ? '–' : (s < 0 ? '-' : '') + Math.floor(Math.abs(s) / 60) + ':' + String(Math.floor(Math.abs(s) % 60)).padStart(2, '0');
+function trigger() {
+  const wmBefore = st.wm;
+  st.buf.forEach((e, j) => {
+    const w = Math.floor(e.et / WIN) * WIN;
+    if (wmBefore != null && w + WIN <= wmBefore) st.drop++;
+    else {
+      if (!st.wins.has(w)) st.wins.set(w, new Array(KEYS).fill(0));
+      st.wins.get(w)[e.k]++;
+    }
+    st.maxEt = st.maxEt == null ? e.et : Math.max(st.maxEt, e.et);
+    st.proc.push({ ...e, p: 0, j });
+  });
+  st.rows += st.buf.length; st.lastN = st.buf.length; st.buf = [];
+  if (st.maxEt != null) st.wm = st.maxEt - +$('#stWm').value;
+  st.batches++; st.pulse = 1;
+  renderWins();
+}
+function renderWins() {
+  $('#sBatches').textContent = st.batches; $('#sRows').textContent = st.rows; $('#sDrop').textContent = st.drop;
+  $('#sMax').textContent = fmt(st.maxEt); $('#sWm').textContent = fmt(st.wm);
+  const ws = [...st.wins.keys()].sort((a, b) => b - a).slice(0, 6);
+  $('#stWins').innerHTML = ws.length ? ws.map(w => {
+    const fin = st.wm != null && w + WIN <= st.wm;
+    return `<div class="win ${fin ? 'final' : ''}"><span class="wl">[${fmt(w)}–${fmt(w + WIN)})</span>${st.wins.get(w).map((c, k) => `<span class="chip" style="background:${PAL[k]}">${c}</span>`).join('')}<span class="st">${fin ? 'finalised' : 'open'}</span></div>`;
+  }).join('') : '<span class="small muted">Waiting for the first batch…</span>';
+}
+const bufPos = j => [392 + (j % 8) * 14.5, 46 + Math.floor(j / 8) % 9 * 14.5];
+function box(x, y, w, h, title, sub, glow) {
+  sx.fillStyle = glow ? `rgba(255,122,47,${0.12 + glow * 0.3})` : '#141c33';
+  sx.strokeStyle = glow ? '#ff7a2f' : '#2a3658'; sx.lineWidth = 1.5;
+  sx.beginPath(); sx.roundRect(x, y, w, h, 10); sx.fill(); sx.stroke();
+  sx.fillStyle = '#e6ecff'; sx.font = '600 12px system-ui,sans-serif'; sx.textAlign = 'center';
+  sx.fillText(title, x + w / 2, y + h + 18);
+  if (sub) { sx.fillStyle = '#9aa9cc'; sx.font = '11px system-ui,sans-serif'; sx.fillText(sub, x + w / 2, y + h + 33); }
+}
+function drawEvent(x, y, e, a = 1) {
+  sx.globalAlpha = a; sx.beginPath(); sx.arc(x, y, 4.5, 0, 6.3);
+  if (e.late) { sx.strokeStyle = PAL[e.k]; sx.lineWidth = 2; sx.stroke(); } else { sx.fillStyle = PAL[e.k]; sx.fill(); }
+  sx.globalAlpha = 1;
+}
+let stLast = performance.now();
+function stFrame(now) {
+  const dt = Math.min(0.1, (now - stLast) / 1000); stLast = now;
+  requestAnimationFrame(stFrame);
+  if (!visible.stream) return;
+  if (!st.paused) {
+    st.t += dt; st.acc += dt * +$('#stRate').value; st.trigT += dt;
+    while (st.acc >= 1) {
+      st.acc--;
+      const late = Math.random() < 0.18;
+      st.fly.push({ k: Math.floor(Math.random() * KEYS), late, et: Math.max(0, st.t - (late ? 3 + Math.random() * 11 : Math.random() * 0.4)), p: 0 });
+    }
+    st.fly.forEach(e => e.p += dt / 1.4);
+    st.fly = st.fly.filter(e => e.p < 1 || (st.buf.push(e), false));
+    st.proc.forEach(e => e.p += dt / 0.45);
+    st.proc = st.proc.filter(e => e.p < 1);
+    st.pulse = Math.max(0, st.pulse - dt * 1.5);
+    const iv = +$('#stTrig').value;
+    if (st.trigT >= iv) { st.trigT = 0; trigger(); }
+  }
+  // draw
+  sx.clearRect(0, 0, 760, 240);
+  box(10, 30, 100, 150, 'Source', 'Kafka topic');
+  box(380, 30, 130, 150, 'Micro-batch buffer', 'new rows since last trigger');
+  box(590, 30, 160, 150, 'Spark engine', 'runs the query incrementally', st.pulse);
+  sx.fillStyle = '#9aa9cc'; sx.font = '11px system-ui,sans-serif'; sx.textAlign = 'center';
+  for (let k = 0; k < KEYS; k++) { const y = 62 + k * 43; sx.fillStyle = PAL[k]; sx.fillText('key ' + 'ABC'[k], 60, y + 4); sx.strokeStyle = '#1f2a48'; sx.setLineDash([3, 6]); sx.beginPath(); sx.moveTo(112, y); sx.lineTo(378, y); sx.stroke(); sx.setLineDash([]); }
+  sx.fillStyle = '#9aa9cc'; sx.fillText('→', 550, 108);
+  sx.fillStyle = '#e6ecff'; sx.font = '600 13px system-ui,sans-serif';
+  sx.fillText(st.batches ? 'batch #' + st.batches : 'idle', 670, 98);
+  sx.fillStyle = '#9aa9cc'; sx.font = '11px system-ui,sans-serif';
+  sx.fillText(st.batches ? st.lastN + ' rows processed' : 'waiting for trigger', 670, 118);
+  sx.fillText('clock ' + fmt(st.t), 670, 160);
+  st.fly.forEach(e => drawEvent(112 + e.p * 268, 62 + e.k * 43, e));
+  st.buf.forEach((e, j) => { const [x, y] = bufPos(j); drawEvent(x, y, e); });
+  st.proc.forEach(e => { const [x, y] = bufPos(e.j); drawEvent(x + (670 - x) * e.p, y + (105 - y) * e.p, e, 1 - e.p * 0.6); });
+  // trigger bar
+  const f = st.trigT / +$('#stTrig').value;
+  sx.fillStyle = '#1a2440'; sx.beginPath(); sx.roundRect(380, 226, 130, 6, 3); sx.fill();
+  sx.fillStyle = '#ff7a2f'; sx.beginPath(); sx.roundRect(380, 226, Math.max(3, 130 * Math.min(1, f)), 6, 3); sx.fill();
+  sx.textAlign = 'left'; sx.fillStyle = '#9aa9cc'; sx.fillText('next trigger', 518, 232);
+}
+requestAnimationFrame(stFrame);
+$('#stPause').onclick = e => { st.paused = !st.paused; e.target.textContent = st.paused ? '▶ Resume' : '⏸ Pause'; };
+$('#stRate').oninput = e => $('#stRateV').textContent = e.target.value;
+$('#stTrig').oninput = e => $('#stTrigV').textContent = e.target.value + 's';
+$('#stWm').oninput = e => $('#stWmV').textContent = e.target.value + 's';
+
+/* ================= ML ================= */
+const PIPE = [
+  { n: 'Training DataFrame', k: 'input', cols: [['text', '"spark is fast"'], ['label', '1.0']], d: 'The input: one row per document with a raw <code>text</code> column and a <code>label</code>.' },
+  { n: 'Tokenizer', k: 'Transformer', cols: [['words', '[spark, is, fast]']], d: '<b>Transformer.</b> Stateless: splits text into words and appends a <code>words</code> column. Nothing to learn, so <code>fit()</code> just passes it through.' },
+  { n: 'HashingTF', k: 'Transformer', cols: [['features', '(1024,[17,301,862],[1,1,1])']], d: '<b>Transformer.</b> Hashes each word to an index and counts occurrences, producing a sparse <code>features</code> vector. MLlib algorithms expect all inputs assembled in one vector column.' },
+  { n: 'LogisticRegression', k: 'Estimator', cols: [], d: '<b>Estimator.</b> <code>fit()</code> runs distributed optimisation over <code>features</code> and <code>label</code>: executors compute gradients on their partitions, the driver sums them and updates the weights. The result is a LogisticRegressionModel.' },
+  { n: 'PipelineModel', k: 'fitted Transformer', cols: [['probability', '[0.08, 0.92]'], ['prediction', '1.0']], d: '<b>The output of fit().</b> Every estimator is replaced by its fitted model, so the whole pipeline is now a Transformer. <code>model.transform(newData)</code> applies the same steps and appends predictions. Save it once, reuse it for batch or streaming scoring.' }
+];
+let pipeRun = 0;
+function showPipe(i) {
+  $$('#pipe .pstage').forEach((b, j) => b.classList.toggle('on', j === i));
+  $('#pipeDesc').innerHTML = PIPE[i].d;
+  const cols = PIPE.slice(0, i + 1).flatMap((p, j) => p.cols.map(c => [...c, j === i]));
+  $('#pipeDf').innerHTML = '<tr>' + cols.map(c => `<th class="${c[2] && i ? 'newcol' : ''}">${c[0]}</th>`).join('') + '</tr><tr>' +
+    cols.map(c => `<td class="${c[2] && i ? 'newcol' : ''}">${c[1]}</td>`).join('') + '</tr>';
+}
+$('#pipe').innerHTML = PIPE.map((p, i) => (i ? '<span class="arrow">→</span>' : '') + `<button class="pstage"><b>${p.n}</b><small>${p.k}</small></button>`).join('');
+$$('#pipe .pstage').forEach((b, i) => b.onclick = () => { pipeRun++; showPipe(i); });
+$('#pipeFit').onclick = async () => {
+  const me = ++pipeRun;
+  for (let i = 0; i < PIPE.length; i++) { showPipe(i); await sleep(1500); if (me !== pipeRun) return; }
+};
+showPipe(0);
+
+// k-means
+const kmCv = $('#kmCanvas'), [kx, KW, KH] = hiDpi(kmCv);
+const km = { pts: [], cen: [], phase: 0, iter: 0, costs: [], done: false, timer: null };
+const gauss = () => { let u = 0; for (let i = 0; i < 6; i++) u += Math.random(); return (u - 3) / 1.2; };
+function kmCenters() {
+  const k = +$('#kmK').value;
+  km.cen = [...km.pts].sort(() => Math.random() - 0.5).slice(0, k).map(p => ({ x: p.x, y: p.y, tx: p.x, ty: p.y }));
+  km.pts.forEach(p => p.c = -1);
+  km.phase = 0; km.iter = 0; km.costs = []; km.done = false; kmStop();
+  $('#kmIter').textContent = 0; $('#kmCost').textContent = '–'; drawCost();
+  $('#kmCap').innerHTML = `The driver picks ${k} initial centroids and broadcasts them. Press <b>Step</b> to run the assign phase.`;
+}
+function kmData() {
+  km.pts = [];
+  const blobs = 3 + Math.floor(Math.random() * 3);
+  for (let b = 0; b < blobs; b++) {
+    const cx = 70 + Math.random() * (KW - 140), cy = 60 + Math.random() * (KH - 120), s = 18 + Math.random() * 16;
+    for (let i = 0; i < 45; i++) km.pts.push({ x: Math.max(8, Math.min(KW - 8, cx + gauss() * s)), y: Math.max(8, Math.min(KH - 8, cy + gauss() * s)), c: -1 });
+  }
+  kmCenters();
+}
+function kmStepFn() {
+  if (km.done) return;
+  if (km.phase === 0) {
+    let changed = 0, cost = 0;
+    km.pts.forEach(p => {
+      let best = 0, bd = Infinity;
+      km.cen.forEach((c, i) => { const d = (p.x - c.tx) ** 2 + (p.y - c.ty) ** 2; if (d < bd) { bd = d; best = i; } });
+      if (p.c !== best) changed++; p.c = best; cost += bd;
+    });
+    km.iter++; km.costs.push(cost);
+    $('#kmIter').textContent = km.iter; $('#kmCost').textContent = Math.round(cost).toLocaleString(); drawCost();
+    if (!changed) { km.done = true; kmStop(); $('#kmCap').innerHTML = `<b>Converged after ${km.iter} iterations.</b> No point changed cluster, so the centroids are final.`; return; }
+    $('#kmCap').innerHTML = `<b>Assign (map, on executors):</b> each point is labelled with its nearest centroid. ${changed} point${changed > 1 ? 's' : ''} changed cluster.`;
+    km.phase = 1;
+  } else {
+    km.cen.forEach((c, i) => {
+      const m = km.pts.filter(p => p.c === i);
+      if (m.length) { c.tx = m.reduce((a, p) => a + p.x, 0) / m.length; c.ty = m.reduce((a, p) => a + p.y, 0) / m.length; }
+    });
+    $('#kmCap').innerHTML = '<b>Update (reduce, to the driver):</b> executors send per-cluster sums and counts. The driver averages them and moves each centroid to the mean of its points.';
+    km.phase = 0;
+  }
+}
+function kmStop() { clearInterval(km.timer); km.timer = null; $('#kmRun').textContent = '▶ Run'; }
+function drawCost() {
+  const s = $('#costSvg'); s.innerHTML = '';
+  if (km.costs.length < 2) { S('text', { x: 150, y: 34, 'text-anchor': 'middle', fill: '#9aa9cc', 'font-size': 11 }, s, 'Run a few iterations'); return; }
+  const mx = Math.max(...km.costs), mn = Math.min(...km.costs), r = mx - mn || 1;
+  S('polyline', { fill: 'none', stroke: '#ff7a2f', 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke',
+    points: km.costs.map((c, i) => `${i / (km.costs.length - 1) * 300},${5 + (1 - (c - mn) / r) * 50}`).join(' ') }, s);
+}
+function kmFrame() {
+  requestAnimationFrame(kmFrame);
+  if (!visible.ml) return;
+  kx.clearRect(0, 0, KW, KH);
+  km.cen.forEach(c => { c.x += (c.tx - c.x) * 0.15; c.y += (c.ty - c.y) * 0.15; });
+  km.pts.forEach(p => {
+    kx.beginPath(); kx.arc(p.x, p.y, 3.5, 0, 6.3);
+    kx.fillStyle = p.c < 0 ? '#5a6a90' : PAL[p.c]; kx.globalAlpha = 0.85; kx.fill(); kx.globalAlpha = 1;
+  });
+  km.cen.forEach((c, i) => {
+    kx.beginPath(); kx.arc(c.x, c.y, 15, 0, 6.3); kx.fillStyle = PAL[i] + '33'; kx.fill();
+    kx.save(); kx.translate(c.x, c.y); kx.rotate(Math.PI / 4);
+    kx.fillStyle = PAL[i]; kx.strokeStyle = '#fff'; kx.lineWidth = 2;
+    kx.fillRect(-6, -6, 12, 12); kx.strokeRect(-6, -6, 12, 12); kx.restore();
+  });
+}
+$('#kmStep').onclick = () => { kmStop(); kmStepFn(); };
+$('#kmRun').onclick = () => {
+  if (km.timer) return kmStop();
+  if (km.done) kmCenters();
+  $('#kmRun').textContent = '⏸ Stop';
+  kmStepFn(); km.timer = setInterval(kmStepFn, 750);
+};
+$('#kmReset').onclick = kmData;
+$('#kmK').oninput = e => { $('#kmKv').textContent = e.target.value; kmCenters(); };
+kmCv.onclick = e => {
+  const r = kmCv.getBoundingClientRect();
+  km.pts.push({ x: (e.clientX - r.left) / r.width * KW, y: (e.clientY - r.top) / r.height * KH, c: -1 });
+  if (km.done) { km.done = false; km.phase = 0; $('#kmCap').innerHTML = 'New point added. Press <b>Step</b> to assign it.'; }
+};
+kmData();
+requestAnimationFrame(kmFrame);
+})();
+</script>
+</body>
+</html>
