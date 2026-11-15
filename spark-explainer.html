@@ -81,10 +81,10 @@ input[type=checkbox]{accent-color:var(--spark);width:16px;height:16px}
 #archSvg .ex.off{opacity:.35}
 #archSvg .ex.dead .box{stroke:var(--red);fill:#3a1420}
 #archSvg .slotbg{fill:#0b1226;stroke:var(--line)}
-#archSvg .slotfill{fill:var(--green)}
-#archSvg .t1{font-weight:700;font-size:15px}
-#archSvg .t2{font-size:10.5px;fill:var(--muted)}
-#archSvg .t3{font-size:11px}
+#archSvg .slotfill{fill:var(--green);fill-opacity:.4}
+#archSvg .t1{font-weight:700;font-size:16px}
+#archSvg .t2{font-size:12px;fill:var(--muted)}
+#archSvg .t3{font-size:13px}
 ol.steps{margin:0;padding:0;list-style:none;counter-reset:s}
 ol.steps li{counter-increment:s;padding:7px 10px 7px 40px;position:relative;border-radius:8px;font-size:.9rem;color:var(--muted);transition:.3s}
 ol.steps li::before{content:counter(s);position:absolute;left:8px;top:7px;width:22px;height:22px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);font-size:.75rem;display:grid;place-items:center;font-weight:700}
@@ -236,7 +236,7 @@ footer{border-top:1px solid var(--line);text-align:center;color:var(--muted);pad
   <h2>RDD vs DataFrame</h2>
   <p class="lead">Both are distributed, immutable, partitioned collections evaluated lazily. The difference is how much Spark knows about your data. An RDD holds opaque objects; a DataFrame holds rows with a schema, so Spark can optimise the query for you.</p>
 
-  <div class="grid g2">
+  <div class="grid g2" style="align-items:start">
     <div class="card">
       <h3>Same question, three APIs: average age per department</h3>
       <div class="tabs" id="codeTabs">
@@ -330,7 +330,7 @@ footer{border-top:1px solid var(--line);text-align:center;color:var(--muted);pad
   <div class="grid g-main">
     <div class="card">
       <div class="row" style="margin-bottom:10px">
-        <button id="stPause">⏸ Pause</button>
+        <button id="stPause">Pause</button>
         <label class="ctl">Events/sec <input type="range" id="stRate" min="1" max="20" value="6"><b id="stRateV">6</b></label>
         <label class="ctl">Trigger interval <input type="range" id="stTrig" min="1" max="6" step="0.5" value="2"><b id="stTrigV">2s</b></label>
         <label class="ctl">Watermark delay <input type="range" id="stWm" min="0" max="12" value="5"><b id="stWmV">5s</b></label>
@@ -481,7 +481,7 @@ function buildArch() {
   const d = S('g', {}, gN); clickable(d, 'driver');
   S('rect', { class: 'box', x: 30, y: 110, width: 230, height: 220, rx: 14 }, d);
   S('text', { class: 't1', x: 46, y: 136 }, d, 'Driver');
-  S('text', { class: 't2', x: 100, y: 136 }, d, 'plans and coordinates');
+  S('text', { class: 't2', x: 108, y: 136 }, d, 'plans and coordinates');
   arch.rows = ['session', 'dag', 'task'].map((k, i) => {
     const g = S('g', {}, gN); clickable(g, k);
     const r = S('rect', { class: 'box inner', x: 45, y: 152 + i * 56, width: 200, height: 44, rx: 8 }, g);
@@ -511,7 +511,7 @@ function buildArch() {
       return { fill, label, tok: 0 };
     });
     S('rect', { class: 'inner', x: 655, y: y + 56, width: 200, height: 20, rx: 4 }, g);
-    S('text', { class: 't2', x: 755, y: y + 70, 'text-anchor': 'middle' }, g, 'BlockManager · cache · shuffle files');
+    S('text', { class: 't2', x: 755, y: y + 70, 'text-anchor': 'middle' }, g, 'BlockManager · cache · shuffle');
     S('path', { class: 'wire', d: `M260,220 L640,${cy + 8}` }, gW);
     S('path', { class: 'wire', d: `M550,55 L640,${y + 16}` }, gW);
     arch.ex.push({ g, slots, alive: true, top: [640, y + 16], mid: [640, cy + 8] });
@@ -770,7 +770,10 @@ counts = (events
   .groupBy(window("event_time", "5 seconds"), "key")
   .count())
 
-counts.writeStream.outputMode("update").trigger(processingTime="2 seconds").start()`);
+(counts.writeStream
+  .outputMode("update")
+  .trigger(processingTime="2 seconds")
+  .start())`);
 function hiDpi(cv) {
   const w = +cv.getAttribute('width'), h = +cv.getAttribute('height'), r = window.devicePixelRatio || 1;
   cv.width = w * r; cv.height = h * r;
@@ -848,7 +851,7 @@ function stFrame(now) {
   box(590, 30, 160, 150, 'Spark engine', 'runs the query incrementally', st.pulse);
   sx.fillStyle = '#9aa9cc'; sx.font = '11px system-ui,sans-serif'; sx.textAlign = 'center';
   for (let k = 0; k < KEYS; k++) { const y = 62 + k * 43; sx.fillStyle = PAL[k]; sx.fillText('key ' + 'ABC'[k], 60, y + 4); sx.strokeStyle = '#1f2a48'; sx.setLineDash([3, 6]); sx.beginPath(); sx.moveTo(112, y); sx.lineTo(378, y); sx.stroke(); sx.setLineDash([]); }
-  sx.fillStyle = '#9aa9cc'; sx.fillText('→', 550, 108);
+  sx.fillStyle = '#9aa9cc'; sx.font = '20px system-ui,sans-serif'; sx.fillText('→', 550, 112);
   sx.fillStyle = '#e6ecff'; sx.font = '600 13px system-ui,sans-serif';
   sx.fillText(st.batches ? 'batch #' + st.batches : 'idle', 670, 98);
   sx.fillStyle = '#9aa9cc'; sx.font = '11px system-ui,sans-serif';
@@ -864,7 +867,7 @@ function stFrame(now) {
   sx.textAlign = 'left'; sx.fillStyle = '#9aa9cc'; sx.fillText('next trigger', 518, 232);
 }
 requestAnimationFrame(stFrame);
-$('#stPause').onclick = e => { st.paused = !st.paused; e.target.textContent = st.paused ? '▶ Resume' : '⏸ Pause'; };
+$('#stPause').onclick = e => { st.paused = !st.paused; e.target.textContent = st.paused ? '▶ Resume' : 'Pause'; };
 $('#stRate').oninput = e => $('#stRateV').textContent = e.target.value;
 $('#stTrig').oninput = e => $('#stTrigV').textContent = e.target.value + 's';
 $('#stWm').oninput = e => $('#stWmV').textContent = e.target.value + 's';
@@ -965,7 +968,7 @@ $('#kmStep').onclick = () => { kmStop(); kmStepFn(); };
 $('#kmRun').onclick = () => {
   if (km.timer) return kmStop();
   if (km.done) kmCenters();
-  $('#kmRun').textContent = '⏸ Stop';
+  $('#kmRun').textContent = '■ Stop';
   kmStepFn(); km.timer = setInterval(kmStepFn, 750);
 };
 $('#kmReset').onclick = kmData;
