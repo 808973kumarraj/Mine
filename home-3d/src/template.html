@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#e8eef2">
+<title>3D Home View</title>
+<style>
+  :root { --ink:#1f2933; --muted:#5d6873; --accent:#1f6fd1; --glass:rgba(255,255,255,.84); }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; overflow:hidden; overscroll-behavior:none; background:#e8eef2;
+    font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color:var(--ink); }
+  #app { position:fixed; inset:0; }
+  #app canvas { display:block; width:100%; height:100%; touch-action:none; outline:none; }
+  .top { position:fixed; top:calc(10px + env(safe-area-inset-top)); left:10px; right:10px; display:flex; pointer-events:none; z-index:3; }
+  .title { background:var(--glass); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); padding:8px 12px 9px;
+    border-radius:13px; box-shadow:0 2px 12px rgba(20,30,40,.10); font-weight:700; font-size:15px; letter-spacing:.1px; max-width:100%; }
+  .title small { display:block; font-weight:500; font-size:11.5px; color:var(--muted); margin-top:3px; line-height:1.35; }
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:2; }
+  .label { position:absolute; left:0; top:0; pointer-events:auto; cursor:pointer; border:0; white-space:nowrap;
+    background:rgba(255,255,255,.93); color:var(--ink); font:650 11.5px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding:5px 9px; border-radius:999px; box-shadow:0 1px 6px rgba(20,30,40,.18); will-change:transform; }
+  .label:hover { background:#fff; color:var(--accent); }
+  .bar { position:fixed; z-index:4; left:50%; transform:translateX(-50%); bottom:calc(10px + env(safe-area-inset-bottom));
+    width:min(560px, calc(100% - 16px)); background:var(--glass); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+    border-radius:16px; padding:7px; box-shadow:0 4px 20px rgba(20,30,40,.14); display:flex; flex-direction:column; gap:6px; }
+  .row { display:grid; gap:5px; }
+  .views { grid-template-columns:repeat(6, 1fr); background:#e7ecf1; border-radius:11px; padding:3px; gap:3px; }
+  .toggles { grid-template-columns:repeat(6, 1fr); }
+  .bar button { appearance:none; border:0; cursor:pointer; color:var(--ink); font:650 12.5px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    height:34px; border-radius:9px; padding:0 4px; transition:background .15s, color .15s, transform .08s; white-space:nowrap; }
+  .views button { background:transparent; }
+  .views button.on { background:#fff; color:var(--accent); box-shadow:0 1px 4px rgba(20,30,40,.12); }
+  .toggles button { background:#eef2f6; display:flex; align-items:center; justify-content:center; gap:6px; }
+  .toggles button::before { content:""; width:7px; height:7px; border-radius:50%; background:#bcc5ce; flex:none; transition:background .15s; }
+  .toggles button.on { background:#e3edfb; color:#174f97; }
+  .toggles button.on::before { background:var(--accent); }
+  .bar button:active { transform:scale(.96); }
+  #err { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:24px; text-align:center; background:#f3f5f7; z-index:9; font-size:15px; }
+  #err[hidden] { display:none; }
+  @media (min-width:720px) { .title { font-size:16px; } .bar button { font-size:13px; height:36px; } }
+  @media (max-width:480px) { .label { font-size:10.5px; padding:4px 7px; } .title { font-size:14px; padding:7px 11px 8px; }
+    .bar button { font-size:12px; } .toggles button { gap:5px; } .toggles button::before { width:6px; height:6px; } }
+  #labels { transition:opacity .2s; }
+  #walkBtn { position:fixed; z-index:5; top:calc(12px + env(safe-area-inset-top)); right:12px; border:0; border-radius:12px; padding:10px 14px;
+    background:var(--accent); color:#fff; font:700 13.5px system-ui, sans-serif; box-shadow:0 3px 12px rgba(20,60,120,.3); cursor:pointer; }
+  #walkui { display:none; }
+  body.walking #walkui { display:block; } body.walking #walkBtn, body.walking .bar, body.walking .top { display:none; }
+  #exitWalk { position:fixed; z-index:6; top:calc(12px + env(safe-area-inset-top)); right:12px; border:0; border-radius:12px; padding:10px 14px;
+    background:rgba(20,24,30,.78); color:#fff; font:700 13px system-ui, sans-serif; cursor:pointer; }
+  .walkhint { position:fixed; z-index:6; top:calc(14px + env(safe-area-inset-top)); left:12px; right:130px; color:#fff; font:600 12px system-ui, sans-serif; text-shadow:0 1px 4px rgba(0,0,0,.7); }
+  #tourBtn { position:fixed; z-index:5; top:calc(58px + env(safe-area-inset-top)); right:12px; border:0; border-radius:12px; padding:9px 14px;
+    background:#fff; color:var(--accent); font:700 13px system-ui, sans-serif; box-shadow:0 3px 12px rgba(0,0,0,.15); cursor:pointer; }
+  body.walking #tourBtn { display:none; }
+  #tourBtn2 { position:fixed; z-index:6; right:12px; bottom:calc(126px + env(safe-area-inset-bottom)); border:0; border-radius:999px; padding:11px 16px;
+    background:rgba(255,255,255,.9); color:var(--ink); font:700 13px system-ui, sans-serif; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,.2); }
+  body.touring #tourBtn2 { background:var(--accent); color:#fff; } body.touring #joy, body.touring #walkSpin { display:none; }
+  #tourCap { display:none; position:fixed; z-index:6; left:50%; transform:translateX(-50%); top:calc(54px + env(safe-area-inset-top)); background:rgba(20,24,30,.7);
+    color:#fff; padding:7px 14px; border-radius:999px; font:700 14px system-ui, sans-serif; }
+  body.touring #tourCap { display:block; } #tourCap:empty { display:none !important; }
+  body.recording #walkui > :not(#tourCap), body.recording #walkBtn, body.recording #tourBtn { display:none !important; }
+  #minimap { position:fixed; z-index:6; left:10px; top:calc(54px + env(safe-area-inset-top)); width:min(46vw, 250px); height:auto; aspect-ratio:92/66; border-radius:12px;
+    border:1.5px solid rgba(214,226,246,.75); box-shadow:0 4px 16px rgba(0,0,0,.35); }
+  body.recording #walkui > #minimap { display:block !important; }
+  #walkSpin { position:fixed; z-index:6; right:12px; bottom:calc(76px + env(safe-area-inset-bottom)); border:0; border-radius:999px; padding:11px 16px;
+    background:rgba(255,255,255,.9); color:var(--ink); font:700 13px system-ui, sans-serif; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,.2); }
+  #walkSpin.on { background:var(--accent); color:#fff; }
+  #joy { position:fixed; z-index:6; left:22px; bottom:calc(76px + env(safe-area-inset-bottom)); width:118px; height:118px; border-radius:50%;
+    background:rgba(255,255,255,.22); border:2px solid rgba(255,255,255,.55); backdrop-filter:blur(4px); touch-action:none; }
+  #joy span { position:absolute; left:50%; top:50%; width:50px; height:50px; margin:-25px 0 0 -25px; border-radius:50%; background:rgba(255,255,255,.9); box-shadow:0 2px 8px rgba(0,0,0,.25); }
+  #spots { position:fixed; z-index:6; left:0; right:0; bottom:calc(12px + env(safe-area-inset-bottom)); display:flex; gap:6px; overflow-x:auto; padding:0 12px; scrollbar-width:none; }
+  #spots::-webkit-scrollbar { display:none; }
+  .spot { flex:none; border:0; border-radius:999px; padding:9px 13px; background:rgba(255,255,255,.9); color:var(--ink); font:650 12.5px system-ui, sans-serif; cursor:pointer; }
+  .spot.on { background:var(--accent); color:#fff; }
+  @media (pointer:fine) { #joy { display:none; } }
+  #giCap { position:fixed; z-index:6; left:12px; top:calc(78px + env(safe-area-inset-top)); background:rgba(20,24,30,.62); color:#fff;
+    padding:4px 10px; border-radius:999px; font:600 11px system-ui, sans-serif; pointer-events:none; }
+  body.walking #giCap { top:calc(64px + min(46vw, 250px) * 0.717 + env(safe-area-inset-top)); }
+  #giCap[hidden], body.recording #giCap { display:none; }
+  #photoBtn { position:fixed; z-index:6; right:12px; bottom:calc(176px + env(safe-area-inset-bottom)); border:0; border-radius:999px; padding:11px 16px;
+    background:rgba(255,255,255,.9); color:var(--ink); font:700 13px system-ui, sans-serif; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,.2); }
+  #photoBtn.on { background:var(--accent); color:#fff; }
+  body.touring #photoBtn { display:none; }
+  #photoCap { position:fixed; z-index:7; left:50%; transform:translateX(-50%); bottom:calc(118px + env(safe-area-inset-bottom));
+    display:flex; align-items:center; gap:8px; background:rgba(20,24,30,.78); color:#fff; padding:6px 7px 6px 14px; border-radius:999px;
+    font:650 12.5px system-ui, sans-serif; white-space:nowrap; box-shadow:0 2px 10px rgba(0,0,0,.25); }
+  #photoCap[hidden] { display:none; }
+  #photoCap:not(:has(#photoSave:not([hidden]))) { padding-right:14px; }
+  #photoSave { border:0; border-radius:999px; padding:6px 11px; background:#fff; color:var(--ink); font:700 12px system-ui, sans-serif; cursor:pointer; }
+  body.walking #photoCap { top:calc(162px + env(safe-area-inset-top)); bottom:auto; }
+  body.touring #photoCap, body.recording #photoCap { display:none; }
+  @media (max-width:480px) { .toggles button { font-size:11px; gap:4px; padding:0 2px; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="labels"></div>
+<div class="top"><div class="title">3D Home View<small id="hint">Drag to rotate · Pinch to zoom · Two fingers to pan</small></div></div>
+<nav class="bar" id="bar" aria-label="View controls">
+  <div class="row views">
+    <button data-view="front">Front</button>
+    <button data-view="back">Back</button>
+    <button data-view="left">Left</button>
+    <button data-view="right">Right</button>
+    <button data-view="top">Top</button>
+    <button data-view="iso" class="on">3D</button>
+  </div>
+  <div class="row toggles">
+    <button data-toggle="terrace">Roof</button>
+    <button data-toggle="low">Inside</button>
+    <button data-toggle="night">Night</button>
+    <button data-toggle="labels">Labels</button>
+    <button data-toggle="spin">Spin</button>
+    <button data-toggle="photo">Photo</button>
+  </div>
+</nav>
+<button id="walkBtn">🚶 Walk inside</button>
+<button id="tourBtn">▶ Tour</button>
+<div id="walkui">
+  <button id="exitWalk">✕ Exit walk</button>
+  <button id="walkSpin">⟳ Spin</button>
+  <button id="tourBtn2">▶ Tour</button>
+  <button id="photoBtn">📷 Photo</button>
+  <div id="tourCap"></div>
+  <canvas id="minimap" width="460" height="330"></canvas>
+  <div class="walkhint" id="walkhint">Drag to look · Joystick or W A S D to walk</div>
+  <div id="joy"><span></span></div>
+  <div id="spots"></div>
+</div>
+<div id="giCap" hidden>Refining light <b>0%</b></div>
+<div id="photoCap" hidden><span id="photoTxt"></span><button id="photoSave" hidden>⬇ Save</button></div>
+<div id="err" hidden>Your browser couldn't start 3D graphics (WebGL). Try opening this file in Chrome, Safari, Edge or Firefox.</div>
+<script>/*__BUNDLE__*/</script>
+</body>
+</html>
