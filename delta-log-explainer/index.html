@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delta Log Internals</title>
+<style>
+:root{
+  --bg:#f6f5f1; --panel:#ffffff; --ink:#1d1f24; --muted:#6b6f78; --line:#d9d7d0;
+  --accent:#d9480f; --accent-soft:#fde3d4;
+  --data:#1971c2; --data-soft:#d8e8f8;
+  --log:#2b8a3e; --log-soft:#d6f0dc;
+  --warn:#c92a2a; --warn-soft:#fbdada;
+  --ckpt:#7048e8; --ckpt-soft:#e5dcfc;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ease: cubic-bezier(.2,.8,.2,1);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15171b; --panel:#1e2127; --ink:#e9e9ec; --muted:#9aa0aa; --line:#33373f;
+    --accent:#ff8a4c; --accent-soft:#4a2a1a;
+    --data:#74b5f5; --data-soft:#1b3048;
+    --log:#69db7c; --log-soft:#1b3a24;
+    --warn:#ff8787; --warn-soft:#4a1f1f;
+    --ckpt:#b197fc; --ckpt-soft:#2e2550;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15171b; --panel:#1e2127; --ink:#e9e9ec; --muted:#9aa0aa; --line:#33373f;
+  --accent:#ff8a4c; --accent-soft:#4a2a1a;
+  --data:#74b5f5; --data-soft:#1b3048;
+  --log:#69db7c; --log-soft:#1b3a24;
+  --warn:#ff8787; --warn-soft:#4a1f1f;
+  --ckpt:#b197fc; --ckpt-soft:#2e2550;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.45}
+.wrap{max-width:1040px;margin:0 auto;padding:24px 16px 40px}
+header h1{font-size:clamp(22px,3.4vw,32px);margin:0 0 4px;letter-spacing:-.01em}
+header p{margin:0 0 18px;color:var(--muted)}
+.player{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.stage{position:relative;aspect-ratio:16/9;overflow:hidden;border-bottom:1px solid var(--line)}
+@media (max-width:640px){.stage{aspect-ratio:3/4}}
+.caption{position:absolute;left:0;right:0;bottom:0;padding:14px 18px;background:linear-gradient(transparent,var(--panel) 40%);font-size:clamp(13px,1.8vw,16px);min-height:64px}
+.caption b{color:var(--accent)}
+.chtitle{position:absolute;top:14px;left:18px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.scene{position:absolute;inset:44px 18px 76px}
+/* building blocks */
+.box{position:absolute;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);transition:all .6s var(--ease)}
+.box .lbl{position:absolute;top:-10px;left:10px;background:var(--panel);padding:0 6px;font-size:11px;font-family:var(--mono);color:var(--muted)}
+.file{position:absolute;font-family:var(--mono);font-size:clamp(9px,1.25vw,12px);padding:5px 8px;border-radius:6px;border:1.5px solid;white-space:nowrap;transition:all .6s var(--ease);opacity:0;transform:translateY(8px) scale(.96)}
+.file.on{opacity:1;transform:none}
+.file.parq{border-color:var(--data);background:var(--data-soft);color:var(--data)}
+.file.json{border-color:var(--log);background:var(--log-soft);color:var(--log)}
+.file.ckpt{border-color:var(--ckpt);background:var(--ckpt-soft);color:var(--ckpt)}
+.file.bad{border-color:var(--warn);background:var(--warn-soft);color:var(--warn)}
+.file.ghost{opacity:.35 !important;text-decoration:line-through}
+.file.pulse{box-shadow:0 0 0 4px var(--accent-soft)}
+.actor{position:absolute;padding:8px 12px;border-radius:999px;background:var(--ink);color:var(--bg);font-size:clamp(10px,1.4vw,13px);font-weight:600;transition:all .6s var(--ease);opacity:0}
+.actor.on{opacity:1}
+.code{position:absolute;font-family:var(--mono);font-size:clamp(9px,1.3vw,12.5px);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;white-space:pre;line-height:1.6;transition:all .6s var(--ease);opacity:0;overflow:hidden}
+.code.on{opacity:1}
+.code .k{color:var(--log);font-weight:700}
+.code .r{color:var(--warn);font-weight:700}
+.code .m{color:var(--muted)}
+.code .hl{background:var(--accent-soft);border-radius:3px}
+.tag{position:absolute;font-size:clamp(10px,1.3vw,12px);font-weight:700;padding:3px 8px;border-radius:5px;transition:all .5s var(--ease);opacity:0}
+.tag.on{opacity:1}
+.arrow{position:absolute;height:2px;background:var(--accent);transform-origin:left center;transition:all .6s var(--ease);opacity:0}
+.arrow.on{opacity:1}
+.arrow::after{content:"";position:absolute;right:-1px;top:-4px;border-left:8px solid var(--accent);border-top:5px solid transparent;border-bottom:5px solid transparent}
+/* controls */
+.controls{display:flex;align-items:center;gap:10px;padding:10px 14px}
+.btn{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:6px 12px;font:600 13px var(--sans);cursor:pointer;min-width:44px;min-height:36px}
+.btn:hover{border-color:var(--accent)}
+.bar{flex:1;position:relative;height:8px;background:var(--line);border-radius:4px;cursor:pointer}
+.bar .fill{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:4px;width:0}
+.bar .tick{position:absolute;top:-3px;width:2px;height:14px;background:var(--panel)}
+.time{font:12px var(--mono);color:var(--muted);min-width:78px;text-align:right}
+.chapters{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 14px}
+.chapters button{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:5px 11px;font:12px var(--sans);cursor:pointer}
+.chapters button.cur{background:var(--accent);border-color:var(--accent);color:#fff}
+.notes{margin-top:22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.note{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:14px}
+.note h3{margin:0 0 4px;font-size:14px}
+.note code{font-family:var(--mono);font-size:12px;color:var(--accent)}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>How the Delta Log Works</h1>
+    <p>An animated walk through <code>_delta_log</code>: commits, actions, concurrency, checkpoints and how Spark builds a snapshot.</p>
+  </header>
+
+  <div class="player">
+    <div class="stage" id="stage">
+      <div class="chtitle" id="chtitle"></div>
+      <div class="scene" id="scene"></div>
+      <div class="caption" id="caption"></div>
+    </div>
+    <div class="controls">
+      <button class="btn" id="play" aria-label="Play">▶</button>
+      <div class="bar" id="bar" role="slider" aria-label="Seek" tabindex="0"><div class="fill" id="fill"></div></div>
+      <div class="time" id="time">0:00 / 0:00</div>
+    </div>
+    <div class="chapters" id="chapters"></div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><h3>Source of truth</h3>The table is whatever the log says it is. Parquet files with no <code>add</code> action are invisible to readers.</div>
+    <div class="note"><h3>Atomic commit</h3>A commit is one <code>put-if-absent</code> of <code>N.json</code>. On S3 this needs a coordinator (DynamoDB LogStore or S3 conditional writes).</div>
+    <div class="note"><h3>Spark classes</h3><code>DeltaLog</code> → <code>SnapshotManagement.update()</code> → <code>LogSegment</code> → <code>Snapshot</code> → <code>OptimisticTransaction.commit()</code>.</div>
+    <div class="note"><h3>Checkpoints</h3>Every <code>delta.checkpointInterval</code> commits (default 10). <code>_last_checkpoint</code> points at the latest so readers skip listing.</div>
+  </div>
+</div>
+
+<script>
+/* ---------- tiny scene toolkit ---------- */
+const scene = document.getElementById('scene');
+const pct = v => v + '%';
+function el(cls, html, x, y, extra = {}) {
+  const d = document.createElement('div');
+  d.className = cls; d.innerHTML = html;
+  d.style.left = pct(x); d.style.top = pct(y);
+  Object.assign(d.style, extra);
+  scene.appendChild(d); return d;
+}
+const box = (label, x, y, w, h) => el('box', `<span class="lbl">${label}</span>`, x, y, {width: pct(w), height: pct(h)});
+const file = (kind, name, x, y) => el('file ' + kind, name, x, y);
+const actor = (name, x, y) => el('actor', name, x, y);
+const code = (html, x, y, w) => el('code', html, x, y, w ? {width: pct(w)} : {});
+const tag = (text, x, y, color, bg) => el('tag', text, x, y, {color: `var(${color})`, background: `var(${bg})`});
+function arrow(x, y, len, deg) { return el('arrow', '', x, y, {width: pct(len), transform: `rotate(${deg || 0}deg)`}); }
+const on = (...e) => e.forEach(n => n.classList.add('on'));
+const off = (...e) => e.forEach(n => n.classList.remove('on'));
+const move = (n, x, y) => { n.style.left = pct(x); n.style.top = pct(y); };
+
+/* ---------- chapters: build() returns steps [[t, fn, caption?]] ---------- */
+const chapters = [
+{
+  title: '1 · Anatomy of a Delta table', dur: 9,
+  build() {
+    box('s3://lake/sales/', 2, 4, 44, 88);
+    box('_delta_log/', 52, 4, 46, 88);
+    const p = [file('parq','part-0000-a1.parquet',6,14), file('parq','part-0001-b7.parquet',6,30), file('parq','part-0002-c3.parquet',6,46)];
+    const j = [file('json','00000000000000000000.json',56,14), file('json','00000000000000000001.json',56,30)];
+    const lc = file('ckpt','_last_checkpoint',56,62);
+    return [
+      [0, () => {}, 'A Delta table is just a directory: <b>Parquet data files</b> plus a <b>_delta_log</b> folder.'],
+      [1.5, () => on(...p), 'Data lives in ordinary Parquet files, immutable once written.'],
+      [4, () => on(...j), 'The log is an ordered list of JSON commits, zero-padded to 20 digits. File N.json is <b>table version N</b>.'],
+      [6.5, () => on(lc), 'Readers trust the log, never a directory listing. A Parquet file only belongs to the table if a commit <b>adds</b> it.'],
+    ];
+  }
+},
+{
+  title: '2 · Writing a commit', dur: 13,
+  build() {
+    box('data files', 2, 4, 40, 88);
+    box('_delta_log/', 58, 4, 40, 88);
+    const w = actor('Spark job: df.write.format("delta").mode("append")', 8, -2);
+    const p1 = file('parq','part-0003-d9.parquet',6,30), p2 = file('parq','part-0004-e2.parquet',6,46);
+    const j0 = file('json','…000.json',62,14), j1 = file('json','…001.json',62,26), j2 = file('json','…002.json',62,38);
+    on(j0, j1);
+    const c = code(`<span class="m">// 00000000000000000002.json</span>
+{<span class="k">"commitInfo"</span>:{"operation":"WRITE","mode":"Append"}}
+{<span class="k">"add"</span>:{"path":"part-0003-d9.parquet",
+   "size":48211,"dataChange":true,
+   "stats":"{numRecords:1200,minValues:{..}}"}}
+{<span class="k">"add"</span>:{"path":"part-0004-e2.parquet", …}}`, 4, 58, 92);
+    const a = arrow(42, 44, 18);
+    return [
+      [0, () => on(w), 'A writer starts an <b>OptimisticTransaction</b>, reading the latest snapshot (version 1).'],
+      [2, () => on(p1, p2), 'Step 1: tasks write new Parquet files. Readers can\'t see them yet: nothing in the log mentions them.'],
+      [5, () => on(a), 'Step 2: the driver collects the file metadata and builds a list of <b>actions</b>.'],
+      [6.5, () => on(c), 'Each line of the commit file is one action. <b>add</b> carries the path, size and per-column stats used for data skipping.'],
+      [9.5, () => { on(j2); j2.classList.add('pulse'); }, 'Step 3: atomically create <b>00000000000000000002.json</b>. When it exists, version 2 exists. All or nothing.'],
+    ];
+  }
+},
+{
+  title: '3 · The action types', dur: 12,
+  build() {
+    const rows = [
+      ['protocol', 'min reader/writer versions + table features', 'log'],
+      ['metaData', 'schema, partition columns, table properties', 'log'],
+      ['add', 'a data file is now part of the table', 'log'],
+      ['remove', 'a data file is logically deleted (tombstone)', 'warn'],
+      ['txn', 'idempotent app id + version (streaming exactly-once)', 'log'],
+      ['commitInfo', 'who / what / when; informational only', 'log'],
+      ['domainMetadata, cdc', 'feature-specific actions', 'log'],
+    ];
+    const items = rows.map((r, i) => code(`<span class="${r[2]==='warn'?'r':'k'}">${r[0]}</span>  <span class="m">${r[1]}</span>`, 4, 2 + i * 13, 92));
+    return [
+      [0, () => {}, 'Every commit is a set of actions. Replaying all of them gives the current state of the table.'],
+      ...items.map((n, i) => [0.6 + i * 1.3, () => on(n)]),
+      [1.9, () => {}, '<b>protocol</b> and <b>metaData</b> appear in version 0 and whenever schema or features change.'],
+      [4.5, () => {}, 'An UPDATE, DELETE or MERGE never edits Parquet in place. It <b>removes</b> old files and <b>adds</b> rewritten ones (or deletion vectors).'],
+      [8.5, () => {}, '<b>txn</b> lets Structured Streaming skip a batch it already committed. That is how exactly-once sinks work.'],
+    ];
+  }
+},
+{
+  title: '4 · Optimistic concurrency', dur: 15,
+  build() {
+    box('_delta_log/', 30, 4, 40, 88);
+    const j = ['…000.json','…001.json','…002.json'].map((n,i)=>{const f=file('json',n,40,12+i*11);on(f);return f;});
+    const A = actor('Writer A (append)', 2, 20), B = actor('Writer B (delete)', 74, 20);
+    const a3 = file('json','…003.json',2,52), b3 = file('json','…003.json',78,52);
+    const won = file('json','…003.json',40,45);
+    const fail = tag('FileAlreadyExists', 74, 66, '--warn', '--warn-soft');
+    const chk = code(`<span class="m">conflict check vs v3</span>
+A added files, B read files
+<span class="k">no overlap → rebase</span>`, 66, 30, 32);
+    const b4 = file('json','…004.json',40,56);
+    return [
+      [0, () => on(A, B), 'Two writers both read <b>version 2</b> and work in parallel. No locks are held.'],
+      [2.5, () => on(a3, b3), 'Both want to commit as version 3.'],
+      [4.5, () => { move(a3, 40, 45); }, 'Writer A wins: <b>put-if-absent</b> on 00000000000000000003.json succeeds.'],
+      [5.4, () => { off(a3); on(won); move(b3, 40, 45); b3.classList.add('bad'); }, ''],
+      [6.2, () => { move(b3, 78, 52); on(fail); }, 'Writer B gets <b>FileAlreadyExistsException</b>. It does not fail yet.'],
+      [8.5, () => on(chk), 'B reads commit 3 and runs <b>ConflictChecker</b>: did A touch files or partitions that B read or removed?'],
+      [11.5, () => { b3.classList.remove('bad'); b3.textContent='…004.json'; move(b3,40,56); off(fail); }, 'No logical conflict, so B retries as <b>version 4</b>. If there were overlap it would throw ConcurrentModificationException.'],
+      [12.4, () => { off(b3); on(b4); b4.classList.add('pulse'); }],
+    ];
+  }
+},
+{
+  title: '5 · Checkpoints', dur: 12,
+  build() {
+    box('_delta_log/', 2, 4, 96, 70);
+    const fs = [];
+    for (let i = 0; i <= 11; i++) {
+      const col = i % 6, row = Math.floor(i / 6);
+      fs.push(file('json', `…${String(i).padStart(3,'0')}.json`, 4 + col * 15.5, 14 + row * 14));
+    }
+    const ck = file('ckpt','…010.checkpoint.parquet', 4, 46);
+    const lc = file('ckpt','_last_checkpoint  {"version":10,"size":5182}', 40, 46);
+    const steps = [[0, () => {}, 'Replaying thousands of JSON files would be slow, so Delta periodically writes a <b>checkpoint</b>.']];
+    fs.forEach((f, i) => steps.push([0.3 + i * 0.35, () => on(f)]));
+    steps.push(
+      [4.5, () => { on(ck); fs.slice(0, 11).forEach(f => f.classList.add('pulse')); }, 'After version 10 the writer squashes the full state (live <b>add</b>s, unexpired <b>remove</b>s, metaData, protocol, txn) into one Parquet file.'],
+      [7, () => { fs.forEach(f => f.classList.remove('pulse')); on(lc); }, '<b>_last_checkpoint</b> points at it, so a reader can jump straight there.'],
+      [9.5, () => fs.slice(0, 11).forEach(f => f.classList.add('ghost')), 'State at v11 = checkpoint 10 + 11.json. Old JSON is deleted after <b>delta.logRetentionDuration</b> (30 days).'],
+    );
+    return steps;
+  }
+},
+{
+  title: '6 · How Spark reads a snapshot', dur: 16,
+  build() {
+    const steps = [
+      ['DeltaLog.forTable(spark, path)', 'cached per path'],
+      ['read _last_checkpoint', '→ version 10'],
+      ['list _delta_log from 10', '→ 10.checkpoint, 11.json, 12.json'],
+      ['LogSegment(checkpoint=10, deltas=[11,12])', ''],
+      ['Snapshot: state reconstruction', 'adds − removes, last metaData wins'],
+      ['PrepareDeltaScan + data skipping', 'prune with minValues / maxValues'],
+      ['FileScanRDD over surviving Parquet', ''],
+    ];
+    const n = steps.map((s, i) => code(`<span class="k">${i+1}.</span> ${s[0]}  <span class="m">${s[1]}</span>`, 2, 1 + i * 12.5, 60));
+    const ck = file('ckpt','checkpoint v10', 68, 20), j11 = file('json','11.json',68,34), j12 = file('json','12.json',84,34);
+    const live = code(`<span class="m">live files @ v12</span>
+part-0003  part-0004
+part-0007  <span class="r">part-0001 ✕</span>`, 66, 52, 32);
+    return [
+      [0, () => on(n[0]), 'A query on the table first gets a <b>DeltaLog</b>, then calls <b>update()</b> to find the latest version.'],
+      [2, () => on(n[1]), 'It reads the tiny <b>_last_checkpoint</b> file instead of listing everything.'],
+      [4, () => { on(n[2]); on(ck, j11, j12); }, 'Then it lists only files ≥ that version: the checkpoint and the JSON commits after it.'],
+      [6.5, () => on(n[3]), 'Together these form a <b>LogSegment</b>: the minimal set of files that describe this version.'],
+      [8.5, () => { on(n[4]); on(live); }, 'Spark reads them as a Dataset and reconciles: a <b>remove</b> cancels a matching <b>add</b>, and the newest metaData/protocol wins.'],
+      [11.5, () => on(n[5]), 'Query filters are checked against per-file stats so whole files are skipped before any I/O.'],
+      [13.5, () => on(n[6]), 'Only the surviving Parquet files are actually scanned.'],
+    ];
+  }
+},
+{
+  title: '7 · Time travel & VACUUM', dur: 13,
+  build() {
+    const tl = [0,1,2,3,4].map(i => { const f = file('json', `v${i}`, 6 + i * 18, 10); return f; });
+    const q = code(`SELECT * FROM sales <span class="k">VERSION AS OF 2</span>`, 6, 28, 60);
+    const r = code(`replay 0.json → 2.json only
+<span class="m">files added in v3/v4 are ignored,
+files removed in v3/v4 are still read</span>`, 6, 46, 60);
+    const v = code(`<span class="r">VACUUM</span> sales RETAIN 168 HOURS
+<span class="m">physically deletes files that were removed
+more than 7 days ago and are not referenced</span>`, 6, 46, 70);
+    const warn = tag('time travel to older versions now breaks', 6, 78, '--warn', '--warn-soft');
+    return [
+      [0, () => on(...tl), 'Because every version is just "log up to N", older states are still reachable.'],
+      [2, () => { on(q); tl.slice(0,3).forEach(f=>f.classList.add('pulse')); tl.slice(3).forEach(f=>f.classList.add('ghost')); }, 'Time travel builds a snapshot from the log <b>up to version 2</b>.'],
+      [4.5, () => on(r), 'Removed files still exist on storage, so the old snapshot reads correctly.'],
+      [8, () => { off(q, r); tl.forEach(f=>f.classList.remove('pulse','ghost')); on(v); }, '<b>VACUUM</b> deletes tombstoned files once they are past the retention window.'],
+      [10.5, () => on(warn), 'After that, versions that pointed at those files can\'t be read. Retention is the trade-off between storage cost and history.'],
+    ];
+  }
+},
+];
+
+/* ---------- timeline engine ---------- */
+let offsets = [], total = 0;
+chapters.forEach(c => { offsets.push(total); total += c.dur; });
+const fmt = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+const $ = id => document.getElementById(id);
+let t = 0, playing = false, curCh = -1, steps = [], applied = 0, last = 0;
+
+const chWrap = $('chapters'), bar = $('bar');
+chapters.forEach((c, i) => {
+  const b = document.createElement('button'); b.textContent = c.title;
+  b.onclick = () => seek(offsets[i] + 0.01); chWrap.appendChild(b);
+  if (i) { const tk = document.createElement('div'); tk.className = 'tick'; tk.style.left = pct(offsets[i] / total * 100); bar.appendChild(tk); }
+});
+
+function loadChapter(i) {
+  curCh = i; scene.innerHTML = ''; applied = 0;
+  steps = chapters[i].build();
+  $('chtitle').textContent = chapters[i].title;
+  [...chWrap.children].forEach((b, k) => b.classList.toggle('cur', k === i));
+}
+function render() {
+  let i = offsets.findLastIndex(o => t >= o); if (i < 0) i = 0;
+  const local = t - offsets[i];
+  if (i !== curCh || local < (steps[applied - 1]?.[0] ?? -1)) loadChapter(i);
+  // apply steps instantly when seeking (disable transitions briefly)
+  const jump = steps.filter((s, k) => k >= applied && s[0] <= local).length > 1;
+  if (jump) scene.querySelectorAll('*').forEach(n => n.style.transition = 'none');
+  while (applied < steps.length && steps[applied][0] <= local) {
+    const s = steps[applied++]; s[1]();
+    if (s[2]) $('caption').innerHTML = s[2];
+  }
+  if (jump) requestAnimationFrame(() => scene.querySelectorAll('*').forEach(n => n.style.transition = ''));
+  $('fill').style.width = pct(t / total * 100);
+  $('time').textContent = `${fmt(t)} / ${fmt(total)}`;
+}
+function seek(v) { t = Math.max(0, Math.min(total, v)); curCh = -1; render(); }
+function loop(now) {
+  if (playing) {
+    t += (now - last) / 1000;
+    if (t >= total) { t = total; setPlaying(false); }
+    render();
+  }
+  last = now; requestAnimationFrame(loop);
+}
+function setPlaying(p) { playing = p; $('play').textContent = p ? '❚❚' : '▶'; $('play').setAttribute('aria-label', p ? 'Pause' : 'Play'); }
+$('play').onclick = () => { if (t >= total) seek(0); setPlaying(!playing); };
+bar.onclick = e => { const r = bar.getBoundingClientRect(); seek((e.clientX - r.left) / r.width * total); };
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); $('play').click(); }
+  if (e.code === 'ArrowRight') seek(t + 3);
+  if (e.code === 'ArrowLeft') seek(t - 3);
+});
+render(); requestAnimationFrame(n => { last = n; loop(n); });
+</script>
+</body>
+</html>
