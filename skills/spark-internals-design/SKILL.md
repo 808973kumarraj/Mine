@@ -46,7 +46,7 @@ Use this skill for new episodes first, and for anything that should look like pa
 
 - `README.md`: the complete design system guide
 - `tokens.css`, `tokens.json`, `manifest.json`: tokens and bundle manifest
-- `components/`: 36 components, each with a README and `preview.html`, plus `bundle.js`, `bundle.css`, `index.d.ts`, and `lib/` (React)
+- `components/`: 30 components, each with a README and `preview.html`, plus `bundle.js`, `bundle.css`, `index.d.ts`, and `lib/` (React)
 - `api/`: props reference for components and tokens
 - `fonts/`: JetBrains Mono and Newsreader (SIL Open Font License 1.1)
 - `assets/Marks/`: the episode thumbnail mark, `episode-thumbnail.svg`
