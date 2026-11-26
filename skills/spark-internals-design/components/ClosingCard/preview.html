@@ -1,0 +1,13 @@
+<!-- @dsCard group="Endings" height=440 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>ClosingCard — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(S.ClosingCard, { series: 'Spark Internals', episode: 7, title: 'Move less data.', subtitle: 'The shuffle, explained.', footnote: 'spark.sql.adaptive.enabled = true',
+    takeaways: [{ label: 'FILTER EARLY', tone: 'green' }, { label: 'PRUNE COLUMNS', tone: 'blue' }, { label: 'AGGREGATE FIRST', tone: 'green' }, { label: 'BROADCAST SMALL', tone: 'amber' }] }));
+</script>
+</body>
+</html>

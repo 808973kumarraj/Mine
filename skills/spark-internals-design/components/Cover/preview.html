@@ -1,0 +1,60 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Spark Internals</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--cream); color: var(--ink); overflow: hidden; }
+  .cover { position: relative; height: 288px; overflow: hidden; }
+  /* the composition: a 480-wide box on the right half of the 960 layout, clear of the name */
+  .art { position: absolute; top: 0; left: 480px; width: 480px; height: 288px; overflow: hidden; }
+  .art svg { display: block; width: 504px; height: 288px; }
+  .blue { fill: var(--blue); rx: var(--radius-card); }
+  .deck { fill: var(--ink); rx: var(--radius-deck); }
+  .k2 { fill: var(--green); rx: var(--radius-bar); }
+  .k3 { fill: var(--amber); rx: var(--radius-bar); }
+  .idle { fill: var(--slab); rx: var(--radius-bar); }
+  .plus { fill: none; stroke: var(--ink); stroke-width: var(--stroke-box); }
+  .plus.cut { stroke: var(--cream); }
+  /* name and tagline, pinned bottom-left on the ground */
+  .words { position: absolute; left: 28px; bottom: 28px; max-width: 440px; }
+  .name { margin: 0; font-family: var(--font-serif); font-size: 88px; line-height: 0.95; font-weight: 500; letter-spacing: -0.01em; color: var(--ink); }
+  .tag { margin: 14px 0 0 2px; font-family: var(--font-mono); font-size: 13px; line-height: 18px; font-weight: 500; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 504 288" width="504" height="288">
+<!--
+  blocks      blue 182×182 (radius-card) bled off the top and right: the brand hue, the largest field · ink 434×84 (radius-deck) bled off the right: the studio deck · green, amber and slab partitions 154×28 each (radius-bar) — about 27% of 960×288
+  arrangement a staggered stack: three partitions standing on the deck, each layer 14px left of the one below, the way the machines' depth recedes up and to the left; the blue slab stands behind them
+  pattern     plus marks at the graph paper's major intersections, chosen from "Snap layout to the 14px grid" and the grid-major and grid-minor notes: 28 pluses at pitch-major (70px), ink on the ground, cut out in cream where they cross the blue and ink blocks
+  scales      every side and offset a multiple of pitch-minor (14px); pattern pitch pitch-major; corners radius-card, radius-deck and radius-bar; plus arms 10px at stroke-box
+-->
+<defs>
+  <clipPath id="onblocks">
+    <rect x="322" y="-14" width="182" height="182" rx="8"/>
+    <rect x="70" y="182" width="434" height="84" rx="18"/>
+  </clipPath>
+</defs>
+<path class="plus" d="M30 35H40M35 30V40 M100 35H110M105 30V40 M170 35H180M175 30V40 M240 35H250M245 30V40 M310 35H320M315 30V40 M380 35H390M385 30V40 M450 35H460M455 30V40 M30 105H40M35 100V110 M100 105H110M105 100V110 M170 105H180M175 100V110 M240 105H250M245 100V110 M310 105H320M315 100V110 M380 105H390M385 100V110 M450 105H460M455 100V110 M30 175H40M35 170V180 M100 175H110M105 170V180 M170 175H180M175 170V180 M240 175H250M245 170V180 M310 175H320M315 170V180 M380 175H390M385 170V180 M450 175H460M455 170V180 M30 245H40M35 240V250 M100 245H110M105 240V250 M170 245H180M175 240V250 M240 245H250M245 240V250 M310 245H320M315 240V250 M380 245H390M385 240V250 M450 245H460M455 240V250"/>
+<rect class="blue" x="322" y="-14" width="182" height="182" rx="8"/>
+<rect class="deck" x="70" y="182" width="434" height="84" rx="18"/>
+<rect class="k2" x="112" y="154" width="154" height="28" rx="3"/>
+<rect class="k3" x="98" y="126" width="154" height="28" rx="3"/>
+<rect class="idle" x="84" y="98" width="154" height="28" rx="3"/>
+<g clip-path="url(#onblocks)">
+  <path class="plus cut" d="M310 35H320M315 30V40 M380 35H390M385 30V40 M450 35H460M455 30V40 M310 105H320M315 100V110 M380 105H390M385 100V110 M450 105H460M455 100V110 M30 245H40M35 240V250 M100 245H110M105 240V250 M170 245H180M175 240V250 M240 245H250M245 240V250 M310 245H320M315 240V250 M380 245H390M385 240V250 M450 245H460M455 240V250"/>
+</g>
+</svg>
+</div>
+<div class="words">
+<h1 class="name">Spark<br>Internals</h1>
+<p class="tag">A billion rows, drawn on graph paper.</p>
+</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,12 @@
+<!-- @dsCard group="Data" height=230 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>TaskBars — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { style: { width: '400px', maxWidth: '100%' } }, h(S.TaskBars, { label: 'BARRIER · WAITS FOR SLOWEST MAP', barrier: 0.5, tasks: [{ wait: 1, work: 0.65 }, { wait: 1, work: 0.5 }, { wait: 1, work: 0.75 }, { wait: 1, work: 0.39 }] })));
+</script>
+</body>
+</html>

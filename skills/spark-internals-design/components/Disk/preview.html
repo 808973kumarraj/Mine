@@ -1,0 +1,12 @@
+<!-- @dsCard group="Machines" height=150 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Disk — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null, h(S.Disk, null), h(S.Disk, { active: true, animate: true })));
+</script>
+</body>
+</html>

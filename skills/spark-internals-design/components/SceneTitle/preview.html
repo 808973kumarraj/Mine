@@ -1,0 +1,15 @@
+<!-- @dsCard group="Labels" height=150 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>SceneTitle — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'si-col' },
+    h(S.SceneTitle, { n: 5, name: 'Cost pipeline', animate: true }),
+    h(S.SceneTitle, { n: 6, name: 'Overhead & waiting' }),
+    h(S.SceneTitle, { n: 9, name: 'Broadcast' })));
+</script>
+</body>
+</html>

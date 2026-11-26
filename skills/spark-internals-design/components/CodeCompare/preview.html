@@ -1,0 +1,14 @@
+<!-- @dsCard group="Code" height=170 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>CodeCompare — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { style: { width: '430px', maxWidth: '100%' } }, h(S.CodeCompare, {
+    bad: { code: ['rdd.groupByKey()', '   .mapValues(sum)'], note: 'ships every raw row' },
+    good: { code: ['df.groupBy("k")', '  .agg(sum("amt"))'], note: 'partial agg before shuffle' } })));
+</script>
+</body>
+</html>

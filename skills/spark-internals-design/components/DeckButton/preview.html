@@ -1,0 +1,13 @@
+<!-- @dsCard group="Frame" height=100 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>DeckButton — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'si-deck', style: { width: '446px', maxWidth: '100%' } },
+    h('div', { className: 'si-btns' }, h(S.DeckButton, null, '← Step'), h(S.DeckButton, null, 'Pause'), h(S.DeckButton, null, 'Step →'), h(S.DeckButton, null, 'Expand: Auto'), h(S.DeckButton, { on: true }, 'TTS: On'))));
+</script>
+</body>
+</html>

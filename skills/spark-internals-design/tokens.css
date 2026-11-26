@@ -1,0 +1,266 @@
+/* Spark Internals — generated from tokens.json */
+:root, [data-theme="paper"] {
+  --ink: #1b1b1b; /* Text, numbers and every outline (1.1px on machines, 1.2px on cards). Also the fill of default pills, the terminal and the data-grid header row. 15.0:1 on cream, 16.2:1 on paper, 13.8:1 on node. */
+  --muted: #726e64; /* Secondary words: eyebrows, captions, counters, scene titles, axis words. 4.8:1 on paper, 5.1:1 on white. On cream it reads 4.4:1 and on node 4.1:1, just under the 4.5:1 floor. That is the episode's own pairing, kept: use muted there for short labels only and set anything a reader must study in ink. */
+  --blue: #1c56d4; /* Data and code: the header rule, flow lines, the bit ribbon, code pills, filter and select pills, links, network activity, key k1. As text 5.5:1 on cream, 5.9:1 on paper; cream text on it 5.5:1. */
+  --green: #2c7a3b; /* Healthy, done and kept: LEDs, checked steps, the progress fill, kept rows, success pills, Do this, real-work bars, key k2. 4.6:1 against cream either way round. */
+  --red: #b6362a; /* Cost and failure: stalled and queued pills, straggler LEDs, overhead blocks, the barrier, cost figures, dropped rows, anti-patterns. Never a key color. 5.2:1 against cream either way round. */
+  --amber: #d47926; /* Now: the blinking cursor, the word being spoken, the current step, disk and hourglass activity, the scrubber, link hover, waiting LEDs, broadcast, key k3. A mark color on light grounds (2.8:1 on cream, so never amber text there). As text it lives on the deck: 5.4:1 on ink. */
+  --cream: #f2efe8; /* The page: the frame's graph-paper ground and the deck's 3.5px border. Also the text on ink, blue, green and red fills (on-ink, on-blue, on-green and on-red point here). */
+  --paper: #faf8f3; /* Raised cards on the ground: the cost card, metric cards, the closing card, outline pills. */
+  --node: #ebe6da; /* Machine fill: executors, reducers and stage boxes. It is the front face; the top face is 25% lighter and the side face 22% darker. */
+  --white: #ffffff; /* Record cards, the progress-bar track, data-grid cells, and labels on blue, green, red and key-4 slabs (6.3:1, 5.3:1, 5.9:1, 11.3:1). */
+  --stage: #121212; /* The dark backdrop around the frame. Nothing sits on it except the frame. */
+  --on-ink: var(--cream); /* Text on ink fills: default pills, terminal text, the data-grid header row. 15.0:1. */
+  --on-blue: var(--cream); /* Text on blue fills such as filter and select pills. 5.5:1. The spoken code pill uses white (6.3:1). */
+  --on-green: var(--cream); /* Text on green fills such as success pills. 4.6:1. */
+  --on-red: var(--cream); /* Text on red fills: stalled, barrier and overhead pills. 5.2:1. */
+  --on-amber: var(--ink); /* Text on amber fills: 5.4:1. The episode set its one amber pill in cream (2.8:1); this system sets amber pills and amber slab labels in ink. */
+  --key-1: var(--blue); /* Partition key k1. Keys are always assigned in order k1 to k4, as slab fills and key pills. */
+  --key-2: var(--green); /* Partition key k2. */
+  --key-3: var(--amber); /* Partition key k3. Label slabs of this key in ink. */
+  --key-4: #3d3a34; /* Partition key k4, a warm umber. White labels read 11.3:1 on it. */
+  --deck-bg: var(--ink); /* The studio deck behind the script and its controls. */
+  --deck-text: var(--cream); /* Spoken words and button labels on deck-bg. 15.0:1. */
+  --deck-muted: #8b867b; /* The deck's top line (clock and counters) on deck-bg. 4.8:1. */
+  --deck-unspoken: #57544c; /* Words not yet spoken, on deck-bg. 2.3:1, dim on purpose: each word brightens to deck-text as it is spoken. Never use it for text that stays. */
+  --deck-line: #3d3a34; /* Deck button borders on deck-bg. 1.5:1, the episode's own value: the label carries the button, and hover turns the border amber. */
+  --deck-tick: #5d5a52; /* Scene ticks on the scrubber, on deck-bg. 2.5:1, the episode's own value. Beat ticks are amber. */
+  --deck-code: #8fb0ff; /* Code-pill text in the script. 7.1:1 on deck-code-bg over deck-bg. */
+  --deck-code-bg: rgba(28,86,212,0.18); /* Code-pill fill in the script (blue at 18%). */
+  --deck-code-line: rgba(28,86,212,0.6); /* Code-pill border in the script (blue at 60%). */
+  --deck-on: #7fd08e; /* A toggled-on deck button's label; its border turns green. 9.3:1 on deck-bg. */
+  --deck-focus: var(--amber); /* Keyboard focus ring on the deck. 5.4:1 on deck-bg. An addition: the episode had no focus style. */
+  --focus: var(--blue); /* Keyboard focus ring on cream and paper. 5.5:1 on cream. An addition: the episode had no focus style. */
+  --grid-major: rgba(27,40,70,0.105); /* Graph-paper lines every 70px (pitch-major) on cream. */
+  --grid-minor: rgba(27,40,70,0.055); /* Graph-paper lines every 14px (pitch-minor) on cream. */
+  --vignette: rgba(70,52,24,0.16); /* Edge darkening of the frame: a radial fade from clear at 55% to this at 100%. */
+  --header-bg: rgba(242,239,232,0.82); /* The header bar, translucent cream over the canvas. */
+  --hairline: rgba(27,27,27,0.12); /* Dividers between label and value rows on cards. */
+  --tile: #efeae0; /* Isometric rack tiles (top face; left face 16% darker, right face 30% darker) and the lit side of the disk. */
+  --tile-shade: #cfc8b9; /* The shaded face of the series mark and the dark edge of the disk. */
+  --slab: #d9d3c5; /* A partition slab before it has a key. */
+  --platform: #e2ddd1; /* Flat platforms under the grey hatch: the partition pool and the shuffle bridge. */
+  --fact: #bdb6a7; /* Slabs of the fact table, the big table that never moves. Label them in ink (8.5:1). */
+  --block: #e6e0d4; /* Neutral data blocks in the network pipe, and columns on their way out. */
+  --tint-kept: #dcefdf; /* Rows that survive a filter. Ink text 14.3:1. */
+  --tint-dropped: #f2ddd6; /* Rows a filter drops, and a straggler's rack tile. Ink text 13.2:1. */
+  --tint-queued: #e9c4bb; /* Blocks stuck in the queue at the network throat. */
+  --hatch-grey: rgba(114,110,100,0.55); /* Diagonal hatch for waiting time and platforms (5px step, 0.9px line). */
+  --hatch-white: rgba(255,255,255,0.38); /* Diagonal hatch laid over green real-work bars (5px step, 1.4px line). */
+  --string: #9fd3a8; /* String literals in the terminal, on ink. 10.1:1. */
+  --led-soft: #bff0c8; /* The LED dot inside a green pill (4.2:1 on green). */
+  --shadow-frame: 0 30px 80px rgba(0,0,0,0.55); /* The frame on the stage. */
+  --shadow-deck: 0 10px 30px rgba(0,0,0,0.35), 0 0 0 1px rgba(27,27,27,0.5); /* The studio deck. */
+  --shadow-card: 0 5px 14px rgba(27,27,27,0.18); /* Cards and the closing card. */
+  --shadow-terminal: 0 4px 12px rgba(0,0,0,0.28); /* The terminal bar. */
+  --shadow-pill: 0 2px 6px rgba(27,27,27,0.22); /* Filled pills (outline pills have none). */
+  --shadow-record: 0 2px 6px rgba(27,27,27,0.2); /* Record cards. */
+  --focus-ring: 0 0 0 2px #f2efe8, 0 0 0 4px #1c56d4; /* Keyboard focus on cream and paper: a 2px cream gap, then 2px of blue. */
+  --focus-ring-deck: 0 0 0 2px #1b1b1b, 0 0 0 4px #d47926; /* Keyboard focus on the deck: a 2px ink gap, then 2px of amber. */
+}
+:root {
+  --space-2: 2px; /* Side padding of the script. */
+  --space-5: 5px; /* Gap between deck buttons; a button's side padding. */
+  --space-6: 6px; /* Gap in the header; gap between pills in a row. */
+  --space-7: 7px; /* A pill's side padding; a button's top and bottom padding. */
+  --space-8: 8px; /* Gap between the scrubber and the buttons; the script's bottom padding. */
+  --space-10: 10px; /* The deck's inset from the frame edges; gap in the deck's top line. */
+  --space-12: 12px; /* The deck's top and bottom padding; the script's top padding. */
+  --space-14: 14px; /* The deck's side padding and a card's inner padding. */
+  --space-16: 16px; /* The header's side padding; the smallest inset of a card from the frame edge. */
+  --space-20: 20px; /* The scene title's inset; the beat statement's top and bottom padding. */
+  --pitch-minor: 14px; /* The minor graph-paper pitch. Snap canvas layout to it. */
+  --pitch-major: 70px; /* The major graph-paper pitch (5 minor squares). */
+  --radius-check: 2px; /* Step checkboxes. */
+  --radius-bar: 3px; /* Progress bars and task bars. */
+  --radius-code: 5px; /* Code pills and record cards. */
+  --radius-button: 6px; /* Deck buttons. */
+  --radius-terminal: 7px; /* The terminal bar. */
+  --radius-card: 8px; /* Cards. */
+  --radius-frame: 14px; /* The frame and the closing card. */
+  --radius-deck: 18px; /* The studio deck. */
+  --radius-pill: 9999px; /* Pills: always half their height. */
+  --stroke-fine: 0.8px; /* Rack tiles, slabs, vents, dividers, data-grid cells, task bars, the scene-title rule. */
+  --stroke-box: 1.1px; /* Machines, the disk, record cards, the pipe. */
+  --stroke-card: 1.2px; /* Cards, the barrier line, flow lines. */
+  --stroke-rule: 1.3px; /* The blue rule under the header. */
+  --stroke-deck: 3.5px; /* The cream border around the studio deck. */
+  --frame-width: 470px; /* Reference width of the frame; k = actual width / 470. */
+  --frame-height: 835px; /* Reference height (ratio 0.5629, about 9:16). The frame is min(95vh, 835px) tall. */
+  --header-height: 38px; /* The header bar. */
+  --deck-height: 37%; /* The docked deck during a scene. */
+  --deck-height-beat: 85%; /* The deck expanded for a beat. */
+  --pill-height: 17px; /* Standard pill; 15–16px for key pills, 21px on the closing card. */
+  --scrub-height: 16px; /* The scrubber track area. */
+  --cursor-width: 7px; /* The header's blinking cursor block. */
+  --cursor-height: 13px; /* The header's blinking cursor block. */
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-serif: "Newsreader", Georgia, serif;
+  --text-chrome-header: 700 11px/1.3 var(--font-mono); /* The header line, uppercase. The right-hand counter takes weight 500, letter-spacing 0.1em, in muted. */
+  --text-chrome-meta: 400 9.5px/1.3 var(--font-mono); /* The deck's top line, uppercase, in deck-muted; the segment label takes weight 700 in amber. */
+  --text-chrome-script: 500 17px/1.42 var(--font-mono); /* The narration in the deck, word by word. */
+  --text-chrome-code: 500 0.84em/1.42 var(--font-mono); /* Code inside the script, set as a code pill at 0.84em of the script. */
+  --text-chrome-button: 700 9px/1.3 var(--font-mono); /* Deck buttons, uppercase. */
+  --text-closing: 500 50px/1.1 var(--font-serif); /* The end card's title: the episode's lesson in three or four words. Once per episode. */
+  --text-beat: 500 42px/1.1 var(--font-serif); /* A beat: one sentence in the expanded deck between scenes. */
+  --text-closing-sub: italic 400 21px/1.25 var(--font-serif); /* The line under the end card's title, in muted. */
+  --text-count-xl: 800 34px/1.1 var(--font-mono); /* The scene's one big number, centered. */
+  --text-count-lg: 800 28px/1.1 var(--font-mono); /* The figure on a stat card; red when it is a cost. */
+  --text-count-md: 800 22px/1.1 var(--font-mono); /* A counter above a pool, counting down or up. */
+  --text-delta: 800 13px/1.2 var(--font-mono); /* A before-to-after figure, in green when it shrinks. */
+  --text-scene-title: 700 10.5px/1.3 var(--font-mono); /* Scene number, em dash, scene name, in muted over a dashed rule. */
+  --text-canvas-code: 500 10px/1.3 var(--font-mono); /* The terminal line; code on cards takes weight 600. */
+  --text-canvas-value: 700 9.5px/1.3 var(--font-mono); /* Values at the right of label and value rows. */
+  --text-canvas-caption: 500 9px/1.3 var(--font-mono); /* Captions under big numbers and the labels of rows. */
+  --text-canvas-label: 700 8.5px/1.3 var(--font-mono); /* Card eyebrows and pill text, uppercase. */
+  --text-canvas-micro: 700 7.5px/1.3 var(--font-mono); /* Names under drawn objects (NETWORK, LOCAL DISK, REDUCER 1) and record fields. */
+}
+.chrome-header {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.chrome-meta {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 1.3;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+}
+.chrome-script {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  line-height: 1.42;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.chrome-code {
+  font-family: var(--font-mono);
+  font-size: 0.84em;
+  line-height: 1.42;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.chrome-button {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.closing {
+  font-family: var(--font-serif);
+  font-size: 50px;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.beat {
+  font-family: var(--font-serif);
+  font-size: 42px;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.closing-sub {
+  font-family: var(--font-serif);
+  font-size: 21px;
+  line-height: 1.25;
+  font-weight: 400;
+  letter-spacing: 0;
+  font-style: italic;
+}
+.count-xl {
+  font-family: var(--font-mono);
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.count-lg {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.count-md {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.delta {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.scene-title {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.canvas-code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.3;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.canvas-value {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.canvas-caption {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.3;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.canvas-label {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.canvas-micro {
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("fonts/JetBrainsMono-Latin.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Newsreader";
+  src: url("fonts/Newsreader-Latin.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Newsreader";
+  src: url("fonts/Newsreader-Italic-Latin.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}

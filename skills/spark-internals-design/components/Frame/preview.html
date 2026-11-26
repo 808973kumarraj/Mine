@@ -1,0 +1,14 @@
+<!-- @dsCard group="Frame" height=580 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Frame — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-sheet is-stage"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(S.Frame, { width: 300 },
+    h(S.Header, { episode: 7, scene: 5, total: 9, docked: true }),
+    h(S.Deck, { docked: true, label: 'SCENE 05 / 09 · COST PIPELINE', clock: '00:37 / 01:17', text: 'Each record is serialized, compressed, written to `local disk`, fetched over the network, decompressed, and rebuilt.', current: 8 })));
+</script>
+</body>
+</html>

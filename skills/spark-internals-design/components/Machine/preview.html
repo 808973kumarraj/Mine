@@ -1,0 +1,17 @@
+<!-- @dsCard group="Machines" height=190 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Machine — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(S.Machine, { label: 'EXEC 1', animate: true }),
+    h(S.Machine, { label: 'STAGE 1 · MAP', w: 104, h: 72, depth: 40, dividers: 2, vents: 6, leds: ['green', 'green', 'red'] }),
+    h(S.Machine, { label: 'SHUFFLE', w: 120, h: 52, depth: 36, vents: 6, leds: ['amber'] }),
+    h(S.Machine, { w: 78, h: 16, depth: 40, wire: true, animate: true, leds: [], dividers: 0, vents: 0 }),
+    h(S.Machine, { w: 180, h: 9, depth: 34, color: 'platform', pattern: 'grey', leds: [], dividers: 0, vents: 0 })));
+</script>
+</body>
+</html>

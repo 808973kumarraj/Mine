@@ -1,0 +1,13 @@
+<!-- @dsCard group="Data" height=210 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>StepList — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(S.Card, { eyebrow: 'PER-RECORD TOLL', style: { width: '200px' } },
+    h(S.StepList, { current: 3, progress: 0.5, steps: [{ label: 'serialize', cost: '+0.9' }, { label: 'compress · lz4', cost: '+0.6' }, { label: 'write shuffle file', cost: '+0.7' }, { label: 'network fetch', cost: '+1.1' }, { label: 'read + decompress', cost: '+0.6' }, { label: 'deserialize', cost: '+0.8' }] })));
+</script>
+</body>
+</html>

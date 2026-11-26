@@ -1,0 +1,15 @@
+<!-- @dsCard group="Data" height=230 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Card — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(S.Card, { eyebrow: 'STAGE 2/3 · EXCHANGE hashpartitioning(user_id)', style: { width: '390px', maxWidth: '100%' } },
+    h(S.ProgressBar, { value: 0.38, stalled: true, caption: 'tasks 76 / 200' }),
+    h('div', { style: { height: '12px' } }),
+    h(S.MetricRows, { rows: [{ label: 'shuffle write', value: '48.2 GB' }, { label: 'spill to disk', value: '12.6 GB', tone: 'red' }, { label: 'eta', value: '14 min', tone: 'red' }] })));
+</script>
+</body>
+</html>

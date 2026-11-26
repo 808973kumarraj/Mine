@@ -1,0 +1,12 @@
+<!-- @dsCard group="Data in motion" height=120 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>BitRibbon — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'si-col' }, h(S.BitRibbon, { length: 110, animate: true }), h(S.BitRibbon, { length: 56, dense: true, animate: true })));
+</script>
+</body>
+</html>

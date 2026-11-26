@@ -1,0 +1,12 @@
+<!-- @dsCard group="Data in motion" height=90 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Record — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null, h(S.Record, null), h(S.Record, { field: 'user_id: 87', rest: 'ts, country, ua' })));
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+<!-- @dsCard group="Labels" height=150 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>StippleText — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'si-col' },
+    h(S.StippleText, { text: 'Move less data.', family: 'serif', size: 50, animate: true }),
+    h(S.StippleText, { text: 'STAGE 2/3 · EXCHANGE', size: 11, color: 'muted', animate: true, duration: 0.9 })));
+</script>
+</body>
+</html>

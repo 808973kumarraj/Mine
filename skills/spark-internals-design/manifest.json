@@ -1,0 +1,226 @@
+{
+  "manifestVersion": 3,
+  "name": "Spark Internals",
+  "namespace": "SparkInternals",
+  "files": [
+    "assets/Marks/README.md",
+    "components/BitRibbon/README.md",
+    "components/Card/README.md",
+    "components/ClosingCard/README.md",
+    "components/CodeCompare/README.md",
+    "components/DataGrid/README.md",
+    "components/Deck/README.md",
+    "components/DeckButton/README.md",
+    "components/Disk/README.md",
+    "components/Episode/README.md",
+    "components/Frame/README.md",
+    "components/Header/README.md",
+    "components/Hourglass/README.md",
+    "components/LED/README.md",
+    "components/Machine/README.md",
+    "components/MetricRows/README.md",
+    "components/Pill/README.md",
+    "components/Pipe/README.md",
+    "components/ProgressBar/README.md",
+    "components/RackGrid/README.md",
+    "components/Record/README.md",
+    "components/SceneTitle/README.md",
+    "components/Scrubber/README.md",
+    "components/Slab/README.md",
+    "components/Stat/README.md",
+    "components/StepList/README.md",
+    "components/StippleText/README.md",
+    "components/TaskBars/README.md",
+    "components/Terminal/README.md",
+    "components/bundle.css",
+    "components/bundle.js",
+    "components/index.d.ts",
+    "components/lib/react-dom.production.min.js",
+    "components/lib/react.production.min.js",
+    "fonts/JetBrainsMono-Latin.woff2",
+    "fonts/Newsreader-Italic-Latin.woff2",
+    "fonts/Newsreader-Latin.woff2",
+    "tokens.css"
+  ],
+  "libraries": [
+    {
+      "name": "react",
+      "version": "18.3.1",
+      "global": "React",
+      "file": "components/lib/react.production.min.js"
+    },
+    {
+      "name": "react-dom",
+      "version": "18.3.1",
+      "global": "ReactDOM",
+      "file": "components/lib/react-dom.production.min.js"
+    }
+  ],
+  "components": [
+    {
+      "name": "Episode",
+      "group": "Frame",
+      "summary": "The whole player: the 470 × 835 frame, a canvas for scenes, the header, and the studio deck with word-by-word narration, a scrubber and step, play, expand and…"
+    },
+    {
+      "name": "Frame",
+      "group": "Frame",
+      "summary": "The paper the whole series is drawn on: a 470 × 835 graph-paper frame (14px and 70px grids, a warm vignette, 14px corners) that sets --k to its width ÷ 470."
+    },
+    {
+      "name": "Header",
+      "group": "Frame",
+      "summary": "The series line across the top of the frame: \"> SPARK INTERNALS / EP."
+    },
+    {
+      "name": "Deck",
+      "group": "Frame",
+      "summary": "The studio deck: a dark panel docked at the bottom of the frame that carries the narration word by word, with the segment label in amber and the clock on its t…"
+    },
+    {
+      "name": "DeckButton",
+      "group": "Frame",
+      "summary": "The deck's only button: transparent, uppercase 9px mono, a thin deck-line border that turns amber on hover and green (with a deck-on label) when toggled on."
+    },
+    {
+      "name": "Scrubber",
+      "group": "Frame",
+      "summary": "The episode timeline: a range input in amber with a tick at every segment start, grey for scenes and a taller amber tick for beats."
+    },
+    {
+      "name": "SceneTitle",
+      "group": "Labels",
+      "summary": "The label at the top-left of every scene: number, em dash, name (\"05 — COST PIPELINE\") in muted 10.5px bold, over a 180px dashed rule."
+    },
+    {
+      "name": "StippleText",
+      "group": "Labels",
+      "summary": "Text that prints itself: each character arrives as a scatter of dots on a 3 × 4 grid, then resolves, left to right."
+    },
+    {
+      "name": "Pill",
+      "group": "Labels",
+      "summary": "A short state or verdict in a capsule: uppercase mono 8.5px bold, 17px tall, half-height corners, a soft drop shadow."
+    },
+    {
+      "name": "Card",
+      "group": "Data",
+      "summary": "A raised sheet of paper with a 1.2px ink outline, 8px corners and a soft shadow, for figures that need their own frame: the stage readout, the cost card, the p…"
+    },
+    {
+      "name": "Stat",
+      "group": "Data",
+      "summary": "One number that carries the scene, in mono 800 with tabular figures, and the line or two that make it mean something."
+    },
+    {
+      "name": "MetricRows",
+      "group": "Data",
+      "summary": "Label and value pairs down a card, label in muted lowercase on the left, value bold on the right, a hairline under each row."
+    },
+    {
+      "name": "ProgressBar",
+      "group": "Data",
+      "summary": "Stage progress as a white track filled with green hatching; when a stage stalls, the leading 14px turns to red hatching."
+    },
+    {
+      "name": "StepList",
+      "group": "Data",
+      "summary": "A pipeline as a checklist: done steps get a green box and a white check, the current step an amber box filling up, the rest a muted outline, each with its cost…"
+    },
+    {
+      "name": "TaskBars",
+      "group": "Data",
+      "summary": "Where the time goes around a stage barrier: grey hatched bars for waiting, green hatched bars for real work, and a dashed red line where nothing can start unti…"
+    },
+    {
+      "name": "DataGrid",
+      "group": "Data",
+      "summary": "A small table drawn on the oblique (cells 50 × 17, skewed to match the machines) that shows what a filter and a select keep: kept rows tinted green, dropped ro…"
+    },
+    {
+      "name": "Terminal",
+      "group": "Code",
+      "summary": "The one line of code that sets the scene in motion: an ink bar with an amber \"›\" prompt, cream code, light green strings and a blinking amber block cursor."
+    },
+    {
+      "name": "CodeCompare",
+      "group": "Code",
+      "summary": "The anti-pattern beside the fix: two cards, \"ANTI-PATTERN\" in red and struck through with a thick red-on-ink slash, \"DO THIS\" in green."
+    },
+    {
+      "name": "Record",
+      "group": "Data in motion",
+      "summary": "One row as a white card: \"ROW\", the key field in blue, the rest of the columns in muted."
+    },
+    {
+      "name": "Machine",
+      "group": "Machines",
+      "summary": "Every computer, stage and platform in the series: an oblique box whose front face rises 8.5% across its width and whose depth recedes up and to the left, outli…"
+    },
+    {
+      "name": "Slab",
+      "group": "Machines",
+      "summary": "A partition: a flat 26 × 5 × 14 box, grey until it has a key, then filled with that key's color and labeled on top (k1–k4)."
+    },
+    {
+      "name": "RackGrid",
+      "group": "Machines",
+      "summary": "A cluster seen from above at 30°: a square of isometric rack tiles, each with vents and an LED."
+    },
+    {
+      "name": "Disk",
+      "group": "Machines",
+      "summary": "Local disk as a short cylinder with a spinning amber needle; active spins it fast and lights the needle."
+    },
+    {
+      "name": "Hourglass",
+      "group": "Machines",
+      "summary": "Waiting, drawn as a wireframe hourglass that turns while amber sand runs down."
+    },
+    {
+      "name": "LED",
+      "group": "Machines",
+      "summary": "A status light: a dot with a soft glow 4.5 times its radius and a small white highlight up and to the left."
+    },
+    {
+      "name": "BitRibbon",
+      "group": "Data in motion",
+      "summary": "A record turned into bytes: a blue ribbon of 0s and 1s that waves gently while it travels; dense is the compressed form, shorter with tighter bits."
+    },
+    {
+      "name": "Pipe",
+      "group": "Data in motion",
+      "summary": "The network drawn as a pipe with a narrow throat: in jammed mode full-row blocks queue at the throat and glow red; in flowing mode small blue and green blocks…"
+    },
+    {
+      "name": "ClosingCard",
+      "group": "Endings",
+      "summary": "The end card: the series and episode, the lesson as a short serif title, an italic line under it, a dashed rule, the takeaways as pills and one line of config."
+    }
+  ],
+  "assetGroups": [
+    {
+      "name": "Marks",
+      "order": [
+        "episode-thumbnail.svg"
+      ],
+      "files": [
+        {
+          "path": "assets/Marks/episode-thumbnail.svg",
+          "id": "5fda9cd01f9123d7e065814af0c02449"
+        }
+      ]
+    }
+  ],
+  "storage": {
+    "files": {
+      "assets/Marks/episode-thumbnail.svg": {
+        "store": "blob",
+        "id": "5fda9cd01f9123d7e065814af0c02449",
+        "bytes": 534,
+        "type": "image/svg+xml"
+      }
+    },
+    "blobBytesUsed": 534
+  }
+}

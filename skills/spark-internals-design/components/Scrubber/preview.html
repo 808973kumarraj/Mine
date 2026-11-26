@@ -1,0 +1,13 @@
+<!-- @dsCard group="Frame" height=90 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Scrubber — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'si-deck', style: { width: '446px', maxWidth: '100%' } },
+    h(S.Scrubber, { max: 77, value: 37, ticks: [0, 8, { at: 14.5, beat: true }, 17, 23.5, { at: 30.5, beat: true }, 33, 42, { at: 49, beat: true }, 51.5, 59, { at: 66, beat: true }, 68.5] })));
+</script>
+</body>
+</html>

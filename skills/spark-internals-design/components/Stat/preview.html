@@ -1,0 +1,15 @@
+<!-- @dsCard group="Data" height=230 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Stat — preview</title><style>html,body{margin:0}</style></head>
+<body>
+<div id="root" class="si-paper si-sheet"></div>
+<script>
+  var S = window.SparkInternals, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(S.Stat, { size: 'xl', value: '1,000,000,000', note: 'ROWS  ·  100 EXECUTORS  ·  0 SHUFFLES' }),
+    h(S.Card, { style: { width: '232px' } }, h(S.Stat, { label: 'COST PER RECORD', value: '4.7 µs', tone: 'red', note: '× 1,000,000,000 records', detail: '≈ 78 min of executor time' })),
+    h('div', { className: 'si-col' }, h(S.Stat, { size: 'delta', label: 'ROWS', value: '1.0B → 0.38B', tone: 'green' }), h(S.Stat, { size: 'delta', label: 'COLUMNS', value: '5 → 2', tone: 'green' }))));
+</script>
+</body>
+</html>
