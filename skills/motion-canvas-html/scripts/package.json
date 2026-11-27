@@ -12,8 +12,6 @@
   "dependencies": {
     "@motion-canvas/2d": "^3.17.2",
     "@motion-canvas/core": "^3.17.2",
-    "@motion-canvas/player": "^3.17.2",
-    "@motion-canvas/vite-plugin": "^3.17.2",
     "esbuild": "^0.28.2"
   }
 }
