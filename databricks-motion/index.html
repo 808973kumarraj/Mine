@@ -1,0 +1,20 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How Databricks Works</title>
+<style>
+:root{--bg:#0b0f17;--fg:#e6edf3;--mut:#8b98a9;--bd:#2a3546}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,sans-serif;padding:16px;box-sizing:border-box}
+main{max-width:1200px;margin:auto}
+h1{font-size:1.4rem;margin:.2em 0}p{color:var(--mut);margin:.2em 0 1em}
+#stage canvas{width:100%;height:auto;border-radius:12px;border:1px solid var(--bd);display:block}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+button{background:#141b26;color:var(--fg);border:1px solid var(--bd);border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid #58a6ff}
+#seek{flex:1;min-width:160px}#time{font-variant-numeric:tabular-nums;color:var(--mut);min-width:4em}
+</style></head><body><main>
+<h1>How Databricks Works</h1><p>Built with Motion Canvas. Use the buttons to jump to a step.</p>
+<div id="stage"></div>
+<div class="ctl"><button id="play" aria-pressed="true">Pause</button><input id="seek" type="range" min="0" value="0" aria-label="Timeline"><span id="time">0.0s</span></div>
+<div class="ctl" aria-label="Chapters">
+<button data-t="0">Intro</button><button data-t="2.8">Sources</button><button data-t="4.9">Storage</button><button data-t="7.7">Medallion</button><button data-t="12.2">Compute</button><button data-t="15">Governance</button><button data-t="17.3">Consumers</button><button data-t="19.4">Flow</button>
+</div></main>
+<script type="module" src="/src/main.ts"></script></body></html>
