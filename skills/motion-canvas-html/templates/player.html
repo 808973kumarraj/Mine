@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+  :root{--bg:#f4f4f2;--fg:#1c1c1c;--muted:#666;--panel:#fff;--line:#ddd;--accent:#2f6fde}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121212;--fg:#eee;--muted:#999;--panel:#1d1d1d;--line:#333;--accent:#6ea0ff}}
+  :root[data-theme="dark"]{--bg:#121212;--fg:#eee;--muted:#999;--panel:#1d1d1d;--line:#333;--accent:#6ea0ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,sans-serif;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  h1{font-size:16px;font-weight:600;margin:0;max-width:1100px;width:100%}
+  .stage{width:100%;max-width:1100px;background:#000;border-radius:8px;overflow:hidden}
+  .stage canvas{display:block;width:100%!important;height:auto!important}
+  .bar{width:100%;max-width:1100px;display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px}
+  button{font:inherit;background:none;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;min-width:44px;min-height:36px}
+  button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  input[type=range]{flex:1;accent-color:var(--accent);min-width:60px}
+  .time{font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+</style>
+</head>
+<body>
+<h1>{{TITLE}}</h1>
+<div class="stage" id="stage"></div>
+<div class="bar">
+  <button id="play" aria-label="Play">▶</button>
+  <button id="restart" aria-label="Restart">⟲</button>
+  <input id="seek" type="range" min="0" value="0" step="1" aria-label="Seek">
+  <span class="time" id="time">loading…</span>
+  <button id="rec" aria-label="Record WebM">● Rec</button>
+</div>
+<script>/*{{BUNDLE}}*/</script>
+<script>
+(() => {
+  const { project, Player, Stage, Vector2, opt } = window.__mc, $ = id => document.getElementById(id);
+  const fps = +opt.fps, settings = { ...project.meta.getFullRenderingSettings(), size: new Vector2(+opt.width, +opt.height), fps, resolutionScale: 1, background: opt.background, range: [0, Infinity] };
+  const stage = new Stage(); stage.configure(settings);
+  const canvas = stage.finalBuffer; $('stage').appendChild(canvas);
+  const player = new Player(project, settings, { paused: true, loop: false });
+  player.onRender.subscribe(async () => { await stage.render(player.playback.currentScene, player.playback.previousScene); });
+  player.configure(settings); player.activate();
+  let frame = 0, total = 0, paused = true, onEnd = null;
+  const seek = $('seek'), playB = $('play');
+  const ui = () => { seek.max = total; seek.value = frame; $('time').textContent = `${(frame / fps).toFixed(2)} / ${(total / fps).toFixed(2)}s`; };
+  player.onDurationChanged.subscribe(d => { total = d; ui(); });
+  player.onFrameChanged.subscribe(f => { frame = f; ui(); if (total && f >= total && !paused) { setPlay(false); onEnd && onEnd(); } });
+  player.onStateChanged.subscribe(s => { paused = s.paused; playB.textContent = paused ? '▶' : '❚❚'; playB.setAttribute('aria-label', paused ? 'Play' : 'Pause'); });
+  const setPlay = p => { if (p && frame >= total) player.requestSeek(0); player.togglePlayback(p); };
+  playB.onclick = () => setPlay(paused);
+  $('restart').onclick = () => { player.requestSeek(0); player.togglePlayback(true); };
+  seek.oninput = () => { player.togglePlayback(false); player.requestSeek(+seek.value); };
+  document.addEventListener('keydown', e => { if (e.code === 'Space' && e.target.tagName !== 'BUTTON') { e.preventDefault(); setPlay(paused); } });
+  $('rec').onclick = () => {
+    if (!window.MediaRecorder || !canvas.captureStream) { alert('Recording is not supported in this browser.'); return; }
+    const rec = new MediaRecorder(canvas.captureStream(fps), { mimeType: 'video/webm' }), chunks = [];
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' })); a.download = document.title + '.webm'; a.click(); $('rec').textContent = '● Rec'; };
+    $('rec').textContent = 'Recording…'; player.requestSeek(0); rec.start(); onEnd = () => { onEnd = null; setTimeout(() => rec.stop(), 200); }; player.togglePlayback(true);
+  };
+  window.mcPlayer = player;
+  if (new URLSearchParams(location.search).has('autoplay')) player.togglePlayback(true);
+})();
+</script>
+</body>
+</html>

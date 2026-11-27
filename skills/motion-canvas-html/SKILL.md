@@ -1,100 +1,73 @@
 ---
 name: motion-canvas-html
-description: Make code-driven animations in the style of Motion Canvas (generator scenes, signals, tweens, yield* flow) and output them as ONE standalone .html file that plays offline, with play/pause, scrubbing and WebM recording. No npm, Vite or build step needed. Use when the user asks for a Motion Canvas animation, a programmatic/explainer animation, an animated diagram, or "animation as a single HTML file".
+description: Write animations with the REAL Motion Canvas library (@motion-canvas/core + @motion-canvas/2d, TSX scenes, makeScene2D, createRef, signals, yield* flow, Layout, Code, Latex) and output them as ONE standalone .html file that plays offline with play/pause, scrubbing and WebM recording. No Vite project or editor needed. Use when the user asks for a Motion Canvas animation, a programmatic/explainer animation, an animated diagram or equation, or "animation as a single HTML file".
 ---
 
-# Motion Canvas → standalone HTML
+# Motion Canvas → one standalone HTML file
 
-Motion Canvas (github.com/motion-canvas/motion-canvas) describes animations as
-TypeScript generator functions run inside a Vite editor. This skill keeps the same
-way of writing scenes but swaps the toolchain for a small runtime that lives inside
-one HTML file (`templates/template.html`). The output opens in any browser with no
-server and no internet.
+This skill runs the real Motion Canvas v3 engine (github.com/motion-canvas/motion-canvas).
+You write normal Motion Canvas scenes in `.tsx`. `scripts/build.mjs` bundles them with
+esbuild, together with `@motion-canvas/core` and `@motion-canvas/2d`, into one HTML
+file with a built-in player. The file needs no server and no internet.
+
+## Setup (once per machine)
+
+```bash
+cd <skill-dir>/scripts && npm install
+```
 
 ## Workflow
 
-1. Copy `templates/template.html` to the output path (e.g. `my-scene.html`).
-2. Replace only the code between `SCENE START` and `SCENE END`. Never edit the runtime.
-3. Plan the scene as beats (each beat = one `yield*`). Aim for 5–30 s.
-4. Check it: open the file in headless Chromium, read `#time` for the length, seek
-   with `#seek` to 3–4 frames, take screenshots, and confirm there are no `pageerror`s.
-5. Give the user the file path. Add `?autoplay` to the URL to start playing on load.
+1. Write one or more scene files (`.tsx`) using the normal Motion Canvas API.
+   Start from `examples/hello.tsx` (basics) or `examples/features.tsx` (Layout, Code, Latex).
+2. Build:
+   ```bash
+   node <skill-dir>/scripts/build.mjs intro.tsx main.tsx --out my-video.html \
+     --title "My Video" --width 1920 --height 1080 --fps 60 --background "#141414"
+   ```
+   Several scene files play in order, the same as `makeProject({scenes:[…]})`.
+   Scene transitions (`slideTransition`, `fadeTransition`…) work at the start of a scene.
+3. Check: open the HTML in headless Chromium, wait ~1 s, read `#time` (shows the length),
+   set `#seek` to a few frames and dispatch `input`, take screenshots, and confirm
+   there are no `pageerror` or console errors. `window.mcPlayer` is the core `Player`.
+4. Give the user the file path. Add `?autoplay` to the URL to start playing on load.
 
-## The scene
+## Scene example
 
-```js
-const { Rect, Circle, Txt, Line, Group, all, any, sequence, chain, delay, waitFor, loop, easing, signal } = MC;
+```tsx
+import { makeScene2D, Circle, Rect, Txt } from '@motion-canvas/2d';
+import { all, createRef, easeOutBack, waitFor } from '@motion-canvas/core';
 
-MC.createPlayer({
-  title: 'My Scene',      // page + download name
-  fps: 60,                // optional
-  maxSeconds: 60,         // cap for infinite loops
-  scene: function* (view) {
-    view.fill('#141414');                       // background
-    const box = new Rect({ width: 200, height: 200, fill: '#e6a700', radius: 16 });
-    view.add(box);
-    yield* box.x(400, 1);                        // tween x to 400 over 1 s
-    yield* all(box.rotation(90, 1), box.fill('#ff6470', 1));
-  },
+export default makeScene2D(function* (view) {
+  const box = createRef<Rect>();
+  view.add(<Rect ref={box} width={0} height={240} radius={24} fill="#e6a700" />);
+  yield* box().width(240, 0.8, easeOutBack);
+  yield* all(box().rotation(180, 1), box().fill('#ff6470', 1));
+  yield* waitFor(0.5);
 });
 ```
 
-Canvas is 1920×1080 and **(0,0) is the centre**, +y goes down (as in Motion Canvas).
+All of the normal Motion Canvas API is available: every node from `@motion-canvas/2d`
+(`Rect, Circle, Line, Spline, Polygon, Txt, Layout, Code, Latex, Img, Video, Icon, Path, Grid, Ray, Bezier…`)
+and from `@motion-canvas/core` (`createRef, createSignal, all, any, chain, delay,
+sequence, loop, waitFor, waitUntil, tween, easings, Vector2, Color, transitions, useRandom…`).
+Follow motioncanvas.io/docs for the API.
 
-## Translating Motion Canvas code
+## Differences from a normal Motion Canvas project
 
-| Motion Canvas | This runtime |
+| Feature | In this skill |
 |---|---|
-| `makeScene2D(function* (view) {…})` | `MC.createPlayer({ scene: function* (view) {…} })` |
-| `const r = createRef<Rect>(); view.add(<Rect ref={r} …/>)` | `const r = new Rect({…}); view.add(r)` |
-| `r().position.x(300, 1)` | `r.x(300, 1)` |
-| `r().position([x,y], 1)` | `r.position([x,y], 1)` |
-| `<Node><Circle/></Node>` | `new Group({ children: [new Circle({…})] })` or `g.add(c)` |
-| `createSignal(0)` / `createSignal(() => a()*2)` | `signal(0)` / `signal(() => a()*2)` |
-| `all, any, chain, delay, sequence, loop, waitFor` | same names, same meaning |
-| `easeOutBack` etc. from `@motion-canvas/core` | `easing.easeOutBack` (see list below) |
-| `r().size` on Circle | `size` (diameter) |
-| `<Txt text="…"/>` typing effect | `t.text('New text', 1, easing.linear)` (erases then types) |
-| `r().end(1, 1)` on Line/Circle | same: `start`/`end` from 0–1 draw the path or arc |
-| `r().remove()` | `r.remove()` |
+| Editor UI (timeline, inspector) | Not included; the HTML has its own simple player |
+| Project settings (`project.meta`, size, fps, background) | Use the `build.mjs` flags |
+| Image/video/audio files (`import img from './a.png'`) | Not set up in the bundler. Use a `data:` URL or a full https URL in `src`. A full URL means the file is no longer fully offline |
+| Audio track / voice-over sync | Not supported |
+| `Code` syntax colours | Plain by default. For colours, `npm i @lezer/javascript` (or another Lezer parser) in `scripts/` and set `Code.defaultHighlighter = new LezerHighlighter(parser)` |
+| `waitUntil('event')` time events | Work, but no editor to drag them, so they use their default time |
+| Rendering to MP4 | Use the player's **● Rec** button (WebM, recorded in real time) |
 
-Not included (rebuild by hand if needed): flexbox `Layout`, `Code` blocks, `Latex`,
-`Img`/`Video`, audio sync, camera, scene transitions, multiple scenes. For several
-scenes, `yield*` them one after another inside the one generator.
+## Size and rules
 
-## API
-
-Every property is a **signal**:
-- `node.prop()` → read
-- `node.prop(v)` → set now
-- `yield* node.prop(v, seconds, ease?)` → tween (default `easeInOutCubic`)
-
-Numbers, `#hex` colours, arrays (`points`, `position`, `[sx,sy]` scale) and strings
-(typewriter) all tween.
-
-Shared props: `x, y, rotation (deg), scale (number or [sx,sy]), opacity, children`.
-
-| Node | Props (defaults) |
-|---|---|
-| `Rect` | `width 100, height 100, fill '#fff', stroke, lineWidth 0, radius 0` |
-| `Circle` | `size 100, fill '#fff', stroke, lineWidth 0, start 0, end 1` (pie/arc) |
-| `Txt` | `text, fontSize 64, fill '#fff', fontFamily, fontWeight 600, align 'center'` (`\n` = new line) |
-| `Line` | `points [[x,y],…], stroke '#fff', lineWidth 8, start 0, end 1, arrow false, closed false, fill` |
-| `Group` | transform-only container |
-
-Flow (all return generators; use with `yield*`):
-- `all(...a)` run together, end when all end · `any(...a)` end when the first ends
-- `chain(...a)` one after another · `delay(s, a)` · `sequence(gap, ...a)` staggered starts
-- `waitFor(s)` · `loop(n, i => gen)`
-
-Easings: `linear, easeInCubic, easeOutCubic, easeInOutCubic, easeInOutSine, easeOutBack, easeOutElastic, easeOutBounce`, or any `t => number`.
-
-Custom node: `class Star extends MC.Node { constructor(p){ super(p, { r: 50, fill: '#fff' }); } draw(ctx){ ctx.beginPath(); /* path */ this.paint(ctx); } }`
-
-## Rules
-
-- Scenes must be **deterministic** (seeking replays from frame 0). For random values use a seeded RNG, never `Math.random()` inside the generator without a seed.
-- Create nodes before you tween them; a tween captures its start value when it starts.
-- Pass a generator (`box.x(1,1)`), not a function, to `all/sequence`; `chain` accepts both.
-- Keep text ≥ 40 px and colour pairs high-contrast; do not rely on colour alone to carry meaning.
-- Keep the file self-contained: no external scripts, images or fonts unless the user asks.
+- A basic scene builds to ~200 KB. Using `Latex` adds MathJax and grows the file to ~2 MB.
+- Keep scenes deterministic: use `useRandom()`, not `Math.random()`, so seeking is stable.
+- Text ≥ 40 px, high-contrast colours; don't use colour alone to carry meaning.
+- Never edit `templates/player.html` per scene; change only the `.tsx` files and the build flags.
